@@ -22,10 +22,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Package, Search, ShoppingCart, Minus, Trash2 } from "lucide-react";
+import { Plus, Package, Search, ShoppingCart, Minus, Trash2, ImagePlus } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Product, InsertProduct, CartItem, InsertSale } from "@shared/schema";
 import { Link } from "wouter";
+
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
 const categories = [
   { value: "supplements", label: "مكملات غذائية" },
@@ -43,6 +45,8 @@ export default function Store() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [customerName, setCustomerName] = useState("");
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [formData, setFormData] = useState<Partial<InsertProduct>>({
     name: "",
     description: "",
@@ -56,6 +60,28 @@ export default function Store() {
     queryKey: ["/api/products"],
   });
 
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > MAX_FILE_SIZE) {
+      toast({
+        title: "خطأ",
+        description: "حجم الصورة يجب أن لا يتجاوز 5 ميجابايت",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = reader.result as string;
+      setImagePreview(base64);
+      setFormData({ ...formData, imageUrl: base64 });
+    };
+    reader.readAsDataURL(file);
+  };
+
   const createProduct = useMutation({
     mutationFn: async (data: InsertProduct) => {
       const response = await apiRequest("POST", "/api/products", data);
@@ -64,6 +90,7 @@ export default function Store() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
       setIsDialogOpen(false);
+      setImagePreview(null);
       setFormData({
         name: "",
         description: "",
@@ -87,13 +114,14 @@ export default function Store() {
   });
 
   const createSale = useMutation({
-    mutationFn: async (items: CartItem[]) => {
+    mutationFn: async ({ items, buyerName }: { items: CartItem[]; buyerName: string }) => {
       const sales: InsertSale[] = items.map((item) => ({
         productId: item.product.id,
         productName: item.product.name,
         quantity: item.quantity,
         unitPrice: item.product.price,
         totalPrice: item.product.price * item.quantity,
+        buyerName: buyerName || undefined,
         date: new Date().toISOString().split("T")[0],
         paymentMethod: "cash",
       }));
@@ -107,6 +135,7 @@ export default function Store() {
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
       queryClient.invalidateQueries({ queryKey: ["/api/sales"] });
       setCart([]);
+      setCustomerName("");
       setIsCartOpen(false);
       toast({
         title: "تم بنجاح",
@@ -321,6 +350,44 @@ export default function Store() {
                   </Select>
                 </div>
 
+                <div className="space-y-2">
+                  <Label>صورة المنتج</Label>
+                  <div className="flex items-center gap-4">
+                    <label className="cursor-pointer flex-1">
+                      <div className="flex items-center justify-center gap-2 border-2 border-dashed rounded-lg p-4 hover:border-primary/50 transition-colors">
+                        <ImagePlus className="h-5 w-5 text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground">اختر صورة</span>
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleImageUpload}
+                        data-testid="input-product-image"
+                      />
+                    </label>
+                    {imagePreview && (
+                      <div className="relative w-16 h-16 rounded-lg overflow-hidden border">
+                        <img
+                          src={imagePreview}
+                          alt="معاينة"
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          className="absolute top-0 right-0 bg-destructive text-destructive-foreground rounded-full p-0.5"
+                          onClick={() => {
+                            setImagePreview(null);
+                            setFormData({ ...formData, imageUrl: "" });
+                          }}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 <Button
                   type="submit"
                   className="w-full"
@@ -400,14 +467,23 @@ export default function Store() {
                       </div>
                     ))}
                   </div>
-                  <div className="border-t pt-4">
-                    <div className="flex items-center justify-between mb-4">
+                  <div className="border-t pt-4 space-y-4">
+                    <div className="space-y-2">
+                      <Label>اسم العميل / المشتري</Label>
+                      <Input
+                        placeholder="أدخل اسم المشتري..."
+                        value={customerName}
+                        onChange={(e) => setCustomerName(e.target.value)}
+                        data-testid="input-customer-name"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
                       <span className="font-bold">الإجمالي:</span>
                       <span className="text-xl font-bold">{cartTotal.toFixed(2)} د.ب</span>
                     </div>
                     <Button
                       className="w-full"
-                      onClick={() => createSale.mutate(cart)}
+                      onClick={() => createSale.mutate({ items: cart, buyerName: customerName })}
                       disabled={createSale.isPending}
                       data-testid="button-checkout"
                     >
@@ -451,8 +527,16 @@ export default function Store() {
         {filteredProducts && filteredProducts.length > 0 ? (
           filteredProducts.map((product) => (
             <Card key={product.id} className="overflow-hidden" data-testid={`card-product-${product.id}`}>
-              <div className="aspect-video bg-gradient-to-br from-blue-100 to-blue-50 dark:from-blue-900/30 dark:to-blue-800/20 flex items-center justify-center">
-                <Package className="h-12 w-12 text-blue-600/50 dark:text-blue-400/50" />
+              <div className="aspect-video bg-gradient-to-br from-blue-100 to-blue-50 dark:from-blue-900/30 dark:to-blue-800/20 flex items-center justify-center overflow-hidden">
+                {product.imageUrl ? (
+                  <img
+                    src={product.imageUrl}
+                    alt={product.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <Package className="h-12 w-12 text-blue-600/50 dark:text-blue-400/50" />
+                )}
               </div>
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-2 mb-2">

@@ -141,6 +141,7 @@ export default function Sales() {
               <thead>
                 <tr className="border-b bg-muted/50">
                   <th className="text-right py-3 px-3 font-medium text-muted-foreground">المنتج</th>
+                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">المشتري</th>
                   <th className="text-right py-3 px-3 font-medium text-muted-foreground">الكمية</th>
                   <th className="text-right py-3 px-3 font-medium text-muted-foreground">سعر الوحدة</th>
                   <th className="text-right py-3 px-3 font-medium text-muted-foreground">الإجمالي</th>
@@ -153,6 +154,7 @@ export default function Sales() {
                   filteredSales.map((sale) => (
                     <tr key={sale.id} className="border-b last:border-0 hover-elevate" data-testid={`row-sale-${sale.id}`}>
                       <td className="py-3 px-3 font-medium">{sale.productName}</td>
+                      <td className="py-3 px-3 text-muted-foreground">{sale.buyerName || "-"}</td>
                       <td className="py-3 px-3">
                         <Badge variant="secondary">{sale.quantity}</Badge>
                       </td>
@@ -172,7 +174,7 @@ export default function Sales() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-muted-foreground">
+                    <td colSpan={7} className="py-12 text-center text-muted-foreground">
                       {searchQuery || selectedDate ? "لا توجد نتائج للبحث" : "لا توجد مبيعات حالياً"}
                     </td>
                   </tr>
