@@ -1,0 +1,1144 @@
+
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>نظام إدارة النادي الرياضي</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root {
+      --bg: #f3f4f6;
+      --bg-soft: #e5e7eb;
+      --card: #ffffff;
+      --primary: #2563eb;
+      --primary-soft: #dbeafe;
+      --text: #0f172a;
+      --muted: #6b7280;
+      --danger: #dc2626;
+      --warn: #f59e0b;
+      --success: #16a34a;
+      --radius-lg: 16px;
+      --radius-md: 12px;
+    }
+
+    * {
+      box-sizing: border-box;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    a {
+      text-decoration: none;
+      color: inherit;
+    }
+
+    /* Layout */
+    .app-shell {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      width: 260px;
+      background: #020617;
+      color: #e5e7eb;
+      display: flex;
+      flex-direction: column;
+      padding: 20px 18px;
+    }
+
+    .sidebar-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+
+    .sidebar-logo {
+      width: 36px;
+      height: 36px;
+      border-radius: 999px;
+      background: radial-gradient(circle at 30% 30%, #22c55e, #2563eb);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 18px;
+    }
+
+    .sidebar-title {
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .sidebar-sub {
+      font-size: 11px;
+      color: #9ca3af;
+    }
+
+    .sidebar-nav {
+      margin-top: 10px;
+      flex: 1;
+    }
+
+    .nav-label {
+      font-size: 11px;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      margin: 16px 0 6px;
+    }
+
+    .sidebar-link {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 10px;
+      border-radius: 10px;
+      font-size: 13px;
+      color: #e5e7eb;
+      cursor: pointer;
+      border: 1px solid transparent;
+      margin-bottom: 2px;
+    }
+
+    .sidebar-link span {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .sidebar-link small {
+      font-size: 11px;
+      color: #9ca3af;
+    }
+
+    .sidebar-link.active {
+      background: rgba(37, 99, 235, 0.16);
+      border-color: rgba(37, 99, 235, 0.6);
+    }
+
+    .sidebar-link:hover {
+      background: rgba(15, 23, 42, 0.9);
+    }
+
+    .sidebar-footer {
+      font-size: 11px;
+      color: #6b7280;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #111827;
+    }
+
+    .main {
+      flex: 1;
+      padding: 18px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      background: #f9fafb;
+    }
+
+    /* Top bar */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 16px;
+      border-radius: 999px;
+      background: var(--card);
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+    }
+
+    .topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .avatar-circle {
+      width: 32px;
+      height: 32px;
+      border-radius: 999px;
+      background: #0f172a;
+      color: #e5e7eb;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .topbar-info-title {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .topbar-info-value {
+      font-size: 12px;
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+    }
+
+    .chip {
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: var(--bg);
+      border: 1px solid #e5e7eb;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+    }
+
+    /* Sections */
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 4px;
+    }
+
+    .page-header h1 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .page-header p {
+      margin: 2px 0 0;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .sections {
+      margin-top: 6px;
+    }
+
+    .section {
+      display: none;
+    }
+
+    .section.active {
+      display: block;
+    }
+
+    /* Cards & layout */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: minmax(0, 2.1fr) minmax(0, 1.2fr);
+      gap: 14px;
+    }
+
+    @media (max-width: 900px) {
+      .app-shell {
+        flex-direction: column-reverse;
+      }
+      .sidebar {
+        position: static;
+        width: 100%;
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .sidebar-header, .sidebar-footer, .nav-label small {
+        display: none;
+      }
+      .sidebar-nav {
+        display: flex;
+        gap: 4px;
+        margin: 0;
+      }
+      .sidebar-link {
+        flex: 1;
+        justify-content: center;
+      }
+      .main {
+        padding: 12px;
+      }
+      .grid-2 {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: var(--radius-lg);
+      padding: 14px 16px;
+      box-shadow: 0 1px 4px rgba(15, 23, 42, 0.06);
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .card-header h2 {
+      margin: 0;
+      font-size: 14px;
+    }
+
+    .card-header small {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    /* Stats */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    @media (max-width: 900px) {
+      .stats-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    .stat-card {
+      border-radius: var(--radius-md);
+      padding: 10px 12px;
+      background: var(--bg-soft);
+      font-size: 12px;
+    }
+
+    .stat-label {
+      color: var(--muted);
+      margin-bottom: 3px;
+    }
+
+    .stat-value {
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .stat-tag {
+      font-size: 11px;
+      margin-top: 3px;
+    }
+
+    .stat-tag.positive {
+      color: var(--success);
+    }
+    .stat-tag.negative {
+      color: var(--danger);
+    }
+
+    /* Inputs & buttons */
+    .field-inline {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+
+    .field-inline label {
+      color: var(--muted);
+    }
+
+    .field-inline input,
+    .field-inline select,
+    .field-inline textarea {
+      border-radius: 9px;
+      border: 1px solid #e5e7eb;
+      padding: 7px 9px;
+      font-size: 12px;
+      outline: none;
+    }
+
+    .field-inline input:focus,
+    .field-inline select:focus,
+    .field-inline textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 1px var(--primary-soft);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      padding: 7px 14px;
+      border: none;
+      cursor: pointer;
+      font-size: 12px;
+      gap: 6px;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid #e5e7eb;
+      color: var(--text);
+    }
+
+    .btn-sm {
+      padding: 5px 10px;
+      font-size: 11px;
+    }
+
+    .search-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .search-row input {
+      flex: 1;
+      border-radius: 999px;
+      border: 1px solid #e5e7eb;
+      padding: 8px 11px;
+      font-size: 12px;
+    }
+
+    /* Table */
+    .table-wrapper {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    th, td {
+      padding: 7px 6px;
+      text-align: right;
+      border-bottom: 1px solid #f3f4f6;
+      white-space: nowrap;
+    }
+
+    th {
+      font-weight: 500;
+      color: var(--muted);
+      font-size: 11px;
+      background: #f9fafb;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+    }
+
+    .badge-soon {
+      background: #fef9c3;
+      color: #854d0e;
+    }
+
+    .badge-expired {
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+
+    .badge-active {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .pill {
+      background: var(--bg-soft);
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 11px;
+      display: inline-block;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+<div class="app-shell">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">C</div>
+      <div>
+        <div class="sidebar-title">نظام النادي</div>
+        <div class="sidebar-sub">إدارة عضويات · مالية · حضور</div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-label">الرئيسية</div>
+      <div class="sidebar-link active" data-section="dashboard">
+        <span>لوحة التحكم</span>
+        <small>Dashboard</small>
+      </div>
+
+      <div class="nav-label">الأعضاء</div>
+      <div class="sidebar-link" data-section="members">
+        <span>إدارة الأعضاء</span>
+        <small>Members</small>
+      </div>
+      <div class="sidebar-link" data-section="attendance">
+        <span>الحضور والانصراف</span>
+        <small>Attendance</small>
+      </div>
+
+      <div class="nav-label">المالية</div>
+      <div class="sidebar-link" data-section="subscriptions">
+        <span>الاشتراكات</span>
+        <small>Subscriptions</small>
+      </div>
+      <div class="sidebar-link" data-section="products">
+        <span>المنتجات والمخزون</span>
+        <small>Products</small>
+      </div>
+      <div class="sidebar-link" data-section="finance">
+        <span>التقارير المالية</span>
+        <small>Finance</small>
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      مستخدم: مدير النظام<br>
+      العملة: دينار بحريني (د.ب)
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <!-- Topbar -->
+    <div class="topbar">
+      <div class="topbar-left">
+        <div class="avatar-circle">A</div>
+        <div>
+          <div class="topbar-info-title">تاريخ اليوم</div>
+          <div class="topbar-info-value" id="today-label"></div>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="chip">
+          <span>اللغة:</span> <strong>العربية</strong>
+        </div>
+        <div class="chip">
+          <span>الوضع:</span> <span class="muted">نسخة تجريبية Frontend فقط</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-header">
+      <div>
+        <h1 id="page-title">لوحة التحكم</h1>
+        <p id="page-subtitle">ملخص عام لبيانات النادي اليوم</p>
+      </div>
+      <button class="btn btn-ghost btn-sm" type="button">تصدير تقرير شهري (PDF)</button>
+    </div>
+
+    <div class="sections">
+      <!-- Dashboard -->
+      <section id="section-dashboard" class="section active">
+        <div class="grid-2">
+          <div>
+            <div class="card">
+              <div class="card-header">
+                <h2>إحصائيات سريعة</h2>
+                <small>Quick stats</small>
+              </div>
+              <div class="stats-row">
+                <div class="stat-card">
+                  <div class="stat-label">عدد الأعضاء</div>
+                  <div class="stat-value">120</div>
+                  <div class="stat-tag positive">+5 هذا الشهر</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-label">اشتراكات نشطة</div>
+                  <div class="stat-value">96</div>
+                  <div class="stat-tag positive">80٪ من الأعضاء</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-label">دخل الاشتراكات (هذا الشهر)</div>
+                  <div class="stat-value">2,500 د.ب</div>
+                  <div class="stat-tag positive">+12٪ عن الشهر السابق</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-label">صافي الربح (تقديري)</div>
+                  <div class="stat-value">900 د.ب</div>
+                  <div class="stat-tag negative">+3٪ فقط</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card" style="margin-top: 10px;">
+              <div class="card-header">
+                <h2>الأعضاء الذين تنتهي اشتراكاتهم قريباً</h2>
+                <small>Expiring subscriptions</small>
+              </div>
+              <div class="search-row">
+                <input type="text" placeholder="بحث بالاسم أو رقم العضوية..." id="expiringSearch">
+                <button class="btn btn-ghost btn-sm" type="button">بحث</button>
+              </div>
+              <div class="table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>العضو</th>
+                      <th>رقم العضوية</th>
+                      <th>تاريخ الانتهاء</th>
+                      <th>الحالة</th>
+                      <th>التواصل</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>أحمد علي</td>
+                      <td>#1023</td>
+                      <td>20 / 11 / 2025</td>
+                      <td><span class="badge badge-soon">ينتهي خلال 7 أيام</span></td>
+                      <td>33000000</td>
+                    </tr>
+                    <tr>
+                      <td>محمد سالم</td>
+                      <td>#1044</td>
+                      <td>18 / 11 / 2025</td>
+                      <td><span class="badge badge-soon">ينتهي خلال 5 أيام</span></td>
+                      <td>33111111</td>
+                    </tr>
+                    <tr>
+                      <td>سعيد حسن</td>
+                      <td>#0999</td>
+                      <td>13 / 11 / 2025</td>
+                      <td><span class="badge badge-expired">منتهي اليوم</span></td>
+                      <td>33222222</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div class="card">
+              <div class="card-header">
+                <h2>اشتراكات الشهر</h2>
+                <small>Monthly subscriptions</small>
+              </div>
+              <table>
+                <tbody>
+                  <tr>
+                    <td>
+                      <div>عدد الاشتراكات الجديدة</div>
+                      <div class="muted" style="font-size:11px;">New memberships</div>
+                    </td>
+                    <td><span class="pill">18 لاعب</span></td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <div>إجمالي مبالغ الاشتراك</div>
+                      <div class="muted" style="font-size:11px;">Total subscription fees</div>
+                    </td>
+                    <td><span class="pill">2,500 د.ب</span></td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <div>متوسط اشتراك اللاعب</div>
+                      <div class="muted" style="font-size:11px;">Average per member</div>
+                    </td>
+                    <td><span class="pill">140 د.ب</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="card" style="margin-top: 10px;">
+              <div class="card-header">
+                <h2>ملخص التكاليف</h2>
+                <small>Monthly costs</small>
+              </div>
+              <table>
+                <tbody>
+                  <tr>
+                    <td>إيجار</td>
+                    <td><span class="pill">800 د.ب</span></td>
+                  </tr>
+                  <tr>
+                    <td>رواتب المدربين</td>
+                    <td><span class="pill">600 د.ب</span></td>
+                  </tr>
+                  <tr>
+                    <td>مصروفات إضافية</td>
+                    <td><span class="pill">200 د.ب</span></td>
+                  </tr>
+                  <tr>
+                    <td>صافي الربح التقديري</td>
+                    <td><span class="pill">900 د.ب</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Members -->
+      <section id="section-members" class="section">
+        <div class="card">
+          <div class="card-header">
+            <h2>إدارة الأعضاء</h2>
+            <button class="btn btn-primary btn-sm" type="button">+ إضافة عضو جديد</button>
+          </div>
+          <div class="search-row">
+            <input id="searchMember" placeholder="بحث بالاسم / رقم العضوية / الجوال">
+            <button class="btn btn-ghost btn-sm" type="button">بحث</button>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>العضو</th>
+                  <th>رقم العضوية</th>
+                  <th>بداية الاشتراك</th>
+                  <th>نهاية الاشتراك</th>
+                  <th>الحالة</th>
+                  <th>الرصيد</th>
+                </tr>
+              </thead>
+              <tbody id="membersTable">
+                <!-- تمت تعبئتها من الجافاسكربت -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:10px;">
+          <div class="card-header">
+            <h2>تسجيل عضو جديد (نموذج تجريبي)</h2>
+            <small>Create new member</small>
+          </div>
+          <div class="grid-2" style="grid-template-columns: minmax(0,1.4fr) minmax(0,1fr);">
+            <div>
+              <div class="field-inline">
+                <label>اسم العضو</label>
+                <input id="newName" placeholder="مثال: أحمد علي">
+              </div>
+              <div class="field-inline">
+                <label>رقم العضوية</label>
+                <input id="newId" placeholder="#1050">
+              </div>
+              <div class="field-inline">
+                <label>رقم الجوال</label>
+                <input id="newPhone" placeholder="33xxxxxx">
+              </div>
+            </div>
+            <div>
+              <div class="field-inline">
+                <label>العمر</label>
+                <input id="newAge" type="number" placeholder="18">
+              </div>
+              <div class="field-inline">
+                <label>ملاحظات صحية</label>
+                <textarea id="newHealth" rows="3" placeholder="مثال: ربو، حساسية... أو اتركه فارغاً"></textarea>
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-primary btn-sm" type="button" onclick="addMember()">إضافة للقائمة (تجريبي)</button>
+          <div class="muted" style="margin-top:6px;font-size:11px;">* هذه الإضافة مخزنة في الذاكرة فقط لعرض الشكل، بدون قاعدة بيانات فعلية.</div>
+        </div>
+      </section>
+
+      <!-- Attendance -->
+      <section id="section-attendance" class="section">
+        <div class="card">
+          <div class="card-header">
+            <h2>تسجيل الحضور والانصراف</h2>
+            <small>Attendance</small>
+          </div>
+          <div class="grid-2" style="grid-template-columns: minmax(0,1.2fr) minmax(0,1fr);">
+            <div>
+              <div class="field-inline">
+                <label>التاريخ</label>
+                <input type="date" id="attDate">
+              </div>
+              <div class="field-inline">
+                <label>رقم العضوية</label>
+                <input id="attMember" placeholder="#1023">
+              </div>
+            </div>
+            <div style="display:flex;align-items:flex-end;gap:8px;">
+              <button class="btn btn-primary btn-sm" type="button" onclick="addAttendance('دخول')">تسجيل دخول</button>
+              <button class="btn btn-ghost btn-sm" type="button" onclick="addAttendance('خروج')">تسجيل خروج</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:10px;">
+          <div class="card-header">
+            <h2>سجل الحضور لليوم</h2>
+            <small>Today log</small>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>الوقت</th>
+                  <th>التاريخ</th>
+                  <th>رقم العضوية</th>
+                  <th>النوع</th>
+                </tr>
+              </thead>
+              <tbody id="attTable">
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Subscriptions -->
+      <section id="section-subscriptions" class="section">
+        <div class="card">
+          <div class="card-header">
+            <h2>الاشتراكات الشهرية</h2>
+            <small>Monthly subscriptions</small>
+          </div>
+          <div class="grid-2" style="grid-template-columns: minmax(0,1.2fr) minmax(0,1fr);">
+            <div>
+              <div class="field-inline">
+                <label>الشهر</label>
+                <select>
+                  <option>نوفمبر 2025</option>
+                  <option>أكتوبر 2025</option>
+                </select>
+              </div>
+              <div class="field-inline">
+                <label>عدد الأعضاء في الشهر</label>
+                <input value="96">
+              </div>
+              <div class="field-inline">
+                <label>إجمالي مبالغ الاشتراك (د.ب)</label>
+                <input value="2,500">
+              </div>
+            </div>
+            <div>
+              <div class="field-inline">
+                <label>اشتراكات جديدة</label>
+                <input value="18">
+              </div>
+              <div class="field-inline">
+                <label>اشتراكات ملغاة</label>
+                <input value="3">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:10px;">
+          <div class="card-header">
+            <h2>ملخص الاشتراكات حسب الشهر</h2>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>الشهر</th>
+                  <th>عدد الأعضاء</th>
+                  <th>الجدد</th>
+                  <th>الإلغاء</th>
+                  <th>دخل الاشتراكات (د.ب)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>نوفمبر 2025</td>
+                  <td>96</td>
+                  <td>18</td>
+                  <td>3</td>
+                  <td>2,500</td>
+                </tr>
+                <tr>
+                  <td>أكتوبر 2025</td>
+                  <td>90</td>
+                  <td>12</td>
+                  <td>5</td>
+                  <td>2,200</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Products -->
+      <section id="section-products" class="section">
+        <div class="card">
+          <div class="card-header">
+            <h2>المنتجات والمخزون</h2>
+            <button class="btn btn-primary btn-sm" type="button">+ إضافة منتج</button>
+          </div>
+          <div class="search-row">
+            <input placeholder="بحث عن منتج بالاسم">
+            <button class="btn btn-ghost btn-sm" type="button">بحث</button>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>المنتج</th>
+                  <th>المقاس</th>
+                  <th>سعر التكلفة (د.ب)</th>
+                  <th>سعر البيع (د.ب)</th>
+                  <th>المخزون</th>
+                  <th>الأرباح التقديرية (د.ب)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>واقي أسنان</td>
+                  <td>كبار</td>
+                  <td>2.0</td>
+                  <td>4.0</td>
+                  <td>30 قطعة</td>
+                  <td>60</td>
+                </tr>
+                <tr>
+                  <td>قفازات تدريب</td>
+                  <td>L</td>
+                  <td>5.0</td>
+                  <td>9.0</td>
+                  <td>15 زوج</td>
+                  <td>60</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Finance -->
+      <section id="section-finance" class="section">
+        <div class="card">
+          <div class="card-header">
+            <h2>ملخص مالي</h2>
+            <small>Finance overview</small>
+          </div>
+          <div class="grid-2">
+            <div>
+              <div class="field-inline">
+                <label>رأس المال الحالي (د.ب)</label>
+                <input id="capInput" value="5,000">
+              </div>
+              <div class="field-inline">
+                <label>إجمالي الدخل هذا الشهر (د.ب)</label>
+                <input id="incomeInput" value="3,100">
+              </div>
+              <div class="field-inline">
+                <label>إجمالي المصروفات هذا الشهر (د.ب)</label>
+                <input id="costInput" value="2,200">
+              </div>
+            </div>
+            <div>
+              <div class="field-inline">
+                <label>صافي الربح (د.ب)</label>
+                <input id="netInput" value="900">
+              </div>
+              <div class="field-inline">
+                <label>ملاحظة داخلية</label>
+                <textarea rows="3" placeholder="مثال: هذا الشهر كان جيداً من ناحية الاشتراكات..."></textarea>
+              </div>
+              <button class="btn btn-primary btn-sm" type="button" onclick="recalcNet()">إعادة حساب صافي الربح</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:10px;">
+          <div class="card-header">
+            <h2>تفاصيل شهرية سريعة</h2>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>الشهر</th>
+                  <th>دخل الاشتراكات</th>
+                  <th>دخل المنتجات</th>
+                  <th>إجمالي الدخل</th>
+                  <th>إجمالي المصروفات</th>
+                  <th>صافي الربح / الخسارة</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>نوفمبر 2025</td>
+                  <td>2,500</td>
+                  <td>600</td>
+                  <td>3,100</td>
+                  <td>2,200</td>
+                  <td>900 د.ب</td>
+                </tr>
+                <tr>
+                  <td>أكتوبر 2025</td>
+                  <td>2,200</td>
+                  <td>400</td>
+                  <td>2,600</td>
+                  <td>2,000</td>
+                  <td>600 د.ب</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<script>
+  // تاريخ اليوم
+  const today = new Date();
+  const opts = { year: 'numeric', month: '2-digit', day: '2-digit' };
+  document.getElementById('today-label').textContent = today.toLocaleDateString('ar-EG', opts);
+
+  // تنقل بين الأقسام
+  const sidebarLinks = document.querySelectorAll('.sidebar-link');
+  const sections = {
+    dashboard: document.getElementById('section-dashboard'),
+    members: document.getElementById('section-members'),
+    attendance: document.getElementById('section-attendance'),
+    subscriptions: document.getElementById('section-subscriptions'),
+    products: document.getElementById('section-products'),
+    finance: document.getElementById('section-finance')
+  };
+  const titles = {
+    dashboard: ['لوحة التحكم', 'ملخص عام لبيانات النادي اليوم'],
+    members: ['إدارة الأعضاء', 'عرض جميع الأعضاء وتسجيل أعضاء جدد'],
+    attendance: ['الحضور والانصراف', 'تسجيل ومراجعة حضور الأعضاء'],
+    subscriptions: ['الاشتراكات', 'مراجعة الاشتراكات الشهرية وعدد الأعضاء'],
+    products: ['المنتجات والمخزون', 'إدارة المنتجات وكمية المخزون والأرباح'],
+    finance: ['التقارير المالية', 'عرض الدخل والمصروفات وصافي الربح']
+  };
+
+  sidebarLinks.forEach(link => {
+    link.addEventListener('click', () => {
+      const key = link.getAttribute('data-section');
+      // تفعيل الرابط
+      sidebarLinks.forEach(l => l.classList.remove('active'));
+      link.classList.add('active');
+      // إظهار القسم
+      Object.keys(sections).forEach(k => {
+        sections[k].classList.toggle('active', k === key);
+      });
+      const [t, s] = titles[key];
+      document.getElementById('page-title').textContent = t;
+      document.getElementById('page-subtitle').textContent = s;
+    });
+  });
+
+  // بيانات أولية للأعضاء
+  let members = [
+    {name:'أحمد علي', id:'#1023', start:'01 / 11 / 2025', end:'01 / 12 / 2025', status:'ساري', balance:'0 د.ب'},
+    {name:'محمد سالم', id:'#1044', start:'05 / 10 / 2025', end:'05 / 11 / 2025', status:'منتهي', balance:'20 د.ب مستحق'},
+    {name:'سعيد حسن', id:'#0999', start:'15 / 10 / 2025', end:'15 / 11 / 2025', status:'ينتهي قريباً', balance:'0 د.ب'}
+  ];
+
+  function renderMembers() {
+    const tbody = document.getElementById('membersTable');
+    const search = document.getElementById('searchMember').value.trim();
+    tbody.innerHTML = '';
+    members
+      .filter(m => !search || m.name.includes(search) || m.id.includes(search))
+      .forEach(m => {
+        const tr = document.createElement('tr');
+        const badgeClass =
+          m.status === 'ساري' ? 'badge badge-active' :
+          m.status === 'منتهي' ? 'badge badge-expired' :
+          'badge badge-soon';
+        tr.innerHTML = `
+          <td>${m.name}</td>
+          <td>${m.id}</td>
+          <td>${m.start}</td>
+          <td>${m.end}</td>
+          <td><span class="${badgeClass}">${m.status}</span></td>
+          <td>${m.balance}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+  }
+
+  document.getElementById('searchMember').addEventListener('input', renderMembers);
+
+  function addMember() {
+    const name = document.getElementById('newName').value.trim();
+    const id = document.getElementById('newId').value.trim();
+    const phone = document.getElementById('newPhone').value.trim();
+    const age = document.getElementById('newAge').value.trim();
+    const health = document.getElementById('newHealth').value.trim();
+
+    if (!name || !id || !phone) {
+      alert('الرجاء إدخال الاسم، رقم العضوية، ورقم الجوال على الأقل.');
+      return;
+    }
+
+    members.push({
+      name,
+      id,
+      start: '--',
+      end: '--',
+      status: 'ساري',
+      balance: '0 د.ب'
+    });
+
+    document.getElementById('newName').value = '';
+    document.getElementById('newId').value = '';
+    document.getElementById('newPhone').value = '';
+    document.getElementById('newAge').value = '';
+    document.getElementById('newHealth').value = '';
+
+    renderMembers();
+    alert('تمت إضافة العضو للقائمة (عرض تجريبي فقط بدون حفظ في قاعدة بيانات).');
+  }
+
+  // Attendance
+  function addAttendance(type) {
+    const id = document.getElementById('attMember').value.trim();
+    const date = document.getElementById('attDate').value || today.toLocaleDateString('ar-EG', opts);
+    if (!id) {
+      alert('الرجاء إدخال رقم العضوية.');
+      return;
+    }
+    const time = new Date().toLocaleTimeString('ar-EG', {hour:'2-digit', minute:'2-digit'});
+    const tbody = document.getElementById('attTable');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${time}</td><td>${date}</td><td>${id}</td><td>${type}</td>`;
+    tbody.appendChild(tr);
+    document.getElementById('attMember').value = '';
+  }
+
+  // Finance
+  function parseNumber(value) {
+    return parseFloat(String(value).replace(/,/g, '')) || 0;
+  }
+
+  function recalcNet() {
+    const income = parseNumber(document.getElementById('incomeInput').value);
+    const cost = parseNumber(document.getElementById('costInput').value);
+    const net = income - cost;
+    document.getElementById('netInput').value = net.toString();
+  }
+
+  // Initial render
+  renderMembers();
+</script>
+</body>
+</html>
