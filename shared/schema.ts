@@ -28,6 +28,7 @@ export const members = pgTable("members", {
   subscriptionEnd: text("subscription_end"),
   status: text("status").notNull().default("active"),
   balance: real("balance").default(0),
+  imageUrl: text("image_url"),
 });
 
 export const insertMemberSchema = createInsertSchema(members).omit({ id: true });
@@ -89,6 +90,9 @@ export const sales = pgTable("sales", {
   buyerPhone: text("buyer_phone"),
   date: text("date").notNull(),
   paymentMethod: text("payment_method").default("cash"),
+  status: text("status").notNull().default("completed"),
+  cancelledReason: text("cancelled_reason"),
+  cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
 });
 
 export const insertSaleSchema = createInsertSchema(sales).omit({ id: true });
@@ -106,6 +110,23 @@ export const expenses = pgTable("expenses", {
 export const insertExpenseSchema = createInsertSchema(expenses).omit({ id: true });
 export type InsertExpense = z.infer<typeof insertExpenseSchema>;
 export type Expense = typeof expenses.$inferSelect;
+
+export const activityLogs = pgTable("activity_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  action: text("action").notNull(),
+  entityType: text("entity_type").notNull(),
+  entityId: varchar("entity_id"),
+  description: text("description"),
+  metadata: text("metadata"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertActivityLogSchema = createInsertSchema(activityLogs).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertActivityLog = z.infer<typeof insertActivityLogSchema>;
+export type ActivityLog = typeof activityLogs.$inferSelect;
 
 export interface CartItem {
   product: Product;

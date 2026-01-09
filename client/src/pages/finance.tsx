@@ -108,7 +108,8 @@ export default function Finance() {
   };
 
   const totalSubscriptionIncome = subscriptions?.reduce((sum, sub) => sum + sub.amount, 0) ?? 0;
-  const totalSalesIncome = sales?.reduce((sum, sale) => sum + sale.totalPrice, 0) ?? 0;
+  const activeSales = sales?.filter((sale) => sale.status !== "cancelled") ?? [];
+  const totalSalesIncome = activeSales.reduce((sum, sale) => sum + sale.totalPrice, 0);
   const totalIncome = totalSubscriptionIncome + totalSalesIncome;
   const totalExpenses = expenses?.reduce((sum, exp) => sum + exp.amount, 0) ?? 0;
   const netProfit = totalIncome - totalExpenses;

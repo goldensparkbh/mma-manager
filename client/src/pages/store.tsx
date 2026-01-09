@@ -28,6 +28,14 @@ import type { Product, InsertProduct, CartItem, InsertSale } from "@shared/schem
 import { Link } from "wouter";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const defaultProductForm: Partial<InsertProduct> = {
+  name: "",
+  description: "",
+  price: 0,
+  stock: 0,
+  category: "general",
+  imageUrl: "",
+};
 
 const categories = [
   { value: "supplements", label: "مكملات غذائية" },
@@ -43,22 +51,55 @@ export default function Store() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [customerName, setCustomerName] = useState("");
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [formData, setFormData] = useState<Partial<InsertProduct>>({
-    name: "",
-    description: "",
-    price: 0,
-    stock: 0,
-    category: "general",
-    imageUrl: "",
+    ...defaultProductForm,
   });
 
   const { data: products, isLoading } = useQuery<Product[]>({
     queryKey: ["/api/products"],
   });
+
+  const isEditing = Boolean(editingProduct);
+  const getLatestProduct = (productId: string) =>
+    products?.find((product) => product.id === productId);
+
+  const resetProductForm = () => {
+    setFormData({ ...defaultProductForm });
+    setImagePreview(null);
+  };
+
+  const openCreateDialog = () => {
+    setEditingProduct(null);
+    resetProductForm();
+    setIsDialogOpen(true);
+  };
+
+  const openEditDialog = (product: Product) => {
+    setEditingProduct(product);
+    setFormData({
+      name: product.name,
+      description: product.description ?? "",
+      price: product.price,
+      stock: product.stock,
+      category: product.category ?? "general",
+      imageUrl: product.imageUrl ?? "",
+    });
+    setImagePreview(product.imageUrl || null);
+    setIsDialogOpen(true);
+  };
+
+  const handleProductDialogChange = (open: boolean) => {
+    setIsDialogOpen(open);
+    if (!open) {
+      setEditingProduct(null);
+      resetProductForm();
+    }
+  };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -77,7 +118,7 @@ export default function Store() {
     reader.onloadend = () => {
       const base64 = reader.result as string;
       setImagePreview(base64);
-      setFormData({ ...formData, imageUrl: base64 });
+      setFormData((prev) => ({ ...prev, imageUrl: base64 }));
     };
     reader.readAsDataURL(file);
   };
@@ -90,15 +131,8 @@ export default function Store() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
       setIsDialogOpen(false);
-      setImagePreview(null);
-      setFormData({
-        name: "",
-        description: "",
-        price: 0,
-        stock: 0,
-        category: "general",
-        imageUrl: "",
-      });
+      setEditingProduct(null);
+      resetProductForm();
       toast({
         title: "تم بنجاح",
         description: "تم إضافة المنتج بنجاح",
@@ -108,6 +142,30 @@ export default function Store() {
       toast({
         title: "خطأ",
         description: "حدث خطأ أثناء إضافة المنتج",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateProduct = useMutation({
+    mutationFn: async ({ id, updates }: { id: string; updates: Partial<InsertProduct> }) => {
+      const response = await apiRequest("PATCH", `/api/products/${id}`, updates);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      setIsDialogOpen(false);
+      setEditingProduct(null);
+      resetProductForm();
+      toast({
+        title: "Product updated",
+        description: "Product details and inventory were updated.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update the product.",
         variant: "destructive",
       });
     },
@@ -161,11 +219,20 @@ export default function Store() {
       });
       return;
     }
+    if (isEditing && editingProduct) {
+      updateProduct.mutate({
+        id: editingProduct.id,
+        updates: formData,
+      });
+      return;
+    }
     createProduct.mutate(formData as InsertProduct);
   };
 
   const addToCart = (product: Product) => {
-    if (product.stock <= 0) {
+    const latestProduct = getLatestProduct(product.id);
+    const availableStock = latestProduct?.stock ?? product.stock;
+    if (availableStock <= 0) {
       toast({
         title: "غير متوفر",
         description: "المنتج غير متوفر حالياً",
@@ -177,7 +244,7 @@ export default function Store() {
     setCart((prevCart) => {
       const existingItem = prevCart.find((item) => item.product.id === product.id);
       if (existingItem) {
-        if (existingItem.quantity >= product.stock) {
+        if (existingItem.quantity >= availableStock) {
           toast({
             title: "تنبيه",
             description: "لا يمكن إضافة المزيد - الكمية المتوفرة محدودة",
@@ -185,17 +252,27 @@ export default function Store() {
           });
           return prevCart;
         }
-        return prevCart.map((item) =>
+        const updatedCart = prevCart.map((item) =>
           item.product.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
+            ? {
+                ...item,
+                quantity: item.quantity + 1,
+                product: latestProduct ?? product,
+              }
             : item
         );
+        toast({
+          title: "تمت الإضافة",
+          description: `تمت إضافة ${product.name} إلى السلة`,
+        });
+        return updatedCart;
       }
-      return [...prevCart, { product, quantity: 1 }];
-    });
-    toast({
-      title: "تمت الإضافة",
-      description: `تمت إضافة ${product.name} إلى السلة`,
+      const updatedCart = [...prevCart, { product: latestProduct ?? product, quantity: 1 }];
+      toast({
+        title: "تمت الإضافة",
+        description: `تمت إضافة ${product.name} إلى السلة`,
+      });
+      return updatedCart;
     });
   };
 
@@ -204,11 +281,13 @@ export default function Store() {
       const item = prevCart.find((i) => i.product.id === productId);
       if (!item) return prevCart;
 
+      const latestProduct = getLatestProduct(productId);
+      const availableStock = latestProduct?.stock ?? item.product.stock;
       const newQuantity = item.quantity + delta;
       if (newQuantity <= 0) {
         return prevCart.filter((i) => i.product.id !== productId);
       }
-      if (newQuantity > item.product.stock) {
+      if (newQuantity > availableStock) {
         toast({
           title: "تنبيه",
           description: "لا يمكن إضافة المزيد - الكمية المتوفرة محدودة",
@@ -217,7 +296,9 @@ export default function Store() {
         return prevCart;
       }
       return prevCart.map((i) =>
-        i.product.id === productId ? { ...i, quantity: newQuantity } : i
+        i.product.id === productId
+          ? { ...i, quantity: newQuantity, product: latestProduct ?? i.product }
+          : i
       );
     });
   };
@@ -267,9 +348,9 @@ export default function Store() {
           <p className="text-sm text-muted-foreground">إدارة منتجات النادي وعمليات البيع</p>
         </div>
         <div className="flex items-center gap-2">
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <Dialog open={isDialogOpen} onOpenChange={handleProductDialogChange}>
             <DialogTrigger asChild>
-              <Button data-testid="button-add-product">
+              <Button data-testid="button-add-product" onClick={openCreateDialog}>
                 <Plus className="h-4 w-4 ml-2" />
                 إضافة منتج
               </Button>
@@ -278,7 +359,7 @@ export default function Store() {
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Package className="h-5 w-5" />
-                  إضافة منتج جديد
+                  {isEditing ? "Edit product" : "إضافة منتج جديد"}
                 </DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -378,7 +459,7 @@ export default function Store() {
                           className="absolute top-0 right-0 bg-destructive text-destructive-foreground rounded-full p-0.5"
                           onClick={() => {
                             setImagePreview(null);
-                            setFormData({ ...formData, imageUrl: "" });
+                            setFormData((prev) => ({ ...prev, imageUrl: "" }));
                           }}
                         >
                           <Trash2 className="h-3 w-3" />
@@ -391,10 +472,16 @@ export default function Store() {
                 <Button
                   type="submit"
                   className="w-full"
-                  disabled={createProduct.isPending}
+                  disabled={createProduct.isPending || updateProduct.isPending}
                   data-testid="button-submit-product"
                 >
-                  {createProduct.isPending ? "جاري الإضافة..." : "إضافة المنتج"}
+                  {createProduct.isPending || updateProduct.isPending
+                    ? isEditing
+                      ? "Updating..."
+                      : "جاري الإضافة..."
+                    : isEditing
+                    ? "Update product"
+                    : "إضافة المنتج"}
                 </Button>
               </form>
             </DialogContent>
@@ -426,46 +513,53 @@ export default function Store() {
               ) : (
                 <div className="space-y-4">
                   <div className="space-y-3 max-h-64 overflow-y-auto">
-                    {cart.map((item) => (
-                      <div
-                        key={item.product.id}
-                        className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
-                      >
-                        <div className="flex-1">
-                          <p className="font-medium">{item.product.name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {item.product.price} د.ب × {item.quantity}
-                          </p>
+                    {cart.map((item) => {
+                      const latestProduct = getLatestProduct(item.product.id);
+                      const availableStock = latestProduct?.stock ?? item.product.stock;
+                      const atStockLimit = item.quantity >= availableStock;
+
+                      return (
+                        <div
+                          key={item.product.id}
+                          className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
+                        >
+                          <div className="flex-1">
+                            <p className="font-medium">{item.product.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {item.product.price} د.ب × {item.quantity}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-8 w-8"
+                              onClick={() => updateCartQuantity(item.product.id, -1)}
+                            >
+                              <Minus className="h-3 w-3" />
+                            </Button>
+                            <span className="w-8 text-center font-medium">{item.quantity}</span>
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-8 w-8"
+                              onClick={() => updateCartQuantity(item.product.id, 1)}
+                              disabled={atStockLimit}
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8 text-destructive"
+                              onClick={() => removeFromCart(item.product.id)}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            size="icon"
-                            variant="outline"
-                            className="h-8 w-8"
-                            onClick={() => updateCartQuantity(item.product.id, -1)}
-                          >
-                            <Minus className="h-3 w-3" />
-                          </Button>
-                          <span className="w-8 text-center font-medium">{item.quantity}</span>
-                          <Button
-                            size="icon"
-                            variant="outline"
-                            className="h-8 w-8"
-                            onClick={() => updateCartQuantity(item.product.id, 1)}
-                          >
-                            <Plus className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 text-destructive"
-                            onClick={() => removeFromCart(item.product.id)}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                   <div className="border-t pt-4 space-y-4">
                     <div className="space-y-2">
@@ -525,50 +619,73 @@ export default function Store() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredProducts && filteredProducts.length > 0 ? (
-          filteredProducts.map((product) => (
-            <Card key={product.id} className="overflow-hidden" data-testid={`card-product-${product.id}`}>
-              <div className="aspect-video bg-gradient-to-br from-blue-100 to-blue-50 dark:from-blue-900/30 dark:to-blue-800/20 flex items-center justify-center overflow-hidden">
-                {product.imageUrl ? (
-                  <img
-                    src={product.imageUrl}
-                    alt={product.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <Package className="h-12 w-12 text-blue-600/50 dark:text-blue-400/50" />
-                )}
-              </div>
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <h3 className="font-semibold">{product.name}</h3>
-                  <Badge variant="secondary" className="text-xs shrink-0">
-                    {getCategoryLabel(product.category)}
-                  </Badge>
+          filteredProducts.map((product) => {
+            const cartQuantity =
+              cart.find((item) => item.product.id === product.id)?.quantity ?? 0;
+            const atStockLimit = cartQuantity >= product.stock;
+            const isOutOfStock = product.stock <= 0 || atStockLimit;
+
+            return (
+              <Card
+                key={product.id}
+                className="overflow-hidden cursor-pointer"
+                onClick={() => openEditDialog(product)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    openEditDialog(product);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                data-testid={`card-product-${product.id}`}
+              >
+                <div className="aspect-video bg-gradient-to-br from-blue-100 to-blue-50 dark:from-blue-900/30 dark:to-blue-800/20 flex items-center justify-center overflow-hidden">
+                  {product.imageUrl ? (
+                    <img
+                      src={product.imageUrl}
+                      alt={product.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <Package className="h-12 w-12 text-blue-600/50 dark:text-blue-400/50" />
+                  )}
                 </div>
-                {product.description && (
-                  <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                    {product.description}
-                  </p>
-                )}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xl font-bold">{product.price} د.ب</p>
-                    <p className="text-xs text-muted-foreground">
-                      المتوفر: {product.stock} قطعة
-                    </p>
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <h3 className="font-semibold">{product.name}</h3>
+                    <Badge variant="secondary" className="text-xs shrink-0">
+                      {getCategoryLabel(product.category)}
+                    </Badge>
                   </div>
-                  <Button
-                    size="sm"
-                    onClick={() => addToCart(product)}
-                    disabled={product.stock <= 0}
-                    data-testid={`button-add-to-cart-${product.id}`}
-                  >
-                    {product.stock <= 0 ? "غير متوفر" : "إضافة للسلة"}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))
+                  {product.description && (
+                    <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+                      {product.description}
+                    </p>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xl font-bold">{product.price} د.ب</p>
+                      <p className="text-xs text-muted-foreground">
+                        المتوفر: {product.stock} قطعة
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        addToCart(product);
+                      }}
+                      disabled={isOutOfStock}
+                      data-testid={`button-add-to-cart-${product.id}`}
+                    >
+                      {isOutOfStock ? "غير متوفر" : "إضافة للسلة"}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })
         ) : (
           <div className="col-span-full py-12 text-center text-muted-foreground">
             {searchQuery || selectedCategory ? "لا توجد نتائج للبحث" : "لا توجد منتجات حالياً"}

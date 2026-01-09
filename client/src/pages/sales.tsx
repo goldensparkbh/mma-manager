@@ -1,19 +1,72 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
 import { Search, ShoppingBag, TrendingUp, Package } from "lucide-react";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Sale } from "@shared/schema";
 
 export default function Sales() {
+  const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+  const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
 
   const { data: sales, isLoading } = useQuery<Sale[]>({
     queryKey: ["/api/sales"],
   });
+
+  const cancelSale = useMutation({
+    mutationFn: async ({ saleId, reason }: { saleId: string; reason: string }) => {
+      const response = await apiRequest("PATCH", `/api/sales/${saleId}/cancel`, { reason });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sales"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      setIsCancelDialogOpen(false);
+      setSelectedSale(null);
+      setCancelReason("");
+      toast({
+        title: "تم الإلغاء",
+        description: "تم إلغاء عملية البيع بنجاح",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "خطأ",
+        description: "حدث خطأ أثناء إلغاء عملية البيع",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const openCancelDialog = (sale: Sale) => {
+    setSelectedSale(sale);
+    setCancelReason("");
+    setIsCancelDialogOpen(true);
+  };
+
+  const handleCancelDialogChange = (open: boolean) => {
+    setIsCancelDialogOpen(open);
+    if (!open) {
+      setSelectedSale(null);
+      setCancelReason("");
+    }
+  };
 
   const filteredSales = sales?.filter((sale) => {
     const matchesSearch =
@@ -24,9 +77,10 @@ export default function Sales() {
     return matchesSearch && matchesDate;
   });
 
-  const totalSales = filteredSales?.reduce((sum, sale) => sum + sale.totalPrice, 0) ?? 0;
-  const totalItems = filteredSales?.reduce((sum, sale) => sum + sale.quantity, 0) ?? 0;
-  const uniqueProducts = new Set(filteredSales?.map((sale) => sale.productId)).size;
+  const activeSales = filteredSales?.filter((sale) => sale.status !== "cancelled") ?? [];
+  const totalSales = activeSales.reduce((sum, sale) => sum + sale.totalPrice, 0);
+  const totalItems = activeSales.reduce((sum, sale) => sum + sale.quantity, 0);
+  const uniqueProducts = new Set(activeSales.map((sale) => sale.productId)).size;
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -59,6 +113,59 @@ export default function Sales() {
           <p className="text-sm text-muted-foreground">عرض جميع عمليات البيع</p>
         </div>
       </div>
+
+      <Dialog open={isCancelDialogOpen} onOpenChange={handleCancelDialogChange}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>إلغاء عملية البيع</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1 text-sm text-muted-foreground">
+              <p>المنتج: {selectedSale?.productName ?? "-"}</p>
+              <p>الإجمالي: {selectedSale ? selectedSale.totalPrice.toFixed(2) : "-"} د.ب</p>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">سبب الإلغاء</label>
+              <Textarea
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="اكتب سبب الإلغاء..."
+                rows={3}
+                data-testid="input-cancel-reason"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                type="button"
+                onClick={() => handleCancelDialogChange(false)}
+              >
+                رجوع
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  const reason = cancelReason.trim();
+                  if (!selectedSale) return;
+                  if (!reason) {
+                    toast({
+                      title: "خطأ",
+                      description: "يرجى إدخال سبب الإلغاء",
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+                  cancelSale.mutate({ saleId: selectedSale.id, reason });
+                }}
+                disabled={cancelSale.isPending || !selectedSale}
+                data-testid="button-confirm-cancel"
+              >
+                {cancelSale.isPending ? "جاري الإلغاء..." : "تأكيد الإلغاء"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
@@ -147,6 +254,8 @@ export default function Sales() {
                   <th className="text-right py-3 px-3 font-medium text-muted-foreground">الإجمالي</th>
                   <th className="text-right py-3 px-3 font-medium text-muted-foreground">التاريخ</th>
                   <th className="text-right py-3 px-3 font-medium text-muted-foreground">الدفع</th>
+                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">الحالة</th>
+                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">الإجراء</th>
                 </tr>
               </thead>
               <tbody>
@@ -170,11 +279,34 @@ export default function Sales() {
                             : "تحويل"}
                         </Badge>
                       </td>
+                      <td className="py-3 px-3">
+                        {sale.status === "cancelled" ? (
+                          <div className="space-y-1">
+                            <Badge variant="destructive">ملغي</Badge>
+                            <p className="text-xs text-muted-foreground">
+                              {sale.cancelledReason || "-"}
+                            </p>
+                          </div>
+                        ) : (
+                          <Badge variant="secondary">مكتمل</Badge>
+                        )}
+                      </td>
+                      <td className="py-3 px-3">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openCancelDialog(sale)}
+                          disabled={sale.status === "cancelled"}
+                          data-testid={`button-cancel-sale-${sale.id}`}
+                        >
+                          إلغاء
+                        </Button>
+                      </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-muted-foreground">
+                    <td colSpan={9} className="py-12 text-center text-muted-foreground">
                       {searchQuery || selectedDate ? "لا توجد نتائج للبحث" : "لا توجد مبيعات حالياً"}
                     </td>
                   </tr>

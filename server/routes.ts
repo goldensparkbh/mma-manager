@@ -128,6 +128,15 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/attendance/:date", async (req, res) => {
+    try {
+      const records = await storage.getAttendance(req.params.date);
+      res.json(records);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get attendance" });
+    }
+  });
+
   app.post("/api/attendance", async (req, res) => {
     try {
       const parsed = insertAttendanceSchema.safeParse(req.body);
@@ -138,6 +147,18 @@ export async function registerRoutes(
       res.status(201).json(attendance);
     } catch (error) {
       res.status(500).json({ error: "Failed to create attendance" });
+    }
+  });
+
+  app.delete("/api/attendance/:id", async (req, res) => {
+    try {
+      const attendance = await storage.deleteAttendance(req.params.id);
+      if (!attendance) {
+        return res.status(404).json({ error: "Attendance not found" });
+      }
+      res.status(204).end();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete attendance" });
     }
   });
 
@@ -185,6 +206,22 @@ export async function registerRoutes(
     }
   });
 
+  app.patch("/api/sales/:id/cancel", async (req, res) => {
+    try {
+      const reason = String(req.body?.reason ?? "").trim();
+      if (!reason) {
+        return res.status(400).json({ error: "Cancel reason is required" });
+      }
+      const sale = await storage.cancelSale(req.params.id, reason);
+      if (!sale) {
+        return res.status(404).json({ error: "Sale not found" });
+      }
+      res.json(sale);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to cancel sale" });
+    }
+  });
+
   app.get("/api/expenses", async (_req, res) => {
     try {
       const expenses = await storage.getExpenses();
@@ -204,6 +241,16 @@ export async function registerRoutes(
       res.status(201).json(expense);
     } catch (error) {
       res.status(500).json({ error: "Failed to create expense" });
+    }
+  });
+
+  app.get("/api/logs", async (req, res) => {
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 100;
+      const logs = await storage.getActivityLogs(Number.isNaN(limit) ? 100 : limit);
+      res.json(logs);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get logs" });
     }
   });
 

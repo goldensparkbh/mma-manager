@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Dialog,
   DialogContent,
@@ -15,14 +16,17 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Search, UserPlus } from "lucide-react";
+import { ImagePlus, Plus, Search, Trash2, UserPlus } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Member, InsertMember } from "@shared/schema";
+
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
 export default function Members() {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [formData, setFormData] = useState<Partial<InsertMember>>({
     name: "",
     memberId: "",
@@ -31,11 +35,34 @@ export default function Members() {
     healthNotes: "",
     status: "active",
     balance: 0,
+    imageUrl: "",
   });
 
   const { data: members, isLoading } = useQuery<Member[]>({
     queryKey: ["/api/members"],
   });
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > MAX_FILE_SIZE) {
+      toast({
+        title: "خطأ",
+        description: "حجم الصورة يجب أن لا يتجاوز 5 ميجابايت",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = reader.result as string;
+      setImagePreview(base64);
+      setFormData((prev) => ({ ...prev, imageUrl: base64 }));
+    };
+    reader.readAsDataURL(file);
+  };
 
   const createMember = useMutation({
     mutationFn: async (data: InsertMember) => {
@@ -46,6 +73,7 @@ export default function Members() {
       queryClient.invalidateQueries({ queryKey: ["/api/members"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       setIsDialogOpen(false);
+      setImagePreview(null);
       setFormData({
         name: "",
         memberId: "",
@@ -54,6 +82,7 @@ export default function Members() {
         healthNotes: "",
         status: "active",
         balance: 0,
+        imageUrl: "",
       });
       toast({
         title: "تم بنجاح",
@@ -205,6 +234,43 @@ export default function Members() {
                   data-testid="input-member-health"
                 />
               </div>
+              <div className="space-y-2">
+                <Label>صورة العضو</Label>
+                <div className="flex items-center gap-4">
+                  <label className="cursor-pointer flex-1">
+                    <div className="flex items-center justify-center gap-2 border-2 border-dashed rounded-lg p-4 hover:border-primary/50 transition-colors">
+                      <ImagePlus className="h-5 w-5 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">اختر صورة</span>
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleImageUpload}
+                      data-testid="input-member-image"
+                    />
+                  </label>
+                  {imagePreview && (
+                    <div className="relative w-16 h-16 rounded-full overflow-hidden border">
+                      <img
+                        src={imagePreview}
+                        alt="معاينة"
+                        className="w-full h-full object-cover"
+                      />
+                      <button
+                        type="button"
+                        className="absolute top-0 right-0 bg-destructive text-destructive-foreground rounded-full p-0.5"
+                        onClick={() => {
+                          setImagePreview(null);
+                          setFormData((prev) => ({ ...prev, imageUrl: "" }));
+                        }}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
               <Button type="submit" className="w-full" disabled={createMember.isPending} data-testid="button-submit-member">
                 {createMember.isPending ? "جاري الإضافة..." : "إضافة العضو"}
               </Button>
@@ -247,7 +313,22 @@ export default function Members() {
                 {filteredMembers && filteredMembers.length > 0 ? (
                   filteredMembers.map((member) => (
                     <tr key={member.id} className="border-b last:border-0 hover-elevate" data-testid={`row-member-${member.id}`}>
-                      <td className="py-3 px-3 font-medium">{member.name}</td>
+                      <td className="py-3 px-3 font-medium">
+                        <div className="flex items-center gap-2">
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={member.imageUrl ?? undefined} alt={member.name} />
+                            <AvatarFallback>
+                              {member.name
+                                .trim()
+                                .split(/\s+/)
+                                .slice(0, 2)
+                                .map((part) => part[0])
+                                .join("")}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span>{member.name}</span>
+                        </div>
+                      </td>
                       <td className="py-3 px-3 text-muted-foreground">#{member.memberId}</td>
                       <td className="py-3 px-3">{member.phone}</td>
                       <td className="py-3 px-3">{member.subscriptionStart ?? "-"}</td>

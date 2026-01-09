@@ -15,6 +15,7 @@ import Subscriptions from "@/pages/subscriptions";
 import Store from "@/pages/store";
 import Sales from "@/pages/sales";
 import Finance from "@/pages/finance";
+import Logs from "@/pages/logs";
 
 function Router() {
   return (
@@ -26,6 +27,7 @@ function Router() {
       <Route path="/store" component={Store} />
       <Route path="/sales" component={Sales} />
       <Route path="/finance" component={Finance} />
+      <Route path="/logs" component={Logs} />
       <Route component={NotFound} />
     </Switch>
   );

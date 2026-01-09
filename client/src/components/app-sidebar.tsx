@@ -7,6 +7,7 @@ import {
   Package,
   BarChart3,
   ShoppingCart,
+  ScrollText,
 } from "lucide-react";
 import {
   Sidebar,
@@ -72,6 +73,15 @@ const financeItems = [
   },
 ];
 
+const systemItems = [
+  {
+    title: "سجل العمليات",
+    titleEn: "Logs",
+    url: "/logs",
+    icon: ScrollText,
+  },
+];
+
 export function AppSidebar() {
   const [location] = useLocation();
 
@@ -81,7 +91,7 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar>
+    <Sidebar side="right">
       <SidebarHeader className="p-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-500 to-blue-600 flex items-center justify-center text-white font-bold text-lg">
@@ -110,7 +120,7 @@ export function AppSidebar() {
                   >
                     <Link href={item.url}>
                       <item.icon className="w-4 h-4" />
-                      <span className="flex-1">{item.title}</span>
+                      <span className="flex-1 text-right">{item.title}</span>
                       <span className="text-xs text-muted-foreground">{item.titleEn}</span>
                     </Link>
                   </SidebarMenuButton>
@@ -135,7 +145,7 @@ export function AppSidebar() {
                   >
                     <Link href={item.url}>
                       <item.icon className="w-4 h-4" />
-                      <span className="flex-1">{item.title}</span>
+                      <span className="flex-1 text-right">{item.title}</span>
                       <span className="text-xs text-muted-foreground">{item.titleEn}</span>
                     </Link>
                   </SidebarMenuButton>
@@ -160,7 +170,32 @@ export function AppSidebar() {
                   >
                     <Link href={item.url}>
                       <item.icon className="w-4 h-4" />
-                      <span className="flex-1">{item.title}</span>
+                      <span className="flex-1 text-right">{item.title}</span>
+                      <span className="text-xs text-muted-foreground">{item.titleEn}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-xs uppercase tracking-wide text-muted-foreground">
+            النظام
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {systemItems.map((item) => (
+                <SidebarMenuItem key={item.url}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isActive(item.url)}
+                    data-testid={`nav-${item.url.replace("/", "")}`}
+                  >
+                    <Link href={item.url}>
+                      <item.icon className="w-4 h-4" />
+                      <span className="flex-1 text-right">{item.title}</span>
                       <span className="text-xs text-muted-foreground">{item.titleEn}</span>
                     </Link>
                   </SidebarMenuButton>

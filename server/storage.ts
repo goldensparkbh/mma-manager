@@ -14,6 +14,8 @@ import {
   type Expense,
   type InsertExpense,
   type DashboardStats,
+  type ActivityLog,
+  type InsertActivityLog,
   users,
   members,
   products,
@@ -21,9 +23,10 @@ import {
   subscriptions,
   sales,
   expenses,
+  activityLogs,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, gte, and } from "drizzle-orm";
+import { eq, gte, and, desc } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -42,21 +45,33 @@ export interface IStorage {
 
   getAttendance(date?: string): Promise<Attendance[]>;
   createAttendance(attendanceRecord: InsertAttendance): Promise<Attendance>;
+  deleteAttendance(id: string): Promise<Attendance | undefined>;
 
   getSubscriptions(): Promise<Subscription[]>;
   createSubscription(subscription: InsertSubscription): Promise<Subscription>;
 
   getSales(): Promise<Sale[]>;
   createSale(sale: InsertSale): Promise<Sale>;
+  cancelSale(id: string, reason: string): Promise<Sale | undefined>;
 
   getExpenses(): Promise<Expense[]>;
   createExpense(expense: InsertExpense): Promise<Expense>;
+
+  getActivityLogs(limit?: number): Promise<ActivityLog[]>;
 
   getDashboardStats(): Promise<DashboardStats>;
   seedInitialData(): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
+  private async safeLogActivity(entry: InsertActivityLog): Promise<void> {
+    try {
+      await db.insert(activityLogs).values(entry);
+    } catch (error) {
+      console.error("Failed to log activity", error);
+    }
+  }
+
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user || undefined;
@@ -69,6 +84,12 @@ export class DatabaseStorage implements IStorage {
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const [user] = await db.insert(users).values(insertUser).returning();
+    await this.safeLogActivity({
+      action: "user.create",
+      entityType: "user",
+      entityId: user.id,
+      description: `User created: ${user.username}`,
+    });
     return user;
   }
 
@@ -83,11 +104,27 @@ export class DatabaseStorage implements IStorage {
 
   async createMember(insertMember: InsertMember): Promise<Member> {
     const [member] = await db.insert(members).values(insertMember).returning();
+    await this.safeLogActivity({
+      action: "member.create",
+      entityType: "member",
+      entityId: member.id,
+      description: `Member created: ${member.name}`,
+      metadata: JSON.stringify({ memberId: member.memberId }),
+    });
     return member;
   }
 
   async updateMember(id: string, updates: Partial<InsertMember>): Promise<Member | undefined> {
     const [updated] = await db.update(members).set(updates).where(eq(members.id, id)).returning();
+    if (updated) {
+      await this.safeLogActivity({
+        action: "member.update",
+        entityType: "member",
+        entityId: updated.id,
+        description: `Member updated: ${updated.name}`,
+        metadata: JSON.stringify({ updatedFields: Object.keys(updates) }),
+      });
+    }
     return updated || undefined;
   }
 
@@ -102,11 +139,31 @@ export class DatabaseStorage implements IStorage {
 
   async createProduct(insertProduct: InsertProduct): Promise<Product> {
     const [product] = await db.insert(products).values(insertProduct).returning();
+    await this.safeLogActivity({
+      action: "product.create",
+      entityType: "product",
+      entityId: product.id,
+      description: `Product created: ${product.name}`,
+      metadata: JSON.stringify({
+        price: product.price,
+        stock: product.stock,
+        category: product.category,
+      }),
+    });
     return product;
   }
 
   async updateProduct(id: string, updates: Partial<InsertProduct>): Promise<Product | undefined> {
     const [updated] = await db.update(products).set(updates).where(eq(products.id, id)).returning();
+    if (updated) {
+      await this.safeLogActivity({
+        action: "product.update",
+        entityType: "product",
+        entityId: updated.id,
+        description: `Product updated: ${updated.name}`,
+        metadata: JSON.stringify({ updatedFields: Object.keys(updates) }),
+      });
+    }
     return updated || undefined;
   }
 
@@ -119,7 +176,28 @@ export class DatabaseStorage implements IStorage {
 
   async createAttendance(insertAttendance: InsertAttendance): Promise<Attendance> {
     const [record] = await db.insert(attendance).values(insertAttendance).returning();
+    await this.safeLogActivity({
+      action: "attendance.create",
+      entityType: "attendance",
+      entityId: record.id,
+      description: `Attendance recorded for ${record.memberName}`,
+      metadata: JSON.stringify({ date: record.date }),
+    });
     return record;
+  }
+
+  async deleteAttendance(id: string): Promise<Attendance | undefined> {
+    const [record] = await db.delete(attendance).where(eq(attendance.id, id)).returning();
+    if (record) {
+      await this.safeLogActivity({
+        action: "attendance.delete",
+        entityType: "attendance",
+        entityId: record.id,
+        description: `Attendance removed for ${record.memberName}`,
+        metadata: JSON.stringify({ date: record.date }),
+      });
+    }
+    return record || undefined;
   }
 
   async getSubscriptions(): Promise<Subscription[]> {
@@ -137,6 +215,18 @@ export class DatabaseStorage implements IStorage {
       }).where(eq(members.id, insertSubscription.memberId));
     }
     
+    await this.safeLogActivity({
+      action: "subscription.create",
+      entityType: "subscription",
+      entityId: subscription.id,
+      description: `Subscription created for ${subscription.memberName}`,
+      metadata: JSON.stringify({
+        planName: subscription.planName,
+        amount: subscription.amount,
+        startDate: subscription.startDate,
+        endDate: subscription.endDate,
+      }),
+    });
     return subscription;
   }
 
@@ -154,7 +244,64 @@ export class DatabaseStorage implements IStorage {
       }).where(eq(products.id, insertSale.productId));
     }
     
+    await this.safeLogActivity({
+      action: "sale.create",
+      entityType: "sale",
+      entityId: sale.id,
+      description: `Sale recorded for ${sale.productName}`,
+      metadata: JSON.stringify({
+        quantity: sale.quantity,
+        totalPrice: sale.totalPrice,
+        paymentMethod: sale.paymentMethod,
+      }),
+    });
     return sale;
+  }
+
+  async cancelSale(id: string, reason: string): Promise<Sale | undefined> {
+    const [sale] = await db.select().from(sales).where(eq(sales.id, id));
+    if (!sale) {
+      return undefined;
+    }
+
+    if (sale.status === "cancelled") {
+      return sale;
+    }
+
+    const [updated] = await db
+      .update(sales)
+      .set({
+        status: "cancelled",
+        cancelledReason: reason,
+        cancelledAt: new Date(),
+      })
+      .where(eq(sales.id, id))
+      .returning();
+
+    if (!updated) {
+      return undefined;
+    }
+
+    const [product] = await db.select().from(products).where(eq(products.id, updated.productId));
+    if (product) {
+      await db.update(products).set({
+        stock: product.stock + updated.quantity,
+      }).where(eq(products.id, updated.productId));
+    }
+
+    await this.safeLogActivity({
+      action: "sale.cancel",
+      entityType: "sale",
+      entityId: updated.id,
+      description: `Sale cancelled for ${updated.productName}`,
+      metadata: JSON.stringify({
+        reason,
+        quantity: updated.quantity,
+        totalPrice: updated.totalPrice,
+      }),
+    });
+
+    return updated;
   }
 
   async getExpenses(): Promise<Expense[]> {
@@ -163,7 +310,18 @@ export class DatabaseStorage implements IStorage {
 
   async createExpense(insertExpense: InsertExpense): Promise<Expense> {
     const [expense] = await db.insert(expenses).values(insertExpense).returning();
+    await this.safeLogActivity({
+      action: "expense.create",
+      entityType: "expense",
+      entityId: expense.id,
+      description: `Expense recorded (${expense.category})`,
+      metadata: JSON.stringify({ amount: expense.amount, date: expense.date }),
+    });
     return expense;
+  }
+
+  async getActivityLogs(limit = 100): Promise<ActivityLog[]> {
+    return db.select().from(activityLogs).orderBy(desc(activityLogs.createdAt)).limit(limit);
   }
 
   async getDashboardStats(): Promise<DashboardStats> {

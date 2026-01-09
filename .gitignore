@@ -4,3 +4,10 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+.env
+.env.*
+!.env.example
+.env.local
+.config/replit/.semgrep/semgrep_rules.json
+functions/lib
+functions/node_modules
