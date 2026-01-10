@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,7 @@ export default function Members() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [formData, setFormData] = useState<Partial<InsertMember>>({
     name: "",
     memberId: "",
@@ -35,8 +36,15 @@ export default function Members() {
     healthNotes: "",
     status: "active",
     balance: 0,
-    imageUrl: "",
   });
+
+  useEffect(() => {
+    return () => {
+      if (imagePreview?.startsWith("blob:")) {
+        URL.revokeObjectURL(imagePreview);
+      }
+    };
+  }, [imagePreview]);
 
   const { data: members, isLoading } = useQuery<Member[]>({
     queryKey: ["/api/members"],
@@ -55,17 +63,18 @@ export default function Members() {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64 = reader.result as string;
-      setImagePreview(base64);
-      setFormData((prev) => ({ ...prev, imageUrl: base64 }));
-    };
-    reader.readAsDataURL(file);
+    const previewUrl = URL.createObjectURL(file);
+    setImagePreview((prev) => {
+      if (prev?.startsWith("blob:")) {
+        URL.revokeObjectURL(prev);
+      }
+      return previewUrl;
+    });
+    setImageFile(file);
   };
 
   const createMember = useMutation({
-    mutationFn: async (data: InsertMember) => {
+    mutationFn: async (data: InsertMember & { imageFile?: File | null }) => {
       const response = await apiRequest("POST", "/api/members", data);
       return response.json();
     },
@@ -74,6 +83,7 @@ export default function Members() {
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       setIsDialogOpen(false);
       setImagePreview(null);
+      setImageFile(null);
       setFormData({
         name: "",
         memberId: "",
@@ -82,7 +92,6 @@ export default function Members() {
         healthNotes: "",
         status: "active",
         balance: 0,
-        imageUrl: "",
       });
       toast({
         title: "تم بنجاح",
@@ -108,7 +117,7 @@ export default function Members() {
       });
       return;
     }
-    createMember.mutate(formData as InsertMember);
+    createMember.mutate({ ...(formData as InsertMember), imageFile });
   };
 
   const filteredMembers = members?.filter(
@@ -261,8 +270,11 @@ export default function Members() {
                         type="button"
                         className="absolute top-0 right-0 bg-destructive text-destructive-foreground rounded-full p-0.5"
                         onClick={() => {
+                          if (imagePreview?.startsWith("blob:")) {
+                            URL.revokeObjectURL(imagePreview);
+                          }
                           setImagePreview(null);
-                          setFormData((prev) => ({ ...prev, imageUrl: "" }));
+                          setImageFile(null);
                         }}
                       >
                         <Trash2 className="h-3 w-3" />

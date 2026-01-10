@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -56,9 +56,18 @@ export default function Store() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [customerName, setCustomerName] = useState("");
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [formData, setFormData] = useState<Partial<InsertProduct>>({
     ...defaultProductForm,
   });
+
+  useEffect(() => {
+    return () => {
+      if (imagePreview?.startsWith("blob:")) {
+        URL.revokeObjectURL(imagePreview);
+      }
+    };
+  }, [imagePreview]);
 
   const { data: products, isLoading } = useQuery<Product[]>({
     queryKey: ["/api/products"],
@@ -70,7 +79,11 @@ export default function Store() {
 
   const resetProductForm = () => {
     setFormData({ ...defaultProductForm });
+    if (imagePreview?.startsWith("blob:")) {
+      URL.revokeObjectURL(imagePreview);
+    }
     setImagePreview(null);
+    setImageFile(null);
   };
 
   const openCreateDialog = () => {
@@ -89,7 +102,11 @@ export default function Store() {
       category: product.category ?? "general",
       imageUrl: product.imageUrl ?? "",
     });
+    if (imagePreview?.startsWith("blob:")) {
+      URL.revokeObjectURL(imagePreview);
+    }
     setImagePreview(product.imageUrl || null);
+    setImageFile(null);
     setIsDialogOpen(true);
   };
 
@@ -114,17 +131,18 @@ export default function Store() {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64 = reader.result as string;
-      setImagePreview(base64);
-      setFormData((prev) => ({ ...prev, imageUrl: base64 }));
-    };
-    reader.readAsDataURL(file);
+    const previewUrl = URL.createObjectURL(file);
+    setImagePreview((prev) => {
+      if (prev?.startsWith("blob:")) {
+        URL.revokeObjectURL(prev);
+      }
+      return previewUrl;
+    });
+    setImageFile(file);
   };
 
   const createProduct = useMutation({
-    mutationFn: async (data: InsertProduct) => {
+    mutationFn: async (data: InsertProduct & { imageFile?: File | null }) => {
       const response = await apiRequest("POST", "/api/products", data);
       return response.json();
     },
@@ -148,7 +166,13 @@ export default function Store() {
   });
 
   const updateProduct = useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: Partial<InsertProduct> }) => {
+    mutationFn: async ({
+      id,
+      updates,
+    }: {
+      id: string;
+      updates: Partial<InsertProduct> & { imageFile?: File | null };
+    }) => {
       const response = await apiRequest("PATCH", `/api/products/${id}`, updates);
       return response.json();
     },
@@ -222,11 +246,11 @@ export default function Store() {
     if (isEditing && editingProduct) {
       updateProduct.mutate({
         id: editingProduct.id,
-        updates: formData,
+        updates: { ...formData, imageFile },
       });
       return;
     }
-    createProduct.mutate(formData as InsertProduct);
+    createProduct.mutate({ ...(formData as InsertProduct), imageFile });
   };
 
   const addToCart = (product: Product) => {
@@ -456,12 +480,16 @@ export default function Store() {
                         />
                         <button
                           type="button"
-                          className="absolute top-0 right-0 bg-destructive text-destructive-foreground rounded-full p-0.5"
-                          onClick={() => {
-                            setImagePreview(null);
-                            setFormData((prev) => ({ ...prev, imageUrl: "" }));
-                          }}
-                        >
+                        className="absolute top-0 right-0 bg-destructive text-destructive-foreground rounded-full p-0.5"
+                        onClick={() => {
+                          if (imagePreview?.startsWith("blob:")) {
+                            URL.revokeObjectURL(imagePreview);
+                          }
+                          setImagePreview(null);
+                          setImageFile(null);
+                          setFormData((prev) => ({ ...prev, imageUrl: "" }));
+                        }}
+                      >
                           <Trash2 className="h-3 w-3" />
                         </button>
                       </div>
