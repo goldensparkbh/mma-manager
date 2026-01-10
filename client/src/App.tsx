@@ -18,6 +18,7 @@ import Sales from "@/pages/sales";
 import Finance from "@/pages/finance";
 import Logs from "@/pages/logs";
 import Login from "@/pages/login";
+import Belts from "@/pages/belts";
 
 function AccessDenied() {
   return (
@@ -50,6 +51,7 @@ function Router() {
       <Route path="/subscriptions" component={Subscriptions} />
       <Route path="/store" component={Store} />
       <Route path="/sales" component={Sales} />
+      <Route path="/belts" component={Belts} />
       <Route path="/finance">
         <RequireRole allowedRoles={["admin"]}>
           <Finance />

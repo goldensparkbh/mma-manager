@@ -8,6 +8,8 @@ import {
   BarChart3,
   ShoppingCart,
   ScrollText,
+  LogOut,
+  Award,
 } from "lucide-react";
 import {
   Sidebar,
@@ -25,7 +27,7 @@ import { useAuth } from "@/context/auth-context";
 
 const mainItems = [
   {
-    title: "???? ??????",
+    title: "لوحة التحكم",
     titleEn: "Dashboard",
     url: "/",
     icon: LayoutDashboard,
@@ -34,40 +36,46 @@ const mainItems = [
 
 const memberItems = [
   {
-    title: "????? ???????",
+    title: "الأعضاء",
     titleEn: "Members",
     url: "/members",
     icon: Users,
   },
   {
-    title: "?????? ?????????",
+    title: "الحضور",
     titleEn: "Attendance",
     url: "/attendance",
     icon: Calendar,
+  },
+  {
+    title: "الأحزمة",
+    titleEn: "Belts",
+    url: "/belts",
+    icon: Award,
   },
 ];
 
 const financeItems = [
   {
-    title: "??????????",
+    title: "الاشتراكات",
     titleEn: "Subscriptions",
     url: "/subscriptions",
     icon: CreditCard,
   },
   {
-    title: "???????? ???????",
+    title: "المتجر",
     titleEn: "Store",
     url: "/store",
     icon: Package,
   },
   {
-    title: "??? ????????",
+    title: "المبيعات",
     titleEn: "Sales",
     url: "/sales",
     icon: ShoppingCart,
   },
   {
-    title: "???????? ???????",
+    title: "الحسابات",
     titleEn: "Finance",
     url: "/finance",
     icon: BarChart3,
@@ -76,7 +84,7 @@ const financeItems = [
 
 const systemItems = [
   {
-    title: "??? ????????",
+    title: "السجلات",
     titleEn: "Logs",
     url: "/logs",
     icon: ScrollText,
@@ -84,7 +92,7 @@ const systemItems = [
 ];
 
 export function AppSidebar() {
-  const { role } = useAuth();
+  const { role, user, signOutUser } = useAuth();
   const [location] = useLocation();
   const isAdmin = role === "admin";
   const visibleFinanceItems = isAdmin
@@ -101,12 +109,16 @@ export function AppSidebar() {
     <Sidebar side="right">
       <SidebarHeader className="p-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-500 to-blue-600 flex items-center justify-center text-white font-bold text-lg">
-            C
+          <div className="flex-shrink-0">
+            <img src="/logo_dark_icon.svg" alt="Club Logo" className="w-10 h-10 rounded-full object-contain" />
           </div>
-          <div>
-            <div className="font-semibold text-sidebar-foreground">???? ??????</div>
-            <div className="text-xs text-muted-foreground">????? ?????? � ????? � ????</div>
+          <div className="overflow-hidden">
+            <div className="font-semibold text-sidebar-foreground truncate" dir="ltr">
+              {user?.displayName || user?.email?.split('@')[0] || "User"}
+            </div>
+            <div className="text-xs text-muted-foreground truncate" dir="ltr">
+              Club Manager
+            </div>
           </div>
         </div>
       </SidebarHeader>
@@ -114,7 +126,7 @@ export function AppSidebar() {
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel className="text-xs uppercase tracking-wide text-muted-foreground">
-            ????????
+            المسؤول
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -139,7 +151,7 @@ export function AppSidebar() {
 
         <SidebarGroup>
           <SidebarGroupLabel className="text-xs uppercase tracking-wide text-muted-foreground">
-            ???????
+            العضوية
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -164,7 +176,7 @@ export function AppSidebar() {
 
         <SidebarGroup>
           <SidebarGroupLabel className="text-xs uppercase tracking-wide text-muted-foreground">
-            ??????? ???????
+            المالية
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -190,7 +202,7 @@ export function AppSidebar() {
         {visibleSystemItems.length > 0 ? (
           <SidebarGroup>
             <SidebarGroupLabel className="text-xs uppercase tracking-wide text-muted-foreground">
-              ??????
+              النظام?
             </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
@@ -216,9 +228,21 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="p-4 border-t border-sidebar-border">
+        <SidebarMenu className="mb-4">
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              onClick={() => signOutUser()}
+              tooltip="تسجيل الخروج"
+              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="font-medium">تسجيل الخروج</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
         <div className="text-xs text-muted-foreground">
-          <div>??????: ???? ??????</div>
-          <div>??????: ????? ?????? (?.?)</div>
+          <div>جميع الحقوق محفوظة © 2026</div>
+          <div>نظام إدارة النوادي (النسخة 1.2)</div>
         </div>
       </SidebarFooter>
     </Sidebar>

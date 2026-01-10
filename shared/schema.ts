@@ -61,6 +61,33 @@ export interface Subscription {
 
 export type InsertSubscription = Omit<Subscription, "id">;
 
+export interface SubscriptionPackage {
+  id: string;
+  name: string;
+  duration: number; // in days
+  price: number;
+}
+
+export type InsertSubscriptionPackage = Omit<SubscriptionPackage, "id">;
+
+export interface Belt {
+  id: string;
+  name: string;
+  color: string; // Hex code
+  order: number; // 1, 2, 3...
+}
+
+export type InsertBelt = Omit<Belt, "id">;
+
+export interface MemberBelt {
+  id: string;
+  memberId: string;
+  beltId: string;
+  awardedAt: string;
+}
+
+export type InsertMemberBelt = Omit<MemberBelt, "id" | "awardedAt"> & { awardedAt?: string };
+
 export interface Sale {
   id: string;
   productId: string;
@@ -85,6 +112,7 @@ export interface Expense {
   description?: string | null;
   amount: number;
   date: string;
+  expensesTitle?: string;
 }
 
 export type InsertExpense = Omit<Expense, "id">;

@@ -35,6 +35,12 @@ import type {
   Product,
   Sale,
   Subscription,
+  SubscriptionPackage,
+  InsertSubscriptionPackage,
+  Belt,
+  InsertBelt,
+  MemberBelt,
+  InsertMemberBelt,
 } from "@shared/schema";
 
 const normalizeTimestamp = (value: unknown) => {
@@ -408,3 +414,102 @@ export async function ensureUserRole(userId: string, role: string) {
   const docRef = doc(db, "users", userId);
   await setDoc(docRef, { role }, { merge: true });
 }
+
+export async function getSubscriptionPackages(): Promise<SubscriptionPackage[]> {
+  const snapshots = await getDocs(collection(db, "packages"));
+  return mapDocs<SubscriptionPackage>(snapshots);
+}
+
+export async function createSubscriptionPackage(data: InsertSubscriptionPackage): Promise<SubscriptionPackage> {
+  const docRef = await addDoc(collection(db, "packages"), data);
+  await safeLogActivity({
+    action: "package.create",
+    entityType: "package",
+    entityId: docRef.id,
+    description: `Package created: ${data.name}`,
+    metadata: JSON.stringify(data),
+  });
+  return { id: docRef.id, ...data };
+}
+
+export async function deleteSubscriptionPackage(id: string) {
+  await deleteDoc(doc(db, "packages", id));
+  await safeLogActivity({
+    action: "package.delete",
+    entityType: "package",
+    entityId: id,
+    description: "Package deleted",
+  });
+}
+
+// Belts Management
+export async function getBelts(): Promise<Belt[]> {
+  const q = query(collection(db, "belts"), orderBy("order", "asc"));
+  const snapshots = await getDocs(q);
+  return mapDocs<Belt>(snapshots);
+}
+
+export async function createBelt(data: InsertBelt): Promise<Belt> {
+  const docRef = await addDoc(collection(db, "belts"), data);
+  await safeLogActivity({
+    action: "belt.create",
+    entityType: "belt",
+    entityId: docRef.id,
+    description: `Belt created: ${data.name}`,
+    metadata: JSON.stringify({ color: data.color }),
+  });
+  return { id: docRef.id, ...data };
+}
+
+export async function deleteBelt(id: string) {
+  // Check if any member has this belt
+  const q = query(collection(db, "memberBelts"), where("beltId", "==", id), limit(1));
+  const snap = await getDocs(q);
+  if (!snap.empty) {
+    throw new Error("Cannot delete belt: It has been awarded to members.");
+  }
+
+  await deleteDoc(doc(db, "belts", id));
+  await safeLogActivity({
+    action: "belt.delete",
+    entityType: "belt",
+    entityId: id,
+    description: "Belt deleted",
+  });
+}
+
+export async function getMemberBelts(): Promise<MemberBelt[]> {
+  const snapshots = await getDocs(collection(db, "memberBelts"));
+  return mapDocs<MemberBelt>(snapshots);
+}
+
+export async function awardBeltToMember(data: InsertMemberBelt): Promise<MemberBelt> {
+  // Check if already awarded?
+  const q = query(
+    collection(db, "memberBelts"),
+    where("memberId", "==", data.memberId),
+    where("beltId", "==", data.beltId),
+    limit(1)
+  );
+  const snap = await getDocs(q);
+  if (!snap.empty) {
+    throw new Error("Member already has this belt");
+  }
+
+  const docRef = await addDoc(collection(db, "memberBelts"), {
+    ...data,
+    awardedAt: data.awardedAt || new Date().toISOString(),
+  });
+
+  await safeLogActivity({
+    action: "belt.award",
+    entityType: "member_belt",
+    entityId: docRef.id,
+    description: "Belt awarded to member",
+    metadata: JSON.stringify({ memberId: data.memberId, beltId: data.beltId }),
+  });
+
+  return { id: docRef.id, ...data, awardedAt: data.awardedAt || new Date().toISOString() };
+}
+
+

@@ -15,10 +15,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { ImagePlus, Plus, Search, Trash2, UserPlus } from "lucide-react";
+import { ImagePlus, Plus, Search, Trash2, UserPlus, Award } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import type { Member, InsertMember } from "@shared/schema";
+import type { Member, InsertMember, Belt, MemberBelt, InsertMemberBelt } from "@shared/schema";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
@@ -26,6 +33,10 @@ export default function Members() {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isAwardDialogOpen, setIsAwardDialogOpen] = useState(false);
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
+  const [awardBeltId, setAwardBeltId] = useState("");
+
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [formData, setFormData] = useState<Partial<InsertMember>>({
@@ -46,10 +57,20 @@ export default function Members() {
     };
   }, [imagePreview]);
 
+  // Queries
   const { data: members, isLoading } = useQuery<Member[]>({
     queryKey: ["/api/members"],
   });
 
+  const { data: belts } = useQuery<Belt[]>({
+    queryKey: ["/api/belts"],
+  });
+
+  const { data: memberBelts } = useQuery<MemberBelt[]>({
+    queryKey: ["/api/member-belts"],
+  });
+
+  // Upload Logic
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -73,6 +94,7 @@ export default function Members() {
     setImageFile(file);
   };
 
+  // Mutations
   const createMember = useMutation({
     mutationFn: async (data: InsertMember & { imageFile?: File | null }) => {
       const response = await apiRequest("POST", "/api/members", data);
@@ -93,32 +115,70 @@ export default function Members() {
         status: "active",
         balance: 0,
       });
-      toast({
-        title: "تم بنجاح",
-        description: "تم إضافة العضو الجديد بنجاح",
-      });
+      toast({ title: "تم بنجاح", description: "تم إضافة العضو الجديد بنجاح" });
     },
     onError: () => {
-      toast({
-        title: "خطأ",
-        description: "حدث خطأ أثناء إضافة العضو",
-        variant: "destructive",
-      });
+      toast({ variant: "destructive", title: "خطأ", description: "حدث خطأ أثناء إضافة العضو" });
     },
   });
 
+  const awardBelt = useMutation({
+    mutationFn: async ({ memberId, beltId }: { memberId: string; beltId: string }) => {
+      const data: InsertMemberBelt = { memberId, beltId };
+      const response = await apiRequest("POST", "/api/member-belts", data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/member-belts"] });
+      setIsAwardDialogOpen(false);
+      setAwardBeltId("");
+      toast({ title: "تم بنجاح", description: "تم منح الحزام للعضو" });
+    },
+    onError: (error) => {
+      toast({ variant: "destructive", title: "خطأ", description: error.message || "فشل منح الحزام" });
+    },
+  });
+
+  // Handlers
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.memberId || !formData.phone) {
-      toast({
-        title: "خطأ",
-        description: "يرجى ملء جميع الحقول المطلوبة",
-        variant: "destructive",
-      });
+      toast({ variant: "destructive", title: "خطأ", description: "يرجى ملء جميع الحقول المطلوبة" });
       return;
     }
     createMember.mutate({ ...(formData as InsertMember), imageFile });
   };
+
+  const handleAwardSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedMemberId && awardBeltId) {
+      awardBelt.mutate({ memberId: selectedMemberId, beltId: awardBeltId });
+    }
+  };
+
+  const getMemberBeltsBadges = (memberId: string) => {
+    const earned = memberBelts?.filter(mb => mb.memberId === memberId) || [];
+    // Sort by belt order? Ideally yes if belts have order.
+    // For now, map simple badges.
+    const badges = earned.map(mb => {
+      const belt = belts?.find(b => b.id === mb.beltId);
+      if (!belt) return null;
+      return { ...belt, memberBeltId: mb.id };
+    }).filter(Boolean) as (Belt & { memberBeltId: string })[];
+
+    // Sort by order
+    badges.sort((a, b) => (a.order || 0) - (b.order || 0));
+
+    return badges.map(b => (
+      <div
+        key={b.memberBeltId}
+        className="w-5 h-5 rounded-full border border-border shadow-sm"
+        style={{ backgroundColor: b.color }}
+        title={b.name}
+      />
+    ));
+  };
+
 
   const filteredMembers = members?.filter(
     (member) =>
@@ -130,19 +190,11 @@ export default function Members() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "active":
-        return (
-          <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
-            نشط
-          </Badge>
-        );
+        return <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">نشط</Badge>;
       case "expired":
         return <Badge variant="destructive">منتهي</Badge>;
       case "pending":
-        return (
-          <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">
-            قيد الانتظار
-          </Badge>
-        );
+        return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">قيد الانتظار</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
@@ -152,13 +204,7 @@ export default function Members() {
     return (
       <div className="space-y-6">
         <Skeleton className="h-10 w-full max-w-sm" />
-        <Card>
-          <CardContent className="p-6">
-            {[1, 2, 3, 4].map((i) => (
-              <Skeleton key={i} className="h-12 w-full mb-2" />
-            ))}
-          </CardContent>
-        </Card>
+        <Card><CardContent className="p-6"><Skeleton className="h-12 w-full mb-2" /></CardContent></Card>
       </div>
     );
   }
@@ -193,7 +239,6 @@ export default function Members() {
                     placeholder="مثال: أحمد علي"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    data-testid="input-member-name"
                   />
                 </div>
                 <div className="space-y-2">
@@ -203,7 +248,6 @@ export default function Members() {
                     placeholder="#1050"
                     value={formData.memberId}
                     onChange={(e) => setFormData({ ...formData, memberId: e.target.value })}
-                    data-testid="input-member-id"
                   />
                 </div>
               </div>
@@ -215,7 +259,6 @@ export default function Members() {
                     placeholder="33xxxxxx"
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    data-testid="input-member-phone"
                   />
                 </div>
                 <div className="space-y-2">
@@ -228,7 +271,6 @@ export default function Members() {
                     onChange={(e) =>
                       setFormData({ ...formData, age: e.target.value ? parseInt(e.target.value) : undefined })
                     }
-                    data-testid="input-member-age"
                   />
                 </div>
               </div>
@@ -240,7 +282,6 @@ export default function Members() {
                   rows={3}
                   value={formData.healthNotes ?? ""}
                   onChange={(e) => setFormData({ ...formData, healthNotes: e.target.value })}
-                  data-testid="input-member-health"
                 />
               </div>
               <div className="space-y-2">
@@ -256,23 +297,15 @@ export default function Members() {
                       accept="image/*"
                       className="hidden"
                       onChange={handleImageUpload}
-                      data-testid="input-member-image"
                     />
                   </label>
                   {imagePreview && (
                     <div className="relative w-16 h-16 rounded-full overflow-hidden border">
-                      <img
-                        src={imagePreview}
-                        alt="معاينة"
-                        className="w-full h-full object-cover"
-                      />
+                      <img src={imagePreview} alt="معاينة" className="w-full h-full object-cover" />
                       <button
                         type="button"
                         className="absolute top-0 right-0 bg-destructive text-destructive-foreground rounded-full p-0.5"
                         onClick={() => {
-                          if (imagePreview?.startsWith("blob:")) {
-                            URL.revokeObjectURL(imagePreview);
-                          }
                           setImagePreview(null);
                           setImageFile(null);
                         }}
@@ -283,8 +316,38 @@ export default function Members() {
                   )}
                 </div>
               </div>
-              <Button type="submit" className="w-full" disabled={createMember.isPending} data-testid="button-submit-member">
+              <Button type="submit" className="w-full" disabled={createMember.isPending}>
                 {createMember.isPending ? "جاري الإضافة..." : "إضافة العضو"}
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Award Belt Dialog */}
+        <Dialog open={isAwardDialogOpen} onOpenChange={setIsAwardDialogOpen}>
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader><DialogTitle>منح حزام للعضو</DialogTitle></DialogHeader>
+            <form onSubmit={handleAwardSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label>اختر الحزام</Label>
+                <Select value={awardBeltId} onValueChange={setAwardBeltId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="اختر الحزام..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {belts?.map(belt => (
+                      <SelectItem key={belt.id} value={belt.id}>
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 rounded-full border" style={{ backgroundColor: belt.color }}></div>
+                          {belt.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button type="submit" className="w-full" disabled={awardBelt.isPending}>
+                تأكيد المنح
               </Button>
             </form>
           </DialogContent>
@@ -298,11 +361,10 @@ export default function Members() {
             <div className="relative w-full sm:w-80">
               <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="بحث بالاسم / رقم العضوية / الجوال"
+                placeholder="بحث..."
                 className="pr-10"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                data-testid="input-search-members"
               />
             </div>
           </div>
@@ -314,47 +376,56 @@ export default function Members() {
                 <tr className="border-b bg-muted/50">
                   <th className="text-right py-3 px-3 font-medium text-muted-foreground">العضو</th>
                   <th className="text-right py-3 px-3 font-medium text-muted-foreground">رقم العضوية</th>
-                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">الجوال</th>
-                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">بداية الاشتراك</th>
-                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">نهاية الاشتراك</th>
+                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">الأحزمة</th>
+                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">انتهاء الاشتراك</th>
                   <th className="text-right py-3 px-3 font-medium text-muted-foreground">الحالة</th>
                   <th className="text-right py-3 px-3 font-medium text-muted-foreground">الرصيد</th>
+                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">إجراءات</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredMembers && filteredMembers.length > 0 ? (
                   filteredMembers.map((member) => (
-                    <tr key={member.id} className="border-b last:border-0 hover-elevate" data-testid={`row-member-${member.id}`}>
+                    <tr key={member.id} className="border-b last:border-0 hover-elevate">
                       <td className="py-3 px-3 font-medium">
                         <div className="flex items-center gap-2">
                           <Avatar className="h-8 w-8">
                             <AvatarImage src={member.imageUrl ?? undefined} alt={member.name} />
                             <AvatarFallback>
-                              {member.name
-                                .trim()
-                                .split(/\s+/)
-                                .slice(0, 2)
-                                .map((part) => part[0])
-                                .join("")}
+                              {member.name.substring(0, 2)}
                             </AvatarFallback>
                           </Avatar>
                           <span>{member.name}</span>
                         </div>
                       </td>
                       <td className="py-3 px-3 text-muted-foreground">#{member.memberId}</td>
-                      <td className="py-3 px-3">{member.phone}</td>
-                      <td className="py-3 px-3">{member.subscriptionStart ?? "-"}</td>
+                      <td className="py-3 px-3">
+                        <div className="flex -space-x-1 items-center flex-wrap gap-1">
+                          {getMemberBeltsBadges(member.id)}
+                        </div>
+                      </td>
                       <td className="py-3 px-3">{member.subscriptionEnd ?? "-"}</td>
                       <td className="py-3 px-3">{getStatusBadge(member.status)}</td>
                       <td className="py-3 px-3">{member.balance?.toFixed(2) ?? "0.00"} د.ب</td>
+                      <td className="py-3 px-3">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 gap-1"
+                          onClick={() => {
+                            setSelectedMemberId(member.id);
+                            setAwardBeltId("");
+                            setIsAwardDialogOpen(true);
+                          }}
+                        >
+                          <Award className="h-3 w-3" />
+                          منح حزام
+                        </Button>
+                      </td>
                     </tr>
                   ))
                 ) : (
-                  <tr>
-                    <td colSpan={7} className="py-12 text-center text-muted-foreground">
-                      {searchQuery ? "لا توجد نتائج للبحث" : "لا يوجد أعضاء حالياً"}
-                    </td>
-                  </tr>
+                  <tr><td colSpan={7} className="py-12 text-center text-muted-foreground">لا توجد نتائج</td></tr>
                 )}
               </tbody>
             </table>

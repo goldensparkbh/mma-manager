@@ -18,6 +18,14 @@ import {
   getSubscriptions,
   updateMember,
   updateProduct,
+  getSubscriptionPackages,
+  createSubscriptionPackage,
+  deleteSubscriptionPackage,
+  getBelts,
+  createBelt,
+  deleteBelt,
+  getMemberBelts,
+  awardBeltToMember,
 } from "@/lib/firebaseData";
 import type {
   InsertAttendance,
@@ -26,6 +34,9 @@ import type {
   InsertProduct,
   InsertSale,
   InsertSubscription,
+  InsertSubscriptionPackage,
+  InsertBelt,
+  InsertMemberBelt,
 } from "@shared/schema";
 
 const jsonResponse = (payload?: unknown, status = 200) => {
@@ -50,6 +61,9 @@ const queryHandlers: Record<string, (queryKey: readonly unknown[]) => Promise<un
     return getAttendanceByDate(date);
   },
   "/api/subscriptions": () => getSubscriptions(),
+  "/api/packages": () => getSubscriptionPackages(),
+  "/api/belts": () => getBelts(),
+  "/api/member-belts": () => getMemberBelts(),
   "/api/products": () => getProducts(),
   "/api/sales": () => getSales(),
   "/api/expenses": () => getExpenses(),
@@ -90,6 +104,33 @@ export async function apiRequest(
 
   if (method === "POST" && route === "/api/subscriptions") {
     const result = await createSubscription(data as InsertSubscription);
+    return jsonResponse(result, 201);
+  }
+
+  if (method === "POST" && route === "/api/packages") {
+    const result = await createSubscriptionPackage(data as InsertSubscriptionPackage);
+    return jsonResponse(result, 201);
+  }
+
+  if (method === "DELETE" && route.startsWith("/api/packages/")) {
+    const id = route.split("/")[3];
+    await deleteSubscriptionPackage(id);
+    return jsonResponse(undefined, 204);
+  }
+
+  if (method === "POST" && route === "/api/belts") {
+    const result = await createBelt(data as InsertBelt);
+    return jsonResponse(result, 201);
+  }
+
+  if (method === "DELETE" && route.startsWith("/api/belts/")) {
+    const id = route.split("/")[3];
+    await deleteBelt(id);
+    return jsonResponse(undefined, 204);
+  }
+
+  if (method === "POST" && route === "/api/member-belts") {
+    const result = await awardBeltToMember(data as InsertMemberBelt);
     return jsonResponse(result, 201);
   }
 
@@ -135,17 +176,17 @@ export const getQueryFn: <T>(options: {
   on401: UnauthorizedBehavior;
 }) => QueryFunction<T> =
   () =>
-  async ({ queryKey }) => {
-    const route = queryKey[0];
-    if (typeof route !== "string") {
-      throw new Error("Invalid query key");
-    }
-    const handler = queryHandlers[route];
-    if (!handler) {
-      throw new Error(`Unknown query key: ${route}`);
-    }
-    return (await handler(queryKey)) as T;
-  };
+    async ({ queryKey }) => {
+      const route = queryKey[0];
+      if (typeof route !== "string") {
+        throw new Error("Invalid query key");
+      }
+      const handler = queryHandlers[route];
+      if (!handler) {
+        throw new Error(`Unknown query key: ${route}`);
+      }
+      return (await handler(queryKey)) as T;
+    };
 
 export const queryClient = new QueryClient({
   defaultOptions: {

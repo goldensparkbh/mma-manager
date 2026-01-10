@@ -112,83 +112,104 @@ export default function Login() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/40 p-4 gap-12">
-      <img src="/logo_l.svg" alt="Logo" className="h-96 w-auto" />
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle className="text-center text-2xl">تسجيل الدخول</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <Tabs defaultValue="email">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="email">البريد الإلكتروني</TabsTrigger>
-              <TabsTrigger value="phone">الهاتف</TabsTrigger>
-            </TabsList>
-            <TabsContent value="email" className="space-y-4">
-              <Input
-                type="email"
-                placeholder="email@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                data-testid="input-login-email"
-              />
-              <Input
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                data-testid="input-login-password"
-              />
-              <Button
-                className="w-full"
-                onClick={handleEmailLogin}
-                disabled={isSubmitting}
-                data-testid="button-login-email"
-              >
-                {isSubmitting ? "جاري الدخول..." : "تسجيل الدخول"}
-              </Button>
-            </TabsContent>
-            <TabsContent value="phone" className="space-y-4">
-              <Input
-                type="tel"
-                placeholder="+973xxxxxxxx"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                data-testid="input-login-phone"
-              />
-              {confirmationResult ? (
-                <>
-                  <Input
-                    type="text"
-                    placeholder="رمز التحقق"
-                    value={verificationCode}
-                    onChange={(e) => setVerificationCode(e.target.value)}
-                    data-testid="input-login-code"
-                  />
-                  <Button
-                    className="w-full"
-                    onClick={handleVerifyCode}
-                    disabled={isSubmitting}
-                    data-testid="button-login-verify"
-                  >
-                    {isSubmitting ? "جاري التحقق..." : "تأكيد الرمز"}
-                  </Button>
-                </>
-              ) : (
+    <div className="grid min-h-screen w-full lg:grid-cols-[1.5fr_1fr]">
+      {/* Background/Logo Column */}
+      <div className="hidden lg:flex relative flex-col items-center justify-center bg-muted/40 p-12 overflow-hidden">
+        <div className="absolute inset-0 z-0 bg-[url('/back.png')] bg-cover bg-center" />
+        <div className="absolute inset-0 z-10 bg-black/60" /> {/* Darker Overlay */}
+      </div>
+
+      {/* Login Form Column */}
+      <div className="flex flex-col items-center justify-center p-8 bg-background">
+        <img
+          src="/logo_light_full.svg"
+          alt="Club Logo"
+          className="w-48 mb-6"
+        />
+        <Card className="w-full max-w-md border-none shadow-none lg:border lg:shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-center text-3xl font-bold tracking-tight">مرحباً بك</CardTitle>
+            <p className="text-center text-sm text-muted-foreground">
+              سجل الدخول للمتابعة إلى نظام إدارة النادي
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <Tabs defaultValue="email">
+              <TabsList className="grid w-full grid-cols-2 mb-6">
+                <TabsTrigger value="email">البريد الإلكتروني</TabsTrigger>
+                <TabsTrigger value="phone">الهاتف</TabsTrigger>
+              </TabsList>
+              <TabsContent value="email" className="space-y-4">
+                <Input
+                  type="email"
+                  placeholder="name@example.com"
+                  className="h-11"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  data-testid="input-login-email"
+                />
+                <Input
+                  type="password"
+                  placeholder="••••••••"
+                  className="h-11"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  data-testid="input-login-password"
+                />
                 <Button
-                  className="w-full"
-                  onClick={handleSendCode}
+                  className="w-full h-11 text-base"
+                  onClick={handleEmailLogin}
                   disabled={isSubmitting}
-                  data-testid="button-login-send-code"
+                  data-testid="button-login-email"
                 >
-                  {isSubmitting ? "جاري الإرسال..." : "إرسال رمز التحقق"}
+                  {isSubmitting ? "جاري الدخول..." : "تسجيل الدخول"}
                 </Button>
-              )}
-              <div id="recaptcha-container" />
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
+              </TabsContent>
+              <TabsContent value="phone" className="space-y-4">
+                <Input
+                  type="tel"
+                  placeholder="+973xxxxxxxx"
+                  className="h-11 text-left direction-ltr"
+                  dir="ltr"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  data-testid="input-login-phone"
+                />
+                {confirmationResult ? (
+                  <>
+                    <Input
+                      type="text"
+                      placeholder="رمز التحقق"
+                      className="h-11"
+                      value={verificationCode}
+                      onChange={(e) => setVerificationCode(e.target.value)}
+                      data-testid="input-login-code"
+                    />
+                    <Button
+                      className="w-full h-11"
+                      onClick={handleVerifyCode}
+                      disabled={isSubmitting}
+                      data-testid="button-login-verify"
+                    >
+                      {isSubmitting ? "جاري التحقق..." : "تأكيد الرمز"}
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    className="w-full h-11"
+                    onClick={handleSendCode}
+                    disabled={isSubmitting}
+                    data-testid="button-login-send-code"
+                  >
+                    {isSubmitting ? "جاري الإرسال..." : "إرسال رمز التحقق"}
+                  </Button>
+                )}
+                <div id="recaptcha-container" />
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
