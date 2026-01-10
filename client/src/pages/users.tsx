@@ -18,7 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { Search, UserCog, Shield, ShieldAlert, Plus, Trash2, Pencil } from "lucide-react";
+import { Search, UserCog, Shield, ShieldAlert, Plus, Trash2, Pencil, Mail } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { User } from "@shared/schema";
 import { useAuth } from "@/context/auth-context";
@@ -33,7 +33,7 @@ export default function Users() {
     const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
     const [editingRole, setEditingRole] = useState<Role | null>(null);
 
-    const { data: users, isLoading: loadingUsers } = useQuery<User[]>({
+    const { data: users, isLoading: loadingUsers, error: usersError } = useQuery<User[]>({
         queryKey: ["/api/users"],
     });
 
@@ -164,7 +164,7 @@ export default function Users() {
 
 
     const [isUserDialogOpen, setIsUserDialogOpen] = useState(false);
-    const [userForm, setUserForm] = useState({ email: "", name: "", role: "staff" });
+    const [userForm, setUserForm] = useState({ email: "", password: "", name: "", role: "staff" });
 
     const mutationCreateUser = useMutation({
         mutationFn: async (data: typeof userForm) => {
@@ -174,8 +174,8 @@ export default function Users() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/users"] });
             setIsUserDialogOpen(false);
-            setUserForm({ email: "", name: "", role: "staff" });
-            toast({ title: "تمت الدعوة", description: "تم إضافة المستخدم بنجاح. يمكنه تسجيل الدخول الآن بنفس البريد." });
+            setUserForm({ email: "", password: "", name: "", role: "staff" });
+            toast({ title: "تم إنشاء المستخدم", description: "تم إنشاء حساب المستخدم وتعيين الصلاحية بنجاح." });
         },
         onError: (err: Error) => {
             toast({ variant: "destructive", title: "خطأ", description: err.message });
@@ -187,7 +187,13 @@ export default function Users() {
         mutationCreateUser.mutate(userForm);
     };
 
-    // ... (rest of render)
+    // Helper to open email client - keeping for legacy invites or contacting users
+    const sendInviteEmail = (email: string, name: string) => {
+        const subject = encodeURIComponent("بيانات الدخول للنظام");
+        const body = encodeURIComponent(`مرحباً ${name}،\n\nتم إنشاء حساب لك في النظام.\nالبريد الإلكتروني: ${email}\nرابط النظام: ${window.location.origin}`);
+        window.open(`mailto:${email}?subject=${subject}&body=${body}`);
+    };
+
 
     return (
         <div className="space-y-6">
@@ -244,6 +250,17 @@ export default function Users() {
                                                     />
                                                 </div>
                                                 <div className="space-y-2">
+                                                    <Label>كلمة المرور</Label>
+                                                    <Input
+                                                        required
+                                                        type="password"
+                                                        value={userForm.password}
+                                                        onChange={e => setUserForm({ ...userForm, password: e.target.value })}
+                                                        placeholder="******"
+                                                        minLength={6}
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
                                                     <Label>الدور</Label>
                                                     <Select
                                                         value={userForm.role}
@@ -260,7 +277,7 @@ export default function Users() {
                                                     </Select>
                                                 </div>
                                                 <Button type="submit" className="w-full" disabled={mutationCreateUser.isPending}>
-                                                    {mutationCreateUser.isPending ? "جاري الإضافة..." : "إضافة"}
+                                                    {mutationCreateUser.isPending ? "جاري الإنشاء..." : "إنشاء المستخدم"}
                                                 </Button>
                                             </form>
                                         </DialogContent>
@@ -274,7 +291,11 @@ export default function Users() {
                             </div>
                         </CardHeader>
                         <CardContent>
-                            {loadingUsers ? (
+                            {usersError ? (
+                                <div className="p-4 text-center text-destructive bg-destructive/10 rounded-md">
+                                    <p>حدث خطأ أثناء تحميل المستخدمين: {usersError.message}</p>
+                                </div>
+                            ) : loadingUsers ? (
                                 <div className="space-y-4">
                                     {[1, 2, 3].map(i => <Skeleton key={i} className="h-12 w-full" />)}
                                 </div>
@@ -295,13 +316,26 @@ export default function Users() {
                                                     <td className="p-4 text-right font-medium">
                                                         <div className="flex items-center gap-2">
                                                             {user.photoURL ? <img src={user.photoURL} className="w-8 h-8 rounded-full" /> : <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">{user.displayName?.[0] || user.email?.[0]}</div>}
-                                                            <span>{user.displayName || "مستخدم"}</span>
+                                                            <div>
+                                                                <div>{user.displayName || "مستخدم"}</div>
+                                                                {(user as any).isInvite && <Badge variant="outline" className="text-xs mt-1">دعوة معلقة</Badge>}
+                                                            </div>
                                                         </div>
                                                     </td>
                                                     <td className="p-4 text-right font-mono text-muted-foreground">{user.email}</td>
                                                     <td className="p-4 text-right text-muted-foreground">{user.createdAt || "-"}</td>
                                                     <td className="p-4 text-right">
                                                         <div className="flex items-center gap-2">
+                                                            {(user as any).isInvite && (
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    title="إرسال دعوة بالبريد"
+                                                                    onClick={() => sendInviteEmail(user.email, user.displayName?.replace(" (مدعو)", "") || "")}
+                                                                >
+                                                                    <Mail className="w-4 h-4 text-blue-500" />
+                                                                </Button>
+                                                            )}
                                                             <Select
                                                                 value={user.role || 'staff'}
                                                                 onValueChange={(val) => {
@@ -309,7 +343,7 @@ export default function Users() {
                                                                         updateRoleMutation.mutate({ id: user.id, role: val });
                                                                     }
                                                                 }}
-                                                                disabled={updateRoleMutation.isPending}
+                                                                disabled={updateRoleMutation.isPending || user.email === 'manager@kumite.com'}
                                                             >
                                                                 <SelectTrigger className="w-32 h-8">
                                                                     <SelectValue />
@@ -323,19 +357,21 @@ export default function Users() {
                                                                 </SelectContent>
                                                             </Select>
 
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                className="text-destructive hover:text-destructive"
-                                                                onClick={() => {
-                                                                    if (confirm("هل أنت متأكد من حذف ملف المستخدم؟ سيتم منعه من الوصول ولكن الحساب قد يبقى في المصادقة.")) {
-                                                                        mutationDeleteUser.mutate(user.id);
-                                                                    }
-                                                                }}
-                                                                title="حذف المستخدم"
-                                                            >
-                                                                <Trash2 className="w-4 h-4" />
-                                                            </Button>
+                                                            {user.email !== 'manager@kumite.com' && (
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="text-destructive hover:text-destructive"
+                                                                    onClick={() => {
+                                                                        if (confirm("هل أنت متأكد من حذف ملف المستخدم؟")) {
+                                                                            mutationDeleteUser.mutate(user.id);
+                                                                        }
+                                                                    }}
+                                                                    title="حذف المستخدم"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </Button>
+                                                            )}
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -347,8 +383,8 @@ export default function Users() {
                                 </div>
                             )}
                         </CardContent>
-                    </Card>
-                </TabsContent>
+                    </Card >
+                </TabsContent >
 
                 <TabsContent value="roles">
                     <Card>
@@ -454,7 +490,7 @@ export default function Users() {
                         </CardContent>
                     </Card>
                 </TabsContent>
-            </Tabs>
-        </div>
+            </Tabs >
+        </div >
     );
 }

@@ -42,7 +42,7 @@ import {
   updateRole,
   deleteRole,
   deleteUser,
-  createInvite,
+  createUserWithRole,
   type Role
 } from "@/lib/firebaseData";
 
@@ -91,6 +91,7 @@ const queryHandlers: Record<string, (queryKey: readonly unknown[]) => Promise<un
     return getActivityLogs(limit);
   },
   "/api/roles": () => getRoles(),
+  "/api/users": () => getUsers(),
 };
 
 export async function apiRequest(
@@ -260,8 +261,8 @@ export async function apiRequest(
   }
 
   if (method === "POST" && route === "/api/users/invite") {
-    const { email, name, role } = data as any;
-    await createInvite(email, name, role);
+    const { email, password, name, role } = data as any;
+    await createUserWithRole(email, password, name, role);
     return jsonResponse({ ok: true }, 201);
   }
 

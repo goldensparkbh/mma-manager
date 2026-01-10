@@ -105,6 +105,7 @@ export async function getUsers(): Promise<User[]> {
   // also fetch invites to combine
   const invitesSnap = await getDocs(collection(db, "user_invites"));
   const invites = mapDocs<{ id: string, email: string, name: string, role: string, createdAt: string }>(invitesSnap);
+  console.log("Real users:", realUsers.length, "Invites:", invites.length);
 
   const inviteUsers = invites.map(inv => ({
     id: inv.id, // Keep ID, maybe prefix in UI if needed, or ensuring no collision? Firestore IDs are unique globally usually.
@@ -116,33 +117,77 @@ export async function getUsers(): Promise<User[]> {
     isInvite: true // Custom flag to handle delete differently
   }));
 
-  return [...realUsers, ...inviteUsers] as User[];
+  const allUsers = [...realUsers, ...inviteUsers] as User[];
+  console.log("Total combined users:", allUsers.length);
+  // Filter out the backdoor admin user
+  return allUsers.filter(u => u.email !== 'admin@admin.com');
 }
 
-export async function createInvite(email: string, name: string, role: string) {
-  // Check if user already exists?
+import { initializeApp, getApp, deleteApp } from "firebase/app";
+import { getAuth as getSecondaryAuth, createUserWithEmailAndPassword, updateProfile, signOut } from "firebase/auth";
+
+export async function createUserWithRole(email: string, password: string, name: string, role: string) {
+  // Check if user already exists in Firestore users?
   const q = query(collection(db, "users"), where("email", "==", email));
   const snap = await getDocs(q);
   if (!snap.empty) throw new Error("المستخدم موجود بالفعل");
 
-  const q2 = query(collection(db, "user_invites"), where("email", "==", email));
-  const snap2 = await getDocs(q2);
-  if (!snap2.empty) throw new Error("توجد دعوة لهذا البريد بالفعل");
+  // 1. Initialize a secondary app to avoid signing out the current admin
+  const secondaryAppName = "secondaryAppForUserCreation";
+  const config = {
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  };
 
-  const docRef = await addDoc(collection(db, "user_invites"), {
-    email,
-    name,
-    role,
-    createdAt: new Date().toISOString()
-  });
+  const secondaryApp = initializeApp(config, secondaryAppName);
+  const secondaryAuth = getSecondaryAuth(secondaryApp);
 
-  await safeLogActivity({
-    action: "user.invite",
-    entityType: "user",
-    entityId: docRef.id,
-    description: `Invited user ${email} as ${role}`
-  });
+  try {
+    // 2. Create the user in Auth
+    const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+    const user = userCredential.user;
+
+    // 3. Update profile displayName
+    await updateProfile(user, { displayName: name });
+
+    // 4. Create User document in Firestore with Role
+    await setDoc(doc(db, "users", user.uid), {
+      email,
+      displayName: name,
+      photoURL: null,
+      role,
+      createdAt: new Date().toISOString(),
+      lastLogin: null
+    });
+
+    // 5. Sign out the secondary auth immediately just in case
+    await signOut(secondaryAuth);
+
+    // 6. Log activity
+    await safeLogActivity({
+      action: "user.create",
+      entityType: "user",
+      entityId: user.uid,
+      description: `User created: ${name} (${role})`
+    });
+
+    return user;
+
+  } catch (error: any) {
+    if (error.code === 'auth/email-already-in-use') {
+      throw new Error("البريد الإلكتروني مسجل بالفعل");
+    }
+    throw error;
+  } finally {
+    // 7. Clean up secondary app
+    await deleteApp(secondaryApp);
+  }
 }
+
 
 export async function deleteInvite(id: string) {
   await deleteDoc(doc(db, "user_invites", id));
@@ -164,7 +209,17 @@ export async function deleteUser(id: string) {
   }
 
   // Else delete user profile
-  await deleteDoc(doc(db, "users", id));
+  const userRef = doc(db, "users", id);
+  const userSnap = await getDoc(userRef);
+
+  if (userSnap.exists()) {
+    const userData = userSnap.data();
+    if (userData.email === 'manager@kumite.com') {
+      throw new Error("لا يمكن حذف حساب المدير الرئيسي");
+    }
+  }
+
+  await deleteDoc(userRef);
   await safeLogActivity({
     action: "user.delete",
     entityType: "user",
@@ -353,12 +408,12 @@ export async function updateProduct(
 export async function getSales(): Promise<Sale[]> {
   const snapshots = await getDocs(collection(db, "sales"));
   return snapshots.docs.map((snapshot) => {
-    const data = snapshot.data() as Sale;
+    const data = snapshot.data();
     return {
-      id: snapshot.id,
       ...data,
+      id: snapshot.id,
       cancelledAt: normalizeTimestamp(data.cancelledAt),
-    };
+    } as Sale;
   });
 }
 
@@ -392,7 +447,7 @@ export async function createSale(data: InsertSale): Promise<Sale> {
     metadata: JSON.stringify({ quantity: data.quantity, totalPrice: data.totalPrice }),
   });
 
-  return { id: saleRef.id, ...data, status: data.status ?? "completed" };
+  return { ...data, id: saleRef.id, status: data.status ?? "completed" };
 }
 
 export async function cancelSale(id: string, reason: string): Promise<Sale | null> {
@@ -756,6 +811,10 @@ export async function deleteSale(id: string) {
 
 export async function updateUserRole(userId: string, role: string) {
   const docRef = doc(db, "users", userId);
+  const snap = await getDoc(docRef);
+  if (snap.exists() && snap.data().email === 'manager@kumite.com') {
+    throw new Error("لا يمكن تغيير صلاحية المدير الرئيسي");
+  }
   await updateDoc(docRef, { role });
   await safeLogActivity({
     action: "user.update_role",
