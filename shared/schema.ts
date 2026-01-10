@@ -2,9 +2,11 @@ export type UserRole = "admin" | "staff";
 
 export interface User {
   id: string;
-  username: string;
-  password: string;
-  role?: UserRole;
+  email: string;
+  displayName?: string | null;
+  photoURL?: string | null;
+  role: UserRole;
+  createdAt?: string;
 }
 
 export interface Member {
@@ -56,6 +58,7 @@ export interface Subscription {
   startDate: string;
   endDate: string;
   status: string;
+  paymentStatus?: "paid" | "pending" | "unpaid";
   paymentMethod?: string | null;
 }
 
@@ -141,6 +144,8 @@ export interface DashboardStats {
   activeSubscriptions: number;
   monthlyIncome: number;
   netProfit: number;
+  totalExpenses: number;
+  expensesByCategory: { category: string; total: number }[];
   newMembersThisMonth: number;
   expiringSubscriptions: Member[];
 }

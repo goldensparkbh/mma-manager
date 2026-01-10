@@ -41,6 +41,7 @@ import type {
   InsertBelt,
   MemberBelt,
   InsertMemberBelt,
+  User,
 } from "@shared/schema";
 
 const normalizeTimestamp = (value: unknown) => {
@@ -72,6 +73,106 @@ async function safeLogActivity(entry: InsertActivityLog) {
   }
 }
 
+export async function getNextMemberId(): Promise<string> {
+  const docRef = doc(db, "config", "counters");
+  let nextId = 1000;
+
+  try {
+    await runTransaction(db, async (transaction) => {
+      const docSnap = await transaction.get(docRef);
+      if (!docSnap.exists()) {
+        transaction.set(docRef, { memberCount: 1000 });
+        nextId = 1000;
+      } else {
+        const data = docSnap.data();
+        const count = (data.memberCount || 1000) + 1;
+        transaction.update(docRef, { memberCount: count });
+        nextId = count;
+      }
+    });
+  } catch (e) {
+    console.error("Transaction failed: ", e);
+    // Fallback? or throw
+    throw e;
+  }
+  return nextId.toString();
+}
+
+export async function getUsers(): Promise<User[]> {
+  const snapshots = await getDocs(collection(db, "users"));
+  const realUsers = mapDocs<User>(snapshots);
+
+  // also fetch invites to combine
+  const invitesSnap = await getDocs(collection(db, "user_invites"));
+  const invites = mapDocs<{ id: string, email: string, name: string, role: string, createdAt: string }>(invitesSnap);
+
+  const inviteUsers = invites.map(inv => ({
+    id: inv.id, // Keep ID, maybe prefix in UI if needed, or ensuring no collision? Firestore IDs are unique globally usually.
+    email: inv.email,
+    displayName: inv.name + " (مدعو)",
+    role: inv.role as any,
+    createdAt: inv.createdAt,
+    photoURL: null,
+    isInvite: true // Custom flag to handle delete differently
+  }));
+
+  return [...realUsers, ...inviteUsers] as User[];
+}
+
+export async function createInvite(email: string, name: string, role: string) {
+  // Check if user already exists?
+  const q = query(collection(db, "users"), where("email", "==", email));
+  const snap = await getDocs(q);
+  if (!snap.empty) throw new Error("المستخدم موجود بالفعل");
+
+  const q2 = query(collection(db, "user_invites"), where("email", "==", email));
+  const snap2 = await getDocs(q2);
+  if (!snap2.empty) throw new Error("توجد دعوة لهذا البريد بالفعل");
+
+  const docRef = await addDoc(collection(db, "user_invites"), {
+    email,
+    name,
+    role,
+    createdAt: new Date().toISOString()
+  });
+
+  await safeLogActivity({
+    action: "user.invite",
+    entityType: "user",
+    entityId: docRef.id,
+    description: `Invited user ${email} as ${role}`
+  });
+}
+
+export async function deleteInvite(id: string) {
+  await deleteDoc(doc(db, "user_invites", id));
+}
+
+export async function deleteUser(id: string) {
+  // First check if it's an invite
+  const inviteRef = doc(db, "user_invites", id);
+  const inviteSnap = await getDoc(inviteRef);
+  if (inviteSnap.exists()) {
+    await deleteDoc(inviteRef);
+    await safeLogActivity({
+      action: "user.invite_delete",
+      entityType: "user",
+      entityId: id,
+      description: "User invite deleted"
+    });
+    return;
+  }
+
+  // Else delete user profile
+  await deleteDoc(doc(db, "users", id));
+  await safeLogActivity({
+    action: "user.delete",
+    entityType: "user",
+    entityId: id,
+    description: "User profile deleted",
+  });
+}
+
 export async function getMembers(): Promise<Member[]> {
   const snapshots = await getDocs(collection(db, "members"));
   return mapDocs<Member>(snapshots);
@@ -88,8 +189,12 @@ export async function createMember(data: InsertMember & { imageFile?: File | nul
     imageUrl = await getDownloadURL(storageRef);
   }
 
+  // Auto-generate memberId
+  const memberId = await getNextMemberId();
+
   const payload = {
     ...memberData,
+    memberId,
     imageUrl: imageUrl || null,
     balance: memberData.balance ?? 0,
   };
@@ -350,6 +455,28 @@ export async function createExpense(data: InsertExpense): Promise<Expense> {
   return { id: docRef.id, ...data };
 }
 
+export async function updateExpense(id: string, updates: Partial<InsertExpense>) {
+  const docRef = doc(db, "expenses", id);
+  await updateDoc(docRef, updates);
+  await safeLogActivity({
+    action: "expense.update",
+    entityType: "expense",
+    entityId: id,
+    description: "Expense updated",
+    metadata: JSON.stringify(updates),
+  });
+}
+
+export async function deleteExpense(id: string) {
+  await deleteDoc(doc(db, "expenses", id));
+  await safeLogActivity({
+    action: "expense.delete",
+    entityType: "expense",
+    entityId: id,
+    description: "Expense deleted",
+  });
+}
+
 export async function getActivityLogs(limitCount = 100): Promise<ActivityLog[]> {
   const snapshots = await getDocs(
     query(collection(db, "activityLogs"), orderBy("createdAt", "desc"), limit(limitCount))
@@ -385,6 +512,17 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     .reduce((sum, s) => sum + s.amount, 0);
 
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+
+  const expensesByCategoryMap = expenses.reduce((acc, curr) => {
+    acc[curr.category] = (acc[curr.category] || 0) + curr.amount;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const expensesByCategory = Object.entries(expensesByCategoryMap).map(([category, total]) => ({
+    category,
+    total
+  }));
+
   const netProfit = monthlyIncome - totalExpenses;
 
   const newMembersThisMonth = members.filter((m) => {
@@ -405,6 +543,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     activeSubscriptions,
     monthlyIncome,
     netProfit,
+    totalExpenses,
+    expensesByCategory,
     newMembersThisMonth,
     expiringSubscriptions,
   };
@@ -512,4 +652,190 @@ export async function awardBeltToMember(data: InsertMemberBelt): Promise<MemberB
   return { id: docRef.id, ...data, awardedAt: data.awardedAt || new Date().toISOString() };
 }
 
+export async function revokeMemberBelt(id: string) {
+  await deleteDoc(doc(db, "memberBelts", id));
+  await safeLogActivity({
+    action: "belt.revoke",
+    entityType: "member_belt",
+    entityId: id,
+    description: "Belt revoked from member",
+  });
+}
 
+
+export async function deleteMember(id: string) {
+  // Optional: Check for active subscriptions? Or cascade?
+  // For now, just delete the member document.
+  await deleteDoc(doc(db, "members", id));
+  await safeLogActivity({
+    action: "member.delete",
+    entityType: "member",
+    entityId: id,
+    description: "Member deleted",
+  });
+}
+
+export async function updateSubscription(id: string, updates: Partial<InsertSubscription>) {
+  const docRef = doc(db, "subscriptions", id);
+  await updateDoc(docRef, updates);
+
+  // If dates changed, we might need to update the member too... 
+  // This is complex if multiple subscriptions exist. 
+  // For now, we assume this is the active one if we are editing it.
+  if (updates.memberId && (updates.startDate || updates.endDate)) {
+    const memberRef = doc(db, "members", updates.memberId);
+    await updateDoc(memberRef, {
+      subscriptionStart: updates.startDate,
+      subscriptionEnd: updates.endDate
+    });
+  }
+
+  await safeLogActivity({
+    action: "subscription.update",
+    entityType: "subscription",
+    entityId: id,
+    description: "Subscription updated",
+    metadata: JSON.stringify(updates),
+  });
+}
+
+export async function deleteSubscription(id: string) {
+  const subRef = doc(db, "subscriptions", id);
+  const subSnap = await getDoc(subRef);
+  if (subSnap.exists()) {
+    const data = subSnap.data() as Subscription;
+    // We might want to clear member's subscription status if this was the active one.
+    // Skipping for simplicity or we can do it:
+    if (data.status === 'active') {
+      const memberRef = doc(db, "members", data.memberId);
+      await updateDoc(memberRef, { status: 'expired' }); // Or reset dates
+    }
+  }
+  await deleteDoc(subRef);
+  await safeLogActivity({
+    action: "subscription.delete",
+    entityType: "subscription",
+    entityId: id,
+    description: "Subscription deleted",
+  });
+}
+
+export async function deleteProduct(id: string) {
+  await deleteDoc(doc(db, "products", id));
+  await safeLogActivity({
+    action: "product.delete",
+    entityType: "product",
+    entityId: id,
+    description: "Product deleted",
+  });
+}
+
+export async function updateSale(id: string, updates: Partial<InsertSale>) {
+  const docRef = doc(db, "sales", id);
+  await updateDoc(docRef, updates);
+  await safeLogActivity({
+    action: "sale.update",
+    entityType: "sale",
+    entityId: id,
+    description: "Sale updated",
+  });
+}
+
+export async function deleteSale(id: string) {
+  // Note: Deleting a sale should probably revert stock?
+  // If it wasn't cancelled locally first.
+  // For simplicity, we just delete the record here.
+  await deleteDoc(doc(db, "sales", id));
+  await safeLogActivity({
+    action: "sale.delete",
+    entityType: "sale",
+    entityId: id,
+    description: "Sale deleted",
+  });
+}
+
+export async function updateUserRole(userId: string, role: string) {
+  const docRef = doc(db, "users", userId);
+  await updateDoc(docRef, { role });
+  await safeLogActivity({
+    action: "user.update_role",
+    entityType: "user",
+    entityId: userId,
+    description: `User role updated to ${role}`,
+  });
+}
+
+// Roles Management
+export interface Role {
+  id: string;
+  name: string;
+  permissions?: string[];
+  isSystem?: boolean; // prevent deleting 'admin' or 'staff'
+}
+
+export async function getRoles(): Promise<Role[]> {
+  const snapshots = await getDocs(collection(db, "roles"));
+  const fetchedRoles = mapDocs<Role>(snapshots);
+  // Ensure default roles exist if empty?
+  // For now, allow dynamic creation but maybe seeded ones.
+  const defaults = [
+    { id: 'admin', name: 'Admin', isSystem: true },
+    { id: 'staff', name: 'Staff', isSystem: true }
+  ];
+
+  // Return fetched + defaults not already in fetched (by id)
+  const roleMap = new Map<string, Role>();
+  defaults.forEach(r => roleMap.set(r.id, r));
+  fetchedRoles.forEach(r => roleMap.set(r.id, r)); // Overwrite defaults if they exist in DB? Or merge?
+
+  return Array.from(roleMap.values());
+}
+
+export async function createRole(name: string, permissions: string[] = []): Promise<Role> {
+  // Use name as ID (slugified) or auto-id? Auto-id is safer for renames.
+  const docRef = await addDoc(collection(db, "roles"), { name, permissions });
+  await safeLogActivity({
+    action: "role.create",
+    entityType: "role",
+    entityId: docRef.id,
+    description: `Role created: ${name}`,
+  });
+  return { id: docRef.id, name, permissions };
+}
+
+export async function updateRole(id: string, name: string, permissions: string[] = []) {
+  const docRef = doc(db, "roles", id);
+  await setDoc(docRef, { name, permissions }, { merge: true });
+  await safeLogActivity({
+    action: "role.update",
+    entityType: "role",
+    entityId: id,
+    description: `Role updated to ${name}`,
+  });
+}
+
+export async function deleteRole(id: string) {
+  if (id === 'admin') throw new Error("لا يمكن حذف دور المسؤول");
+
+  // Check assigned users
+  const qUsers = query(collection(db, "users"), where("role", "==", id));
+  const snapUsers = await getDocs(qUsers);
+  if (!snapUsers.empty) {
+    throw new Error("لا يمكن حذف الدور لأنه مستخدم من قبل حسابات نشطة");
+  }
+
+  // Check assigned invites
+  const qInvites = query(collection(db, "user_invites"), where("role", "==", id));
+  const snapInvites = await getDocs(qInvites);
+  if (!snapInvites.empty) {
+    throw new Error("لا يمكن حذف الدور لأنه مستخدم في دعوات معلقة");
+  }
+
+  await deleteDoc(doc(db, "roles", id));
+  await safeLogActivity({
+    action: "role.delete",
+    entityType: "role",
+    entityId: id,
+    description: "Role deleted",
+  });
+}

@@ -262,21 +262,31 @@ export default function Dashboard() {
               <p className="text-xs text-muted-foreground">Monthly costs</p>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex items-center justify-between py-2 border-b">
-                <span className="text-sm">إيجار</span>
-                <Badge variant="secondary">800 د.ب</Badge>
-              </div>
-              <div className="flex items-center justify-between py-2 border-b">
-                <span className="text-sm">رواتب المدربين</span>
-                <Badge variant="secondary">600 د.ب</Badge>
-              </div>
-              <div className="flex items-center justify-between py-2 border-b">
-                <span className="text-sm">مصروفات إضافية</span>
-                <Badge variant="secondary">200 د.ب</Badge>
-              </div>
-              <div className="flex items-center justify-between py-2">
+              {stats?.expensesByCategory && stats.expensesByCategory.length > 0 ? (
+                stats.expensesByCategory.map((exp) => (
+                  <div key={exp.category} className="flex items-center justify-between py-2 border-b last:border-0">
+                    <span className="text-sm">
+                      {exp.category === 'rent' ? 'إيجار' :
+                        exp.category === 'salaries' ? 'رواتب' :
+                          exp.category === 'utilities' ? 'فواتير' :
+                            exp.category === 'maintenance' ? 'صيانة' :
+                              exp.category === 'marketing' ? 'تسويق' :
+                                exp.category === 'other' ? 'أخرى' : exp.category}
+                    </span>
+                    <Badge variant="secondary">{exp.total.toLocaleString()} د.ب</Badge>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center text-muted-foreground py-4 text-sm">
+                  لا توجد مصروفات مسجلة
+                </div>
+              )}
+
+              <div className="flex items-center justify-between py-2 mt-4 pt-4 border-t">
                 <span className="text-sm font-medium">صافي الربح التقديري</span>
-                <Badge variant="default">{stats?.netProfit?.toLocaleString() ?? 0} د.ب</Badge>
+                <Badge variant={stats?.netProfit && stats.netProfit >= 0 ? "default" : "destructive"}>
+                  {stats?.netProfit?.toLocaleString() ?? 0} د.ب
+                </Badge>
               </div>
             </CardContent>
           </Card>

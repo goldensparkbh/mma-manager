@@ -13,20 +13,37 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Search, ShoppingBag, TrendingUp, Package } from "lucide-react";
+import { Search, ShoppingBag, TrendingUp, Package, Printer, Trash2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Sale } from "@shared/schema";
+import { useAuth } from "@/context/auth-context";
 
 export default function Sales() {
+  const { role } = useAuth();
+  const isAdmin = role === "admin";
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+  const [receiptData, setReceiptData] = useState<Sale | null>(null);
 
   const { data: sales, isLoading } = useQuery<Sale[]>({
     queryKey: ["/api/sales"],
+  });
+
+  const deleteSaleMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/sales/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sales"] });
+      toast({ title: "تم الحذف", description: "تم حذف السجل بنجاح" });
+    },
+    onError: () => {
+      toast({ variant: "destructive", title: "خطأ", description: "فشل الحذف" });
+    }
   });
 
   const cancelSale = useMutation({
@@ -167,6 +184,7 @@ export default function Sales() {
         </DialogContent>
       </Dialog>
 
+      {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardContent className="p-6">
@@ -244,7 +262,7 @@ export default function Sales() {
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm" dir="rtl">
               <thead>
                 <tr className="border-b bg-muted/50">
                   <th className="text-right py-3 px-3 font-medium text-muted-foreground">المنتج</th>
@@ -262,24 +280,24 @@ export default function Sales() {
                 {filteredSales && filteredSales.length > 0 ? (
                   filteredSales.map((sale) => (
                     <tr key={sale.id} className="border-b last:border-0 hover-elevate" data-testid={`row-sale-${sale.id}`}>
-                      <td className="py-3 px-3 font-medium">{sale.productName}</td>
-                      <td className="py-3 px-3 text-muted-foreground">{sale.buyerName || "-"}</td>
-                      <td className="py-3 px-3">
+                      <td className="py-3 px-3 font-medium text-right">{sale.productName}</td>
+                      <td className="py-3 px-3 text-muted-foreground text-right">{sale.buyerName || "-"}</td>
+                      <td className="py-3 px-3 text-right">
                         <Badge variant="secondary">{sale.quantity}</Badge>
                       </td>
-                      <td className="py-3 px-3">{sale.unitPrice.toFixed(2)} د.ب</td>
-                      <td className="py-3 px-3 font-medium">{sale.totalPrice.toFixed(2)} د.ب</td>
-                      <td className="py-3 px-3 text-muted-foreground">{formatDate(sale.date)}</td>
-                      <td className="py-3 px-3">
+                      <td className="py-3 px-3 text-right">{sale.unitPrice.toFixed(2)} د.ب</td>
+                      <td className="py-3 px-3 font-medium text-right">{sale.totalPrice.toFixed(2)} د.ب</td>
+                      <td className="py-3 px-3 text-muted-foreground text-right">{formatDate(sale.date)}</td>
+                      <td className="py-3 px-3 text-right">
                         <Badge variant="secondary">
                           {sale.paymentMethod === "cash"
                             ? "نقداً"
                             : sale.paymentMethod === "card"
-                            ? "بطاقة"
-                            : "تحويل"}
+                              ? "بطاقة"
+                              : "تحويل"}
                         </Badge>
                       </td>
-                      <td className="py-3 px-3">
+                      <td className="py-3 px-3 text-right">
                         {sale.status === "cancelled" ? (
                           <div className="space-y-1">
                             <Badge variant="destructive">ملغي</Badge>
@@ -291,7 +309,15 @@ export default function Sales() {
                           <Badge variant="secondary">مكتمل</Badge>
                         )}
                       </td>
-                      <td className="py-3 px-3">
+                      <td className="py-3 px-3 flex gap-2 text-right">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setReceiptData(sale)}
+                          title="طباعة إيصال"
+                        >
+                          <Printer className="w-4 h-4" />
+                        </Button>
                         <Button
                           size="sm"
                           variant="outline"
@@ -301,6 +327,17 @@ export default function Sales() {
                         >
                           إلغاء
                         </Button>
+                        {isAdmin && <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => {
+                            if (confirm('حذف السجل نهائياً؟')) deleteSaleMutation.mutate(sale.id);
+                          }}
+                          title="حذف السجل"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>}
                       </td>
                     </tr>
                   ))
@@ -316,6 +353,44 @@ export default function Sales() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Receipt Dialog */}
+      <Dialog open={!!receiptData} onOpenChange={(open) => !open && setReceiptData(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>إيصال بيع</DialogTitle></DialogHeader>
+          {receiptData && (
+            <div className="space-y-6" id="sale-receipt-area">
+              <div className="text-center border-b pb-4">
+                <h2 className="text-xl font-bold">Kumite Combat</h2>
+                <p className="text-muted-foreground text-sm">إيصال مشتريات</p>
+                <p className="text-xs text-muted-foreground mt-1">التاريخ: {new Date(receiptData.date).toLocaleDateString('ar-BH')}</p>
+              </div>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between"><span>المنتج:</span> <span className="font-medium">{receiptData.productName}</span></div>
+                <div className="flex justify-between"><span>المشتري:</span> <span>{receiptData.buyerName || '-'}</span></div>
+                <div className="flex justify-between"><span>الكمية:</span> <span>{receiptData.quantity}</span></div>
+                <div className="flex justify-between border-t pt-2 mt-2"><span>الإجمالي:</span> <span className="font-bold text-lg">{receiptData.totalPrice.toFixed(2)} د.ب</span></div>
+                <div className="flex justify-between"><span>طريقة الدفع:</span> <span>{receiptData.paymentMethod}</span></div>
+              </div>
+              <Button className="w-full" onClick={() => {
+                const content = document.getElementById('sale-receipt-area')?.innerHTML;
+                const printWindow = window.open('', '', 'height=600,width=800');
+                if (printWindow && content) {
+                  printWindow.document.write('<html><head><title>Receipt</title>');
+                  printWindow.document.write('<style>body{font-family: sans-serif; direction: rtl;} .flex{display:flex; justify-content:space-between;}</style>');
+                  printWindow.document.write('</head><body>');
+                  printWindow.document.write(content);
+                  printWindow.document.write('</body></html>');
+                  printWindow.document.close();
+                  printWindow.print();
+                }
+              }}>
+                <Printer className="w-4 h-4 ml-2" /> طباعة
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

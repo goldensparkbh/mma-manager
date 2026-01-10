@@ -29,6 +29,8 @@ import {
   CreditCard,
   Package,
   Receipt,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { FinanceReport, Expense, InsertExpense, Subscription, Sale } from "@shared/schema";
@@ -61,6 +63,10 @@ export default function Finance() {
     queryKey: ["/api/sales"],
   });
 
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  // ... (keep existing subscriptions/sales queries)
+
   const { data: expenses, isLoading: loadingExpenses } = useQuery<Expense[]>({
     queryKey: ["/api/expenses"],
   });
@@ -74,38 +80,81 @@ export default function Finance() {
       queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       setIsDialogOpen(false);
-      setFormData({
-        category: "other",
-        description: "",
-        amount: 0,
-        date: new Date().toISOString().split("T")[0],
-      });
-      toast({
-        title: "تم بنجاح",
-        description: "تم إضافة المصروف بنجاح",
-      });
+      resetForm();
+      toast({ title: "تم بنجاح", description: "تم إضافة المصروف بنجاح" });
     },
     onError: () => {
-      toast({
-        title: "خطأ",
-        description: "حدث خطأ أثناء إضافة المصروف",
-        variant: "destructive",
-      });
+      toast({ variant: "destructive", title: "خطأ", description: "حدث خطأ أثناء إضافة المصروف" });
     },
   });
+
+  const updateExpense = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<InsertExpense> }) => {
+      const response = await apiRequest("PATCH", `/api/expenses/${id}`, data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      setIsDialogOpen(false);
+      resetForm();
+      toast({ title: "تم بنجاح", description: "تم تعديل المصروف بنجاح" });
+    },
+    onError: () => {
+      toast({ variant: "destructive", title: "خطأ", description: "فشل تعديل المصروف" });
+    }
+  });
+
+  const deleteExpense = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/expenses/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      toast({ title: "تم الحذف", description: "تم حذف المصروف بنجاح" });
+    },
+    onError: () => {
+      toast({ variant: "destructive", title: "خطأ", description: "فشل حذف المصروف" });
+    }
+  });
+
+  const resetForm = () => {
+    setEditingId(null);
+    setFormData({
+      category: "other",
+      description: "",
+      amount: 0,
+      date: new Date().toISOString().split("T")[0],
+    });
+  };
+
+  const openEditDialog = (expense: Expense) => {
+    setEditingId(expense.id);
+    setFormData({
+      category: expense.category,
+      description: expense.description || "",
+      amount: expense.amount,
+      date: expense.date,
+    });
+    setIsDialogOpen(true);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.amount || formData.amount <= 0) {
-      toast({
-        title: "خطأ",
-        description: "يرجى إدخال مبلغ صحيح",
-        variant: "destructive",
-      });
+      toast({ title: "خطأ", description: "يرجى إدخال مبلغ صحيح", variant: "destructive" });
       return;
     }
-    createExpense.mutate(formData as InsertExpense);
+
+    if (editingId) {
+      updateExpense.mutate({ id: editingId, data: formData });
+    } else {
+      createExpense.mutate(formData as InsertExpense);
+    }
   };
+
+  // ... (keep calculations)
 
   const totalSubscriptionIncome = subscriptions?.reduce((sum, sub) => sum + sub.amount, 0) ?? 0;
   const activeSales = sales?.filter((sale) => sale.status !== "cancelled") ?? [];
@@ -136,9 +185,7 @@ export default function Finance() {
     return (
       <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-24" />
-          ))}
+          {[1, 2, 3, 4].map((i) => (<Skeleton key={i} className="h-24" />))}
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Skeleton className="h-80" />
@@ -155,7 +202,7 @@ export default function Finance() {
           <h1 className="text-2xl font-bold" data-testid="text-page-title">التقارير المالية</h1>
           <p className="text-sm text-muted-foreground">ملخص الإيرادات والمصروفات</p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
           <DialogTrigger asChild>
             <Button variant="outline" data-testid="button-add-expense">
               <Plus className="h-4 w-4 ml-2" />
@@ -166,7 +213,7 @@ export default function Finance() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Receipt className="h-5 w-5" />
-                تسجيل مصروف جديد
+                {editingId ? "تعديل المصروف" : "تسجيل مصروف جديد"}
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -227,10 +274,10 @@ export default function Finance() {
               <Button
                 type="submit"
                 className="w-full"
-                disabled={createExpense.isPending}
+                disabled={createExpense.isPending || updateExpense.isPending}
                 data-testid="button-submit-expense"
               >
-                {createExpense.isPending ? "جاري الإضافة..." : "إضافة المصروف"}
+                {createExpense.isPending || updateExpense.isPending ? "جاري الحفظ..." : "حفظ"}
               </Button>
             </form>
           </DialogContent>
@@ -238,6 +285,7 @@ export default function Finance() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* ... (Keep Stat Cards same as original) ... */}
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
@@ -343,6 +391,7 @@ export default function Finance() {
                     <th className="text-right py-2 px-2 font-medium text-muted-foreground">الوصف</th>
                     <th className="text-right py-2 px-2 font-medium text-muted-foreground">المبلغ</th>
                     <th className="text-right py-2 px-2 font-medium text-muted-foreground">التاريخ</th>
+                    <th className="text-right py-2 px-2 font-medium text-muted-foreground">إجراء</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -357,11 +406,31 @@ export default function Finance() {
                         </td>
                         <td className="py-2 px-2 font-medium">{expense.amount.toFixed(2)} د.ب</td>
                         <td className="py-2 px-2 text-muted-foreground">{formatDate(expense.date)}</td>
+                        <td className="py-2 px-2 flex gap-1 justify-end">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => openEditDialog(expense)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            onClick={() => {
+                              if (confirm('حذف هذا المصروف؟')) deleteExpense.mutate(expense.id);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={4} className="py-8 text-center text-muted-foreground">
+                      <td colSpan={5} className="py-8 text-center text-muted-foreground">
                         لا توجد مصروفات مسجلة
                       </td>
                     </tr>

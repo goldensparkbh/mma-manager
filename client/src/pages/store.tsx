@@ -25,7 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Plus, Package, Search, ShoppingCart, Minus, Trash2, ImagePlus } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Product, InsertProduct, CartItem, InsertSale } from "@shared/schema";
-import { Link } from "wouter";
+import { useAuth } from "@/context/auth-context";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const defaultProductForm: Partial<InsertProduct> = {
@@ -47,6 +47,8 @@ const categories = [
 ];
 
 export default function Store() {
+  const { role } = useAuth();
+  const isAdmin = role === "admin";
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
@@ -182,18 +184,34 @@ export default function Store() {
       setEditingProduct(null);
       resetProductForm();
       toast({
-        title: "Product updated",
-        description: "Product details and inventory were updated.",
+        title: "تم بنجاح",
+        description: "تم تحديث المنتج بنجاح",
       });
     },
     onError: () => {
       toast({
-        title: "Error",
-        description: "Failed to update the product.",
+        title: "خطأ",
+        description: "فشل تحديث المنتج",
         variant: "destructive",
       });
     },
   });
+
+  const deleteProduct = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/products/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      setIsDialogOpen(false); // Close dialog if open (e.g. if we add delete button in dialog)
+      setEditingProduct(null);
+      toast({ title: "تم الحذف", description: "تم حذف المنتج بنجاح" });
+    },
+    onError: () => {
+      toast({ variant: "destructive", title: "خطأ", description: "فشل حذف المنتج" });
+    }
+  });
+
 
   const createSale = useMutation({
     mutationFn: async ({ items, buyerName }: { items: CartItem[]; buyerName: string }) => {
@@ -207,7 +225,7 @@ export default function Store() {
         date: new Date().toISOString().split("T")[0],
         paymentMethod: "cash",
       }));
-      
+
       for (const sale of sales) {
         await apiRequest("POST", "/api/sales", sale);
       }
@@ -264,7 +282,7 @@ export default function Store() {
       });
       return;
     }
-    
+
     setCart((prevCart) => {
       const existingItem = prevCart.find((item) => item.product.id === product.id);
       if (existingItem) {
@@ -279,10 +297,10 @@ export default function Store() {
         const updatedCart = prevCart.map((item) =>
           item.product.id === product.id
             ? {
-                ...item,
-                quantity: item.quantity + 1,
-                product: latestProduct ?? product,
-              }
+              ...item,
+              quantity: item.quantity + 1,
+              product: latestProduct ?? product,
+            }
             : item
         );
         toast({
@@ -383,7 +401,7 @@ export default function Store() {
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Package className="h-5 w-5" />
-                  {isEditing ? "Edit product" : "إضافة منتج جديد"}
+                  {isEditing ? "تعديل منتج" : "إضافة منتج جديد"}
                 </DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -480,16 +498,16 @@ export default function Store() {
                         />
                         <button
                           type="button"
-                        className="absolute top-0 right-0 bg-destructive text-destructive-foreground rounded-full p-0.5"
-                        onClick={() => {
-                          if (imagePreview?.startsWith("blob:")) {
-                            URL.revokeObjectURL(imagePreview);
-                          }
-                          setImagePreview(null);
-                          setImageFile(null);
-                          setFormData((prev) => ({ ...prev, imageUrl: "" }));
-                        }}
-                      >
+                          className="absolute top-0 right-0 bg-destructive text-destructive-foreground rounded-full p-0.5"
+                          onClick={() => {
+                            if (imagePreview?.startsWith("blob:")) {
+                              URL.revokeObjectURL(imagePreview);
+                            }
+                            setImagePreview(null);
+                            setImageFile(null);
+                            setFormData((prev) => ({ ...prev, imageUrl: "" }));
+                          }}
+                        >
                           <Trash2 className="h-3 w-3" />
                         </button>
                       </div>
@@ -497,20 +515,34 @@ export default function Store() {
                   </div>
                 </div>
 
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={createProduct.isPending || updateProduct.isPending}
-                  data-testid="button-submit-product"
-                >
-                  {createProduct.isPending || updateProduct.isPending
-                    ? isEditing
-                      ? "Updating..."
-                      : "جاري الإضافة..."
-                    : isEditing
-                    ? "Update product"
-                    : "إضافة المنتج"}
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    type="submit"
+                    className="flex-1"
+                    disabled={createProduct.isPending || updateProduct.isPending}
+                    data-testid="button-submit-product"
+                  >
+                    {createProduct.isPending || updateProduct.isPending
+                      ? "جاري الحفظ..."
+                      : isEditing
+                        ? "تحديث المنتج"
+                        : "إضافة المنتج"}
+                  </Button>
+
+                  {isEditing && editingProduct && isAdmin && (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={() => {
+                        if (confirm('حذف المنتج نهائياً؟')) {
+                          deleteProduct.mutate(editingProduct.id);
+                        }
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
               </form>
             </DialogContent>
           </Dialog>

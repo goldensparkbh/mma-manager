@@ -1,4 +1,5 @@
 import { Switch, Route } from "wouter";
+import { ShieldAlert } from "lucide-react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
@@ -19,24 +20,29 @@ import Finance from "@/pages/finance";
 import Logs from "@/pages/logs";
 import Login from "@/pages/login";
 import Belts from "@/pages/belts";
+import Users from "@/pages/users";
+
+import { PERMISSIONS } from "@/lib/permissions";
 
 function AccessDenied() {
   return (
-    <div className="flex h-[60vh] items-center justify-center text-muted-foreground">
-      لا تملك صلاحية الوصول إلى هذه الصفحة
+    <div className="flex flex-col gap-4 h-[60vh] items-center justify-center text-muted-foreground">
+      <ShieldAlert className="w-16 h-16 text-destructive" />
+      <h2 className="text-xl font-bold">لا تملك صلاحية الوصول</h2>
+      <p>ليس لديك الصلاحية المطلوبة لعرض هذه الصفحة</p>
     </div>
   );
 }
 
-function RequireRole({
-  allowedRoles,
+function RequirePermission({
+  permission,
   children,
 }: {
-  allowedRoles: string[];
+  permission: string;
   children: React.ReactNode;
 }) {
-  const { role } = useAuth();
-  if (!role || !allowedRoles.includes(role)) {
+  const { hasPermission } = useAuth();
+  if (!hasPermission(permission)) {
     return <AccessDenied />;
   }
   return <>{children}</>;
@@ -46,22 +52,61 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
-      <Route path="/members" component={Members} />
-      <Route path="/attendance" component={AttendancePage} />
-      <Route path="/subscriptions" component={Subscriptions} />
-      <Route path="/store" component={Store} />
-      <Route path="/sales" component={Sales} />
-      <Route path="/belts" component={Belts} />
+
+      <Route path="/members">
+        <RequirePermission permission={PERMISSIONS.MEMBERS_VIEW}>
+          <Members />
+        </RequirePermission>
+      </Route>
+
+      <Route path="/attendance">
+        <RequirePermission permission={PERMISSIONS.ATTENDANCE_VIEW}>
+          <AttendancePage />
+        </RequirePermission>
+      </Route>
+
+      <Route path="/subscriptions">
+        <RequirePermission permission={PERMISSIONS.SUBSCRIPTIONS_VIEW}>
+          <Subscriptions />
+        </RequirePermission>
+      </Route>
+
+      <Route path="/store">
+        <RequirePermission permission={PERMISSIONS.STORE_VIEW}>
+          <Store />
+        </RequirePermission>
+      </Route>
+
+      <Route path="/sales">
+        <RequirePermission permission={PERMISSIONS.SALES_VIEW}>
+          <Sales />
+        </RequirePermission>
+      </Route>
+
+      <Route path="/belts">
+        <RequirePermission permission={PERMISSIONS.MEMBERS_VIEW}>
+          <Belts />
+        </RequirePermission>
+      </Route>
+
       <Route path="/finance">
-        <RequireRole allowedRoles={["admin"]}>
+        <RequirePermission permission={PERMISSIONS.FINANCE_VIEW}>
           <Finance />
-        </RequireRole>
+        </RequirePermission>
       </Route>
+
+      <Route path="/users">
+        <RequirePermission permission={PERMISSIONS.USERS_VIEW}>
+          <Users />
+        </RequirePermission>
+      </Route>
+
       <Route path="/logs">
-        <RequireRole allowedRoles={["admin"]}>
+        <RequirePermission permission={PERMISSIONS.LOGS_VIEW}>
           <Logs />
-        </RequireRole>
+        </RequirePermission>
       </Route>
+
       <Route component={NotFound} />
     </Switch>
   );

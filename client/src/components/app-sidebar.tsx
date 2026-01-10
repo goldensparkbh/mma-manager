@@ -10,6 +10,7 @@ import {
   ScrollText,
   LogOut,
   Award,
+  UserCog,
 } from "lucide-react";
 import {
   Sidebar,
@@ -24,6 +25,7 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/context/auth-context";
+import { PERMISSIONS } from "@/lib/permissions";
 
 const mainItems = [
   {
@@ -34,71 +36,85 @@ const mainItems = [
   },
 ];
 
-const memberItems = [
-  {
-    title: "الأعضاء",
-    titleEn: "Members",
-    url: "/members",
-    icon: Users,
-  },
-  {
-    title: "الحضور",
-    titleEn: "Attendance",
-    url: "/attendance",
-    icon: Calendar,
-  },
-  {
-    title: "الأحزمة",
-    titleEn: "Belts",
-    url: "/belts",
-    icon: Award,
-  },
-];
-
-const financeItems = [
-  {
-    title: "الاشتراكات",
-    titleEn: "Subscriptions",
-    url: "/subscriptions",
-    icon: CreditCard,
-  },
-  {
-    title: "المتجر",
-    titleEn: "Store",
-    url: "/store",
-    icon: Package,
-  },
-  {
-    title: "المبيعات",
-    titleEn: "Sales",
-    url: "/sales",
-    icon: ShoppingCart,
-  },
-  {
-    title: "الحسابات",
-    titleEn: "Finance",
-    url: "/finance",
-    icon: BarChart3,
-  },
-];
-
-const systemItems = [
-  {
-    title: "السجلات",
-    titleEn: "Logs",
-    url: "/logs",
-    icon: ScrollText,
-  },
-];
-
 export function AppSidebar() {
-  const { role, user, signOutUser } = useAuth();
+  const { role, user, signOutUser, hasPermission } = useAuth();
   const [location] = useLocation();
-  const isAdmin = role === "admin";
-  const visibleFinanceItems = isAdmin
-    ? financeItems
-    : financeItems.filter((item) => item.url !== "/finance");
-  const visibleSystemItems = isAdmin ? systemItems : [];
+
+  const financeItems = [
+    {
+      title: "الاشتراكات",
+      titleEn: "Subscriptions",
+      url: "/subscriptions",
+      icon: CreditCard,
+      permission: PERMISSIONS.SUBSCRIPTIONS_VIEW
+    },
+    {
+      title: "المتجر",
+      titleEn: "Store",
+      url: "/store",
+      icon: Package,
+      permission: PERMISSIONS.STORE_VIEW
+    },
+    {
+      title: "المبيعات",
+      titleEn: "Sales",
+      url: "/sales",
+      icon: ShoppingCart,
+      permission: PERMISSIONS.SALES_VIEW
+    },
+    {
+      title: "الحسابات",
+      titleEn: "Finance",
+      url: "/finance",
+      icon: BarChart3,
+      permission: PERMISSIONS.FINANCE_VIEW
+    },
+  ];
+
+  const systemItems = [
+    {
+      title: "المستخدمين",
+      titleEn: "Users",
+      url: "/users",
+      icon: UserCog,
+      permission: PERMISSIONS.USERS_VIEW
+    },
+    {
+      title: "السجلات",
+      titleEn: "Logs",
+      url: "/logs",
+      icon: ScrollText,
+      permission: PERMISSIONS.LOGS_VIEW
+    },
+  ];
+
+  const memberItems = [
+    {
+      title: "الأعضاء",
+      titleEn: "Members",
+      url: "/members",
+      icon: Users,
+      permission: PERMISSIONS.MEMBERS_VIEW
+    },
+    {
+      title: "الحضور",
+      titleEn: "Attendance",
+      url: "/attendance",
+      icon: Calendar,
+      permission: PERMISSIONS.ATTENDANCE_VIEW
+    },
+    {
+      title: "الأحزمة",
+      titleEn: "Belts",
+      url: "/belts",
+      icon: Award,
+      permission: PERMISSIONS.MEMBERS_VIEW // Using members view for now
+    },
+  ];
+
+  const visibleFinanceItems = financeItems.filter(item => hasPermission(item.permission));
+  const visibleSystemItems = systemItems.filter(item => hasPermission(item.permission));
+  const visibleMemberItems = memberItems.filter(item => hasPermission(item.permission));
 
   const isActive = (url: string) => {
     if (url === "/") return location === "/";
@@ -126,7 +142,7 @@ export function AppSidebar() {
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel className="text-xs uppercase tracking-wide text-muted-foreground">
-            المسؤول
+            لوحة التحكم
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -136,6 +152,21 @@ export function AppSidebar() {
                     asChild
                     isActive={isActive(item.url)}
                     data-testid={`nav-${item.url.replace("/", "") || "dashboard"}`}
+                  >
+                    <Link href={item.url}>
+                      <item.icon className="w-4 h-4" />
+                      <span className="flex-1 text-right">{item.title}</span>
+                      <span className="text-xs text-muted-foreground">{item.titleEn}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+              {visibleSystemItems.map((item) => (
+                <SidebarMenuItem key={item.url}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isActive(item.url)}
+                    data-testid={`nav-${item.url.replace("/", "")}`}
                   >
                     <Link href={item.url}>
                       <item.icon className="w-4 h-4" />
@@ -155,7 +186,7 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {memberItems.map((item) => (
+              {visibleMemberItems.map((item) => (
                 <SidebarMenuItem key={item.url}>
                   <SidebarMenuButton
                     asChild
@@ -199,32 +230,6 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {visibleSystemItems.length > 0 ? (
-          <SidebarGroup>
-            <SidebarGroupLabel className="text-xs uppercase tracking-wide text-muted-foreground">
-              النظام?
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {visibleSystemItems.map((item) => (
-                  <SidebarMenuItem key={item.url}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={isActive(item.url)}
-                      data-testid={`nav-${item.url.replace("/", "")}`}
-                    >
-                      <Link href={item.url}>
-                        <item.icon className="w-4 h-4" />
-                        <span className="flex-1 text-right">{item.title}</span>
-                        <span className="text-xs text-muted-foreground">{item.titleEn}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        ) : null}
       </SidebarContent>
 
       <SidebarFooter className="p-4 border-t border-sidebar-border">

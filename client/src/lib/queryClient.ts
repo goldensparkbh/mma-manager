@@ -26,7 +26,26 @@ import {
   deleteBelt,
   getMemberBelts,
   awardBeltToMember,
+  revokeMemberBelt,
+  deleteMember,
+  updateSubscription,
+  deleteSubscription,
+  deleteProduct,
+  updateSale,
+  deleteSale,
+  getUsers,
+  updateUserRole,
+  updateExpense,
+  deleteExpense,
+  getRoles,
+  createRole,
+  updateRole,
+  deleteRole,
+  deleteUser,
+  createInvite,
+  type Role
 } from "@/lib/firebaseData";
+
 import type {
   InsertAttendance,
   InsertExpense,
@@ -71,6 +90,7 @@ const queryHandlers: Record<string, (queryKey: readonly unknown[]) => Promise<un
     const limit = typeof queryKey[1] === "number" ? queryKey[1] : 100;
     return getActivityLogs(limit);
   },
+  "/api/roles": () => getRoles(),
 };
 
 export async function apiRequest(
@@ -134,6 +154,12 @@ export async function apiRequest(
     return jsonResponse(result, 201);
   }
 
+  if (method === "DELETE" && route.startsWith("/api/member-belts/")) {
+    const id = route.split("/")[3];
+    await revokeMemberBelt(id);
+    return jsonResponse(undefined, 204);
+  }
+
   if (method === "POST" && route === "/api/products") {
     const result = await createProduct(data as InsertProduct & { imageFile?: File | null });
     return jsonResponse(result, 201);
@@ -166,6 +192,96 @@ export async function apiRequest(
   if (method === "POST" && route === "/api/expenses") {
     const result = await createExpense(data as InsertExpense);
     return jsonResponse(result, 201);
+  }
+
+  if (method === "PATCH" && route.startsWith("/api/expenses/")) {
+    const id = route.split("/")[3];
+    await updateExpense(id, data as Partial<InsertExpense>);
+    return jsonResponse({ ok: true });
+  }
+
+  if (method === "DELETE" && route.startsWith("/api/expenses/")) {
+    const id = route.split("/")[3];
+    await deleteExpense(id);
+    return jsonResponse(undefined, 204);
+  }
+
+  if (method === "DELETE" && route.startsWith("/api/members/")) {
+    const id = route.split("/")[3];
+    await deleteMember(id);
+    return jsonResponse(undefined, 204);
+  }
+
+  if (method === "PATCH" && route.startsWith("/api/subscriptions/")) {
+    const id = route.split("/")[3];
+    await updateSubscription(id, data as Partial<InsertSubscription>);
+    return jsonResponse({ ok: true });
+  }
+
+  if (method === "DELETE" && route.startsWith("/api/subscriptions/")) {
+    const id = route.split("/")[3];
+    await deleteSubscription(id);
+    return jsonResponse(undefined, 204);
+  }
+
+  if (method === "DELETE" && route.startsWith("/api/products/")) {
+    const id = route.split("/")[3];
+    await deleteProduct(id);
+    return jsonResponse(undefined, 204);
+  }
+
+  if (method === "PATCH" && route.startsWith("/api/sales/") && !route.endsWith("/cancel")) {
+    const id = route.split("/")[3];
+    await updateSale(id, data as Partial<InsertSale>);
+    return jsonResponse({ ok: true });
+  }
+
+  if (method === "DELETE" && route.startsWith("/api/sales/")) {
+    const id = route.split("/")[3];
+    await deleteSale(id);
+    return jsonResponse(undefined, 204);
+  }
+
+  if (method === "GET" && route === "/api/users") {
+    const users = await getUsers();
+    return jsonResponse(users);
+  }
+
+  if (method === "PATCH" && route.startsWith("/api/users/") && route.endsWith("/role")) {
+    const id = route.split("/")[3];
+    await updateUserRole(id, (data as any).role);
+    return jsonResponse({ ok: true });
+  }
+
+  if (method === "DELETE" && route.startsWith("/api/users/")) {
+    const id = route.split("/")[3];
+    await deleteUser(id);
+    return jsonResponse(undefined, 204);
+  }
+
+  if (method === "POST" && route === "/api/users/invite") {
+    const { email, name, role } = data as any;
+    await createInvite(email, name, role);
+    return jsonResponse({ ok: true }, 201);
+  }
+
+  if (method === "POST" && route === "/api/roles") {
+    const { name, permissions } = data as any;
+    const result = await createRole(name, permissions);
+    return jsonResponse(result, 201);
+  }
+
+  if (method === "PATCH" && route.startsWith("/api/roles/")) {
+    const id = route.split("/")[3];
+    const { name, permissions } = data as any;
+    await updateRole(id, name, permissions);
+    return jsonResponse({ ok: true });
+  }
+
+  if (method === "DELETE" && route.startsWith("/api/roles/")) {
+    const id = route.split("/")[3];
+    await deleteRole(id);
+    return jsonResponse(undefined, 204);
   }
 
   throw new Error(`Unhandled request: ${method} ${route}`);
