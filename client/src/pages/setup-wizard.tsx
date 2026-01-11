@@ -15,16 +15,15 @@ export default function SetupWizard() {
     const [, setLocation] = useLocation();
     const [loading, setLoading] = useState(false);
 
-    // Step 3: Admin Account
+    // Admin Account
     const [adminData, setAdminData] = useState({
-        name: "",
         email: "",
         password: "",
         confirmPassword: "",
     });
 
     const handleFinish = async () => {
-        if (!adminData.name || !adminData.email || !adminData.password) {
+        if (!adminData.email || !adminData.password) {
             toast({ variant: "destructive", title: "خطأ", description: "يرجى ملء جميع الحقول المطلوبة" });
             return;
         }
@@ -43,12 +42,12 @@ export default function SetupWizard() {
         try {
             const auth = getAuth();
             const userCred = await createUserWithEmailAndPassword(auth, adminData.email, adminData.password);
-            await updateProfile(userCred.user, { displayName: adminData.name });
+            await updateProfile(userCred.user, { displayName: "Admin" });
 
             // Store in users collection
             await setDoc(doc(db, "users", userCred.user.uid), {
                 email: adminData.email,
-                displayName: adminData.name,
+                displayName: "Admin",
                 role: "admin",
                 createdAt: new Date().toISOString()
             });
@@ -84,17 +83,9 @@ export default function SetupWizard() {
                             <UserPlus className="w-5 h-5 text-primary" />
                             إنشاء حساب المدير
                         </CardTitle>
-                        <CardDescription>أدخل بيانات الدخول الخاصة بك كمدير للنظام</CardDescription>
+                        <CardDescription>أدخل البريد الإلكتروني وكلمة المرور للمدير</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <div className="space-y-2">
-                            <Label>اسم المدير</Label>
-                            <Input
-                                value={adminData.name}
-                                onChange={e => setAdminData({ ...adminData, name: e.target.value })}
-                                placeholder="الاسم الكامل"
-                            />
-                        </div>
                         <div className="space-y-2">
                             <Label>البريد الإلكتروني</Label>
                             <Input
@@ -102,6 +93,7 @@ export default function SetupWizard() {
                                 value={adminData.email}
                                 onChange={e => setAdminData({ ...adminData, email: e.target.value })}
                                 placeholder="manager@example.com"
+                                type="email"
                             />
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -111,6 +103,7 @@ export default function SetupWizard() {
                                     type="password"
                                     value={adminData.password}
                                     onChange={e => setAdminData({ ...adminData, password: e.target.value })}
+                                    placeholder="••••••••"
                                 />
                             </div>
                             <div className="space-y-2">
@@ -119,13 +112,14 @@ export default function SetupWizard() {
                                     type="password"
                                     value={adminData.confirmPassword}
                                     onChange={e => setAdminData({ ...adminData, confirmPassword: e.target.value })}
+                                    placeholder="••••••••"
                                 />
                             </div>
                         </div>
                         <div className="pt-4">
                             <Button onClick={handleFinish} disabled={loading} className="w-full h-12 text-lg">
                                 {loading ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : null}
-                                إكمال الإعداد وتسجيل الدخول
+                                إكمال الإعداد والتحويل لصفحة الدخول
                             </Button>
                         </div>
                     </CardContent>
