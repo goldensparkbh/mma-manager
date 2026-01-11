@@ -19,7 +19,7 @@ import type { Sale } from "@shared/schema";
 import { useAuth } from "@/context/auth-context";
 
 export default function Sales() {
-  const { role } = useAuth();
+  const { role, clubSettings } = useAuth();
   const isAdmin = role === "admin";
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
@@ -361,7 +361,7 @@ export default function Sales() {
           {receiptData && (
             <div className="space-y-6" id="sale-receipt-area">
               <div className="text-center border-b pb-4">
-                <h2 className="text-xl font-bold">Kumite Combat</h2>
+                <h2 className="text-xl font-bold">{clubSettings?.name || "Kumite Combat"}</h2>
                 <p className="text-muted-foreground text-sm">إيصال مشتريات</p>
                 <p className="text-xs text-muted-foreground mt-1">التاريخ: {new Date(receiptData.date).toLocaleDateString('ar-BH')}</p>
               </div>

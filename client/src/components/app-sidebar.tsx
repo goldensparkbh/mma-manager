@@ -37,8 +37,8 @@ const mainItems = [
 ];
 
 export function AppSidebar() {
-  const { role, user, signOutUser, hasPermission } = useAuth();
-  const [location] = useLocation();
+  const { role, user, signOutUser, hasPermission, clubSettings } = useAuth();
+  const [location, setLocation] = useLocation();
 
   const financeItems = [
     {
@@ -125,15 +125,22 @@ export function AppSidebar() {
     <Sidebar side="right">
       <SidebarHeader className="p-4">
         <div className="flex items-center gap-3">
-          <div className="flex-shrink-0">
-            <img src="/logo_dark_icon.svg" alt="Club Logo" className="w-10 h-10 rounded-full object-contain" />
+          <div
+            className={`flex-shrink-0 ${role === 'admin' ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+            onClick={() => {
+              if (role === 'admin') {
+                setLocation("/system-settings");
+              }
+            }}
+          >
+            <img src={clubSettings?.logoUrl || "/logo_dark_icon.svg"} alt="Club Logo" className="w-10 h-10 rounded-full object-contain" />
           </div>
           <div className="overflow-hidden">
             <div className="font-semibold text-sidebar-foreground truncate" dir="ltr">
               {user?.displayName || user?.email?.split('@')[0] || "User"}
             </div>
             <div className="text-xs text-muted-foreground truncate" dir="ltr">
-              Club Manager
+              {clubSettings?.name || "Club Manager"}
             </div>
           </div>
         </div>

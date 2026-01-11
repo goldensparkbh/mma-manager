@@ -21,7 +21,11 @@ import Logs from "@/pages/logs";
 import Login from "@/pages/login";
 import Belts from "@/pages/belts";
 import Users from "@/pages/users";
+import SystemSettings from "@/pages/system-settings";
+import SetupWizard from "@/pages/setup-wizard";
 
+import { useLocation } from "wouter";
+import { useEffect } from "react";
 import { PERMISSIONS } from "@/lib/permissions";
 
 function AccessDenied() {
@@ -107,23 +111,41 @@ function Router() {
         </RequirePermission>
       </Route>
 
+      <Route path="/system-settings">
+        <RequirePermission permission={PERMISSIONS.USERS_MANAGE}>
+          <SystemSettings />
+        </RequirePermission>
+      </Route>
+
       <Route component={NotFound} />
     </Switch>
   );
 }
 
 function AppShell() {
-  const { user, loading } = useAuth();
+  const { user, loading, clubSettings } = useAuth();
   const style = {
     "--sidebar-width": "17rem",
     "--sidebar-width-icon": "4rem",
   };
+
+  const setupComplete = localStorage.getItem("system_setup_complete") === "true";
+  const [location] = useLocation();
 
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center text-muted-foreground">
         جاري التحميل...
       </div>
+    );
+  }
+
+  if (!setupComplete) {
+    return (
+      <>
+        <SetupWizard />
+        <Toaster />
+      </>
     );
   }
 
@@ -152,11 +174,14 @@ function AppShell() {
                       }).format(new Date())}
                     </p>
                   </div>
+                  {/* Mobile Club Name */}
+                  <div className="sm:hidden font-bold truncate max-w-[150px]">
+                    {clubSettings?.name || "Club Manager"}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted text-xs">
-                    <span className="text-muted-foreground">اللغة:</span>
-                    <span className="font-medium">العربية</span>
+                  <div className="hidden xs:flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted text-xs font-mono">
+                    <span className="text-muted-foreground uppercase opacity-70">BH</span>
                   </div>
                   <ThemeToggle />
                 </div>

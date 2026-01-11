@@ -31,7 +31,7 @@ import { useAuth } from "@/context/auth-context";
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
 export default function Members() {
-  const { role } = useAuth();
+  const { role, clubSettings } = useAuth();
   const isAdmin = role === "admin";
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
@@ -306,7 +306,7 @@ export default function Members() {
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="phone">رقم الجوال *</Label>
                   <Input
@@ -526,9 +526,13 @@ export default function Members() {
 
                 {/* Logo / Brand */}
                 <div className="mt-8 mb-4 flex flex-col items-center">
-                  <img src="/logo_dark_icon.svg" alt="Logo" className="w-16 h-16 object-contain opacity-90 mb-2" />
-                  <h2 className="text-2xl font-black tracking-widest uppercase">Kumite</h2>
-                  <p className="text-xs text-red-500 font-bold uppercase tracking-[0.3em]">Combat</p>
+                  <img src={clubSettings?.logoUrl || "/logo_dark_icon.svg"} alt="Logo" className="w-16 h-16 object-contain opacity-90 mb-2" />
+                  <h2 className="text-2xl font-black tracking-widest uppercase text-center leading-tight">
+                    {clubSettings?.name.split(' ')[0] || "Kumite"}
+                  </h2>
+                  <p className="text-xs text-red-500 font-bold uppercase tracking-[0.3em] text-center">
+                    {clubSettings?.name.split(' ').slice(1).join(' ') || "Combat"}
+                  </p>
                 </div>
 
                 {/* Avatar */}

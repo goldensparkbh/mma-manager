@@ -9,8 +9,20 @@ type AuthContextValue = {
   role: string | null; // Changed from UserRole to string to support custom roles
   permissions: string[];
   loading: boolean;
+  clubSettings: {
+    name: string;
+    logoUrl: string;
+    phone: string;
+    location: string;
+    socials: {
+      facebook: string;
+      instagram: string;
+      twitter: string;
+    };
+  } | null;
   signOutUser: () => Promise<void>;
   hasPermission: (permission: string) => boolean;
+  refreshClubSettings: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -46,8 +58,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [role, setRole] = useState<string | null>(null);
   const [permissions, setPermissions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [clubSettings, setClubSettings] = useState<AuthContextValue['clubSettings']>(null);
+
+  const fetchClubSettings = async () => {
+    try {
+      const docRef = doc(db, "settings", "general");
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        setClubSettings({
+          name: data.name || "Club Manager",
+          logoUrl: data.logoUrl || "/logo_dark_icon.svg",
+          phone: data.phone || "",
+          location: data.location || "",
+          socials: {
+            facebook: data.socials?.facebook || "",
+            instagram: data.socials?.instagram || "",
+            twitter: data.socials?.twitter || "",
+          }
+        });
+      } else {
+        setClubSettings({
+          name: "Club Manager",
+          logoUrl: "/logo_dark_icon.svg",
+          phone: "",
+          location: "",
+          socials: { facebook: "", instagram: "", twitter: "" }
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching club settings:", error);
+    }
+  };
 
   useEffect(() => {
+    fetchClubSettings(); // Initial fetch
+
     const timeoutId = setTimeout(() => {
       setLoading(false);
     }, 4000);
@@ -127,10 +173,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       role,
       permissions,
       loading,
+      clubSettings,
       signOutUser,
       hasPermission,
+      refreshClubSettings: fetchClubSettings,
     }),
-    [user, role, permissions, loading]
+    [user, role, permissions, loading, clubSettings]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

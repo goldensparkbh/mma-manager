@@ -8,8 +8,11 @@ import { auth } from "@/lib/firebase";
 
 import { useLocation } from "wouter";
 
+import { useAuth } from "@/context/auth-context";
+
 export default function Login() {
   const { toast } = useToast();
+  const { clubSettings } = useAuth();
   const [, setLocation] = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -50,9 +53,9 @@ export default function Login() {
       {/* Login Form Column */}
       <div className="flex flex-col items-center justify-center p-8 bg-background">
         <img
-          src="/logo_light_full.svg"
+          src={clubSettings?.logoUrl || "/logo_light_full.svg"}
           alt="Club Logo"
-          className="w-48 mb-6"
+          className="w-48 mb-6 object-contain max-h-32"
         />
         <Card className="w-full max-w-md border-none shadow-none lg:border lg:shadow-sm">
           <CardHeader>
