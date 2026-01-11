@@ -6,12 +6,16 @@ import type { UserRole } from "@shared/schema";
 
 type AuthContextValue = {
   user: User | null;
-  role: string | null; // Changed from UserRole to string to support custom roles
+  role: string | null;
   permissions: string[];
   loading: boolean;
+  setupRequired: boolean; // Add this
   clubSettings: {
     name: string;
     logoUrl: string;
+    logoUrlLight?: string; // Add these
+    logoUrlDark?: string;  // Add these
+    managerEmail: string;  // Add this
     phone: string;
     location: string;
     socials: {
@@ -58,6 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [role, setRole] = useState<string | null>(null);
   const [permissions, setPermissions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [setupRequired, setSetupRequired] = useState(false); // Add this
   const [clubSettings, setClubSettings] = useState<AuthContextValue['clubSettings']>(null);
 
   const fetchClubSettings = async () => {
@@ -69,6 +74,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setClubSettings({
           name: data.name || "Club Manager",
           logoUrl: data.logoUrl || "/logo_dark_icon.svg",
+          logoUrlLight: data.logoUrlLight || "",
+          logoUrlDark: data.logoUrlDark || "",
+          managerEmail: data.managerEmail || "", // Add this
           phone: data.phone || "",
           location: data.location || "",
           socials: {
@@ -81,6 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setClubSettings({
           name: "Club Manager",
           logoUrl: "/logo_dark_icon.svg",
+          managerEmail: "", // Add this
           phone: "",
           location: "",
           socials: { facebook: "", instagram: "", twitter: "" }
@@ -91,69 +100,78 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const checkSetupStatus = async () => {
+    try {
+      const q = query(collection(db, "users"), where("role", "==", "admin"));
+      const snap = await getDocs(q);
+      setSetupRequired(snap.empty);
+    } catch (error) {
+      console.error("Error checking setup status:", error);
+      // Fallback to localStorage if Firestore check fails (e.g. permission denied)
+      setSetupRequired(localStorage.getItem("system_setup_complete") !== "true");
+    }
+  };
+
   useEffect(() => {
-    fetchClubSettings(); // Initial fetch
+    const init = async () => {
+      await Promise.all([
+        fetchClubSettings(),
+        checkSetupStatus()
+      ]);
 
-    const timeoutId = setTimeout(() => {
-      setLoading(false);
-    }, 4000);
-
-    const unsubscribe = onAuthStateChanged(auth, async (authUser) => {
-      setUser(authUser);
-      if (!authUser) {
-        setRole(null);
-        setPermissions([]);
-        setLoading(false);
-        return;
-      }
-
-      try {
-        let userRole = await fetchUserRole(authUser.uid);
-        let userDisplayName = authUser.displayName;
-
-        // If no role found (first login?), check invites
-        if (!userRole && authUser.email) {
-          const q = query(collection(db, "user_invites"), where("email", "==", authUser.email));
-          const inviteSnap = await getDocs(q);
-          if (!inviteSnap.empty) {
-            const inviteDoc = inviteSnap.docs[0];
-            const inviteData = inviteDoc.data();
-            userRole = inviteData.role;
-            userDisplayName = inviteData.name; // Use invite name if available
-
-            // Cleanup invite? keeping it for history for now, or delete.
-            // Let's delete it so they don't get double counted in lists
-            await deleteDoc(doc(db, "user_invites", inviteDoc.id));
-          }
+      const unsubscribe = onAuthStateChanged(auth, async (authUser) => {
+        setUser(authUser);
+        if (!authUser) {
+          setRole(null);
+          setPermissions([]);
+          setLoading(false);
+          return;
         }
 
-        // Sync basic profile
-        await setDoc(doc(db, "users", authUser.uid), {
-          email: authUser.email,
-          displayName: userDisplayName || authUser.displayName,
-          photoURL: authUser.photoURL,
-          lastLogin: new Date().toISOString(),
-          role: userRole || "staff"
-        }, { merge: true });
+        try {
+          let userRole = await fetchUserRole(authUser.uid);
+          let userDisplayName = authUser.displayName;
 
-        userRole = userRole || "staff";
-        setRole(userRole);
+          if (!userRole && authUser.email) {
+            const q = query(collection(db, "user_invites"), where("email", "==", authUser.email));
+            const inviteSnap = await getDocs(q);
+            if (!inviteSnap.empty) {
+              const inviteDoc = inviteSnap.docs[0];
+              const inviteData = inviteDoc.data();
+              userRole = inviteData.role;
+              userDisplayName = inviteData.name;
+              await deleteDoc(doc(db, "user_invites", inviteDoc.id));
+            }
+          }
 
-        // Fetch permissions for this role
-        const perms = await fetchRolePermissions(userRole);
-        setPermissions(perms);
+          await setDoc(doc(db, "users", authUser.uid), {
+            email: authUser.email,
+            displayName: userDisplayName || authUser.displayName,
+            photoURL: authUser.photoURL,
+            lastLogin: new Date().toISOString(),
+            role: userRole || "staff"
+          }, { merge: true });
 
-      } catch (error) {
-        console.error("Auth error:", error);
-        setRole("staff");
-        setPermissions([]);
-      }
-      setLoading(false);
-    });
+          userRole = userRole || "staff";
+          setRole(userRole);
+          const perms = await fetchRolePermissions(userRole);
+          setPermissions(perms);
+
+        } catch (error) {
+          console.error("Auth error:", error);
+          setRole("staff");
+          setPermissions([]);
+        }
+        setLoading(false);
+      });
+
+      return unsubscribe;
+    };
+
+    const unsubscribePromise = init();
 
     return () => {
-      unsubscribe();
-      clearTimeout(timeoutId);
+      unsubscribePromise.then(unsubscribe => unsubscribe && unsubscribe());
     };
   }, []);
 
@@ -163,7 +181,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const hasPermission = (permission: string) => {
     if (!role) return false;
-    if (permissions.includes('*')) return true; // Admin wildcard
+    if (permissions.includes('*')) return true;
     return permissions.includes(permission);
   };
 
@@ -173,12 +191,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       role,
       permissions,
       loading,
+      setupRequired,
       clubSettings,
       signOutUser,
       hasPermission,
       refreshClubSettings: fetchClubSettings,
     }),
-    [user, role, permissions, loading, clubSettings]
+    [user, role, permissions, loading, setupRequired, clubSettings]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -53,7 +53,7 @@ export default function Login() {
       {/* Login Form Column */}
       <div className="flex flex-col items-center justify-center p-8 bg-background">
         <img
-          src={clubSettings?.logoUrl || "/logo_light_full.svg"}
+          src={clubSettings?.logoUrlLight || clubSettings?.logoUrlDark || "/logo_light_full.svg"}
           alt="Club Logo"
           className="w-48 mb-6 object-contain max-h-32"
         />

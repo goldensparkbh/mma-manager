@@ -123,13 +123,12 @@ function Router() {
 }
 
 function AppShell() {
-  const { user, loading, clubSettings } = useAuth();
+  const { user, loading, clubSettings, setupRequired } = useAuth();
   const style = {
     "--sidebar-width": "17rem",
     "--sidebar-width-icon": "4rem",
   };
 
-  const setupComplete = localStorage.getItem("system_setup_complete") === "true";
   const [location] = useLocation();
 
   if (loading) {
@@ -140,7 +139,7 @@ function AppShell() {
     );
   }
 
-  if (!setupComplete) {
+  if (setupRequired) {
     return (
       <>
         <SetupWizard />

@@ -1,43 +1,34 @@
 import { useState, useEffect } from "react";
-import { useForm } from "react-hook-form";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/auth-context";
 import { db, storage } from "@/lib/firebase";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { updatePassword, updateEmail } from "firebase/auth";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { Settings, Database, UserCog, Building2, Save, Upload, ImageIcon } from "lucide-react";
+import { Settings, UserCog, Building2, Save, ImageIcon, Loader2 } from "lucide-react";
 
 export default function SystemSettings() {
     const { user, refreshClubSettings } = useAuth();
     const { toast } = useToast();
     const [loading, setLoading] = useState(false);
-    const [logoFile, setLogoFile] = useState<File | null>(null);
+    const [logoFileLight, setLogoFileLight] = useState<File | null>(null);
+    const [logoFileDark, setLogoFileDark] = useState<File | null>(null);
 
     // Form states
     const [clubProfile, setClubProfile] = useState({
         name: "",
-        logoUrl: "",
+        logoUrlLight: "",
+        logoUrlDark: "",
         phone: "",
         location: "",
         facebook: "",
         instagram: "",
         twitter: "",
-    });
-
-    const [firebaseConfig, setFirebaseConfig] = useState({
-        apiKey: "",
-        authDomain: "",
-        projectId: "",
-        storageBucket: "",
-        messagingSenderId: "",
-        appId: "",
     });
 
     const [credForm, setCredForm] = useState({
@@ -58,7 +49,8 @@ export default function SystemSettings() {
                 const data = snap.data();
                 setClubProfile({
                     name: data.name || "",
-                    logoUrl: data.logoUrl || "",
+                    logoUrlLight: data.logoUrlLight || data.logoUrl || "",
+                    logoUrlDark: data.logoUrlDark || "",
                     phone: data.phone || "",
                     location: data.location || "",
                     facebook: data.socials?.facebook || "",
@@ -66,22 +58,6 @@ export default function SystemSettings() {
                     twitter: data.socials?.twitter || "",
                 });
             }
-
-            // Load local config if exists, otherwise fallback to env (masked)
-            const storedConfig = localStorage.getItem("firebase_custom_config");
-            if (storedConfig) {
-                setFirebaseConfig(JSON.parse(storedConfig));
-            } else {
-                setFirebaseConfig({
-                    apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "****************",
-                    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "",
-                    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "",
-                    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "",
-                    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
-                    appId: import.meta.env.VITE_FIREBASE_APP_ID || "",
-                });
-            }
-
         } catch (error) {
             console.error("Failed to fetch settings", error);
         }
@@ -90,17 +66,26 @@ export default function SystemSettings() {
     const handleSaveProfile = async () => {
         setLoading(true);
         try {
-            let finalLogoUrl = clubProfile.logoUrl;
+            let finalLogoUrlLight = clubProfile.logoUrlLight;
+            let finalLogoUrlDark = clubProfile.logoUrlDark;
 
-            if (logoFile) {
-                const logoRef = ref(storage, "club/logo");
-                await uploadBytes(logoRef, logoFile);
-                finalLogoUrl = await getDownloadURL(logoRef);
+            if (logoFileLight) {
+                const logoRef = ref(storage, "club/logo_light");
+                await uploadBytes(logoRef, logoFileLight);
+                finalLogoUrlLight = await getDownloadURL(logoRef);
+            }
+
+            if (logoFileDark) {
+                const logoRef = ref(storage, "club/logo_dark");
+                await uploadBytes(logoRef, logoFileDark);
+                finalLogoUrlDark = await getDownloadURL(logoRef);
             }
 
             await setDoc(doc(db, "settings", "general"), {
                 name: clubProfile.name,
-                logoUrl: finalLogoUrl,
+                logoUrlLight: finalLogoUrlLight,
+                logoUrlDark: finalLogoUrlDark,
+                logoUrl: finalLogoUrlLight, // Backward compatibility
                 phone: clubProfile.phone,
                 location: clubProfile.location,
                 socials: {
@@ -119,28 +104,31 @@ export default function SystemSettings() {
         }
     };
 
-    const handleSaveConfig = () => {
-        // Logic to save config to localStorage or trigger a re-init
-        // Warning the user that this requires reload
-        if (confirm("تغيير إعدادات الاتصال يتطلب إعادة تحميل الصفحة. هل أنت متأكد؟")) {
-            localStorage.setItem("firebase_custom_config", JSON.stringify(firebaseConfig));
-            window.location.reload();
-        }
-    };
-
     const handleUpdateCredentials = async () => {
         if (!user) return;
         setLoading(true);
         try {
             if (credForm.email !== user.email) {
                 await updateEmail(user, credForm.email);
-                toast({ title: "تم تحديث البريد", description: "يرجى التحقق من بريدك الجديد" });
+
+                // Sync with Firestore
+                await updateDoc(doc(db, "users", user.uid), {
+                    email: credForm.email
+                });
+
+                // Update managerEmail reference in settings
+                await updateDoc(doc(db, "settings", "general"), {
+                    managerEmail: credForm.email
+                });
+
+                toast({ title: "تم تحديث البريد", description: "تم تحديث البريد الإلكتروني بنجاح" });
             }
             if (credForm.newPassword) {
                 if (credForm.newPassword !== credForm.confirmPassword) {
                     throw new Error("كلمات المرور غير متطابقة");
                 }
                 await updatePassword(user, credForm.newPassword);
+                setCredForm(prev => ({ ...prev, newPassword: "", confirmPassword: "" }));
                 toast({ title: "تم تحديث كلمة المرور", description: "استخدم كلمة المرور الجديدة في المرة القادمة" });
             }
         } catch (error: any) {
@@ -161,10 +149,9 @@ export default function SystemSettings() {
             </div>
 
             <Tabs defaultValue="profile" className="w-full">
-                <TabsList className="grid w-full grid-cols-3 max-w-[600px]">
-                    <TabsTrigger value="profile">بيانات النادي</TabsTrigger>
-                    <TabsTrigger value="database">اتصال قاعدة البيانات</TabsTrigger>
-                    <TabsTrigger value="admin">حساب المدير</TabsTrigger>
+                <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
+                    <TabsTrigger value="profile">الهوية وبيانات التواصل</TabsTrigger>
+                    <TabsTrigger value="admin">بيانات المدير</TabsTrigger>
                 </TabsList>
 
                 {/* Club Profile Tab */}
@@ -176,18 +163,19 @@ export default function SystemSettings() {
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-2">
+                                <div className="space-y-2 md:col-span-2">
                                     <Label>اسم النادي</Label>
                                     <Input value={clubProfile.name} onChange={e => setClubProfile({ ...clubProfile, name: e.target.value })} placeholder="نادي الأبطال" />
                                 </div>
+
                                 <div className="space-y-2">
-                                    <Label>شعار النادي</Label>
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-16 h-16 rounded-lg border bg-muted flex items-center justify-center overflow-hidden">
-                                            {logoFile ? (
-                                                <img src={URL.createObjectURL(logoFile)} className="w-full h-full object-cover" />
-                                            ) : clubProfile.logoUrl ? (
-                                                <img src={clubProfile.logoUrl} className="w-full h-full object-cover" />
+                                    <Label>شعار النادي (النسخة الفاتحة - Light)</Label>
+                                    <div className="flex items-center gap-4 border p-3 rounded-lg bg-muted/5">
+                                        <div className="w-16 h-16 rounded-lg border bg-white flex items-center justify-center overflow-hidden">
+                                            {logoFileLight ? (
+                                                <img src={URL.createObjectURL(logoFileLight)} className="w-full h-full object-contain p-1" />
+                                            ) : clubProfile.logoUrlLight ? (
+                                                <img src={clubProfile.logoUrlLight} className="w-full h-full object-contain p-1" />
                                             ) : (
                                                 <ImageIcon className="w-8 h-8 text-muted-foreground" />
                                             )}
@@ -196,12 +184,36 @@ export default function SystemSettings() {
                                             <Input
                                                 type="file"
                                                 accept="image/*"
-                                                onChange={e => setLogoFile(e.target.files?.[0] || null)}
+                                                onChange={e => setLogoFileLight(e.target.files?.[0] || null)}
                                             />
-                                            <p className="text-[10px] text-muted-foreground mt-1">يُفضل استخدام صورة مربعة بخلفية شفافة</p>
+                                            <p className="text-[10px] text-muted-foreground mt-1">يظهر على الخلفيات الداكنة</p>
                                         </div>
                                     </div>
                                 </div>
+
+                                <div className="space-y-2">
+                                    <Label>شعار النادي (النسخة المظلمة - Dark)</Label>
+                                    <div className="flex items-center gap-4 border p-3 rounded-lg bg-muted/5">
+                                        <div className="w-16 h-16 rounded-lg border bg-slate-900 flex items-center justify-center overflow-hidden">
+                                            {logoFileDark ? (
+                                                <img src={URL.createObjectURL(logoFileDark)} className="w-full h-full object-contain p-1" />
+                                            ) : clubProfile.logoUrlDark ? (
+                                                <img src={clubProfile.logoUrlDark} className="w-full h-full object-contain p-1" />
+                                            ) : (
+                                                <ImageIcon className="w-8 h-8 text-slate-600" />
+                                            )}
+                                        </div>
+                                        <div className="flex-1">
+                                            <Input
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={e => setLogoFileDark(e.target.files?.[0] || null)}
+                                            />
+                                            <p className="text-[10px] text-muted-foreground mt-1">يظهر على الخلفيات الفاتحة</p>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <div className="space-y-2">
                                     <Label>رقم الهاتف</Label>
                                     <Input value={clubProfile.phone} onChange={e => setClubProfile({ ...clubProfile, phone: e.target.value })} placeholder="+973..." dir="ltr" />
@@ -231,54 +243,8 @@ export default function SystemSettings() {
                             </div>
 
                             <Button onClick={handleSaveProfile} disabled={loading} className="w-full md:w-auto mt-4">
-                                <Save className="w-4 h-4 ml-2" />
+                                {loading ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : <Save className="w-4 h-4 ml-2" />}
                                 حفظ التغييرات
-                            </Button>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-
-                {/* Database Config Tab */}
-                <TabsContent value="database">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2 text-destructive">
-                                <Database className="w-5 h-5" />
-                                إعدادات Firebase API
-                            </CardTitle>
-                            <CardDescription>
-                                تنبيه: تغيير هذه الإعدادات سيقوم بربط المنصة بقاعدة بيانات مختلفة. تأكد من صحة البيانات.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4" dir="ltr">
-                                <div className="space-y-2">
-                                    <Label>API Key</Label>
-                                    <Input value={firebaseConfig.apiKey} onChange={e => setFirebaseConfig({ ...firebaseConfig, apiKey: e.target.value })} />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Auth Domain</Label>
-                                    <Input value={firebaseConfig.authDomain} onChange={e => setFirebaseConfig({ ...firebaseConfig, authDomain: e.target.value })} />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Project ID</Label>
-                                    <Input value={firebaseConfig.projectId} onChange={e => setFirebaseConfig({ ...firebaseConfig, projectId: e.target.value })} />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Storage Bucket</Label>
-                                    <Input value={firebaseConfig.storageBucket} onChange={e => setFirebaseConfig({ ...firebaseConfig, storageBucket: e.target.value })} />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Messaging Sender ID</Label>
-                                    <Input value={firebaseConfig.messagingSenderId} onChange={e => setFirebaseConfig({ ...firebaseConfig, messagingSenderId: e.target.value })} />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>App ID</Label>
-                                    <Input value={firebaseConfig.appId} onChange={e => setFirebaseConfig({ ...firebaseConfig, appId: e.target.value })} />
-                                </div>
-                            </div>
-                            <Button variant="destructive" onClick={handleSaveConfig} className="w-full md:w-auto">
-                                حفظ وإعادة التشغيل
                             </Button>
                         </CardContent>
                     </Card>
@@ -307,6 +273,7 @@ export default function SystemSettings() {
                                 </div>
                             </div>
                             <Button onClick={handleUpdateCredentials} disabled={loading}>
+                                {loading ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : null}
                                 تحديث البيانات
                             </Button>
                         </CardContent>

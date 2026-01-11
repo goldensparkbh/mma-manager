@@ -1,4 +1,5 @@
 import { useLocation, Link } from "wouter";
+import { useTheme } from "@/components/theme-provider";
 import {
   LayoutDashboard,
   Users,
@@ -39,6 +40,7 @@ const mainItems = [
 export function AppSidebar() {
   const { role, user, signOutUser, hasPermission, clubSettings } = useAuth();
   const [location, setLocation] = useLocation();
+  const logoUrl = clubSettings?.logoUrlDark || clubSettings?.logoUrlLight || "/logo_dark_icon.svg";
 
   const financeItems = [
     {
@@ -133,7 +135,7 @@ export function AppSidebar() {
               }
             }}
           >
-            <img src={clubSettings?.logoUrl || "/logo_dark_icon.svg"} alt="Club Logo" className="w-10 h-10 rounded-full object-contain" />
+            <img src={logoUrl} alt="Club Logo" className="w-10 h-10 rounded-full object-contain" />
           </div>
           <div className="overflow-hidden">
             <div className="font-semibold text-sidebar-foreground truncate" dir="ltr">

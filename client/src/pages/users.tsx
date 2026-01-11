@@ -26,7 +26,7 @@ import { Role } from "@/lib/firebaseData";
 import { PERMISSION_GROUPS, PERMISSIONS } from "@/lib/permissions";
 
 export default function Users() {
-    const { role: currentUserRole, hasPermission } = useAuth();
+    const { role: currentUserRole, hasPermission, clubSettings } = useAuth();
     const { toast } = useToast();
     const [searchQuery, setSearchQuery] = useState("");
     const [roleForm, setRoleForm] = useState<{ name: string; permissions: string[] }>({ name: "", permissions: [] });
@@ -343,7 +343,7 @@ export default function Users() {
                                                                         updateRoleMutation.mutate({ id: user.id, role: val });
                                                                     }
                                                                 }}
-                                                                disabled={updateRoleMutation.isPending || user.email === 'manager@kumite.com'}
+                                                                disabled={updateRoleMutation.isPending || user.email === clubSettings?.managerEmail}
                                                             >
                                                                 <SelectTrigger className="w-32 h-8">
                                                                     <SelectValue />
@@ -357,7 +357,7 @@ export default function Users() {
                                                                 </SelectContent>
                                                             </Select>
 
-                                                            {user.email !== 'manager@kumite.com' && (
+                                                            {user.email !== clubSettings?.managerEmail && (
                                                                 <Button
                                                                     variant="ghost"
                                                                     size="icon"

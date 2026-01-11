@@ -62,6 +62,18 @@ const mapDocs = <T>(snapshots: QuerySnapshot<DocumentData>) => {
   return snapshots.docs.map((snapshot) => mapDoc<T>(snapshot));
 };
 
+async function getManagerEmail(): Promise<string> {
+  try {
+    const settingsSnap = await getDoc(doc(db, "settings", "general"));
+    if (settingsSnap.exists()) {
+      return settingsSnap.data().managerEmail || "";
+    }
+  } catch (error) {
+    console.error("Failed to fetch manager email", error);
+  }
+  return "";
+}
+
 async function safeLogActivity(entry: InsertActivityLog) {
   try {
     await addDoc(collection(db, "activityLogs"), {
@@ -214,7 +226,8 @@ export async function deleteUser(id: string) {
 
   if (userSnap.exists()) {
     const userData = userSnap.data();
-    if (userData.email === 'manager@kumite.com') {
+    const managerEmail = await getManagerEmail();
+    if (userData.email === managerEmail && managerEmail !== "") {
       throw new Error("لا يمكن حذف حساب المدير الرئيسي");
     }
   }
@@ -812,8 +825,12 @@ export async function deleteSale(id: string) {
 export async function updateUserRole(userId: string, role: string) {
   const docRef = doc(db, "users", userId);
   const snap = await getDoc(docRef);
-  if (snap.exists() && snap.data().email === 'manager@kumite.com') {
-    throw new Error("لا يمكن تغيير صلاحية المدير الرئيسي");
+  if (snap.exists()) {
+    const userData = snap.data();
+    const managerEmail = await getManagerEmail();
+    if (userData.email === managerEmail && managerEmail !== "") {
+      throw new Error("لا يمكن تغيير صلاحية المدير الرئيسي");
+    }
   }
   await updateDoc(docRef, { role });
   await safeLogActivity({

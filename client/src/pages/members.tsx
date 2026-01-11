@@ -526,7 +526,7 @@ export default function Members() {
 
                 {/* Logo / Brand */}
                 <div className="mt-8 mb-4 flex flex-col items-center">
-                  <img src={clubSettings?.logoUrl || "/logo_dark_icon.svg"} alt="Logo" className="w-16 h-16 object-contain opacity-90 mb-2" />
+                  <img src={clubSettings?.logoUrlDark || clubSettings?.logoUrlLight || "/logo_dark_icon.svg"} alt="Logo" className="w-16 h-16 object-contain opacity-90 mb-2" />
                   <h2 className="text-2xl font-black tracking-widest uppercase text-center leading-tight">
                     {clubSettings?.name.split(' ')[0] || "Kumite"}
                   </h2>
