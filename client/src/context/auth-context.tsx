@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { onAuthStateChanged, signOut, type User } from "firebase/auth";
-import { doc, getDoc, setDoc, getDocs, collection, query, where, deleteDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, getDocs, collection, query, where, deleteDoc, limit } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import type { UserRole } from "@shared/schema";
 
@@ -27,6 +27,7 @@ type AuthContextValue = {
   signOutUser: () => Promise<void>;
   hasPermission: (permission: string) => boolean;
   refreshClubSettings: () => Promise<void>;
+  refreshSetupStatus: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -102,7 +103,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const checkSetupStatus = async () => {
     try {
-      const q = query(collection(db, "users"), where("role", "==", "admin"));
+      const q = query(collection(db, "users"), where("role", "==", "admin"), limit(1));
       const snap = await getDocs(q);
       setSetupRequired(snap.empty);
     } catch (error) {
@@ -196,6 +197,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signOutUser,
       hasPermission,
       refreshClubSettings: fetchClubSettings,
+      refreshSetupStatus: checkSetupStatus,
     }),
     [user, role, permissions, loading, setupRequired, clubSettings]
   );

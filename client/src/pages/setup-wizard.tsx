@@ -6,9 +6,10 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { doc, setDoc } from "firebase/firestore";
-import { createUserWithEmailAndPassword, getAuth, updateProfile, signOut } from "firebase/auth";
+import { createUserWithEmailAndPassword, getAuth, updateProfile } from "firebase/auth";
 import { UserPlus, Loader2 } from "lucide-react";
 import { useLocation } from "wouter";
+import { useAuth } from "@/context/auth-context";
 
 export default function SetupWizard() {
     const { toast } = useToast();
@@ -21,6 +22,8 @@ export default function SetupWizard() {
         password: "",
         confirmPassword: "",
     });
+
+    const { refreshSetupStatus } = useAuth();
 
     const handleFinish = async () => {
         if (!adminData.email || !adminData.password) {
@@ -58,10 +61,12 @@ export default function SetupWizard() {
             }, { merge: true });
 
             localStorage.setItem("system_setup_complete", "true");
-            await signOut(auth); // Sign out so they can log in via the login page
 
-            toast({ title: "تم الإعداد بنجاح!", description: "يمكنك الآن تسجيل الدخول بحساب المدير" });
-            setLocation("/login");
+            // Refresh setup status in context so the wizard disappears
+            await refreshSetupStatus();
+
+            toast({ title: "تم الإعداد بنجاح!", description: "تم إنشاء حساب المدير وتحويلك للوحة التحكم" });
+            setLocation("/system-settings");
         } catch (error: any) {
             toast({ variant: "destructive", title: "خطأ", description: error.message });
         } finally {
