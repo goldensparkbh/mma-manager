@@ -94,7 +94,6 @@ export default function SetupWizard() {
                         <div className="space-y-2">
                             <Label>البريد الإلكتروني</Label>
                             <Input
-                                dir="ltr"
                                 value={adminData.email}
                                 onChange={e => setAdminData({ ...adminData, email: e.target.value })}
                                 placeholder="manager@example.com"

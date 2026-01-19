@@ -3,16 +3,75 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users, CreditCard, TrendingUp, Wallet, Phone } from "lucide-react";
+import { Users, CreditCard, TrendingUp, Wallet, Phone, ShoppingCart, Calendar as CalendarIcon, Filter } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { format } from "date-fns";
+import { arBH } from "date-fns/locale";
+import { Calendar } from "@/components/ui/calendar"; // Assuming you have a Calendar component or use native date inputs
 import type { DashboardStats } from "@shared/schema";
 import { useState } from "react";
+import { useAuth } from "@/context/auth-context";
 
 export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
 
-  const { data: stats, isLoading } = useQuery<DashboardStats>({
-    queryKey: ["/api/dashboard/stats"],
+  const [dateRange, setDateRange] = useState({
+    start: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split("T")[0],
+    end: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split("T")[0],
   });
+
+  const { data: stats, isLoading } = useQuery<DashboardStats>({
+    queryKey: ["/api/dashboard/stats", dateRange.start, dateRange.end],
+  });
+
+  const setLastMonth = () => {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const end = new Date(now.getFullYear(), now.getMonth(), 0);
+    setDateRange({
+      start: start.toISOString().split("T")[0],
+      end: end.toISOString().split("T")[0],
+    });
+  };
+
+  const setThisMonth = () => {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    setDateRange({
+      start: start.toISOString().split("T")[0],
+      end: end.toISOString().split("T")[0],
+    });
+  };
+
+  // Get settings from AuthContext
+  const { clubSettings } = useAuth(); // Ensure this is imported
+
+  const handleWhatsApp = (member: any) => {
+    let message = `مرحباً ${member.name}، نود تذكيرك بأن اشتراكك في النادي سينتهي بتاريخ ${member.subscriptionEnd}. يرجى التجديد للاستمرار في التدريب.`;
+
+    if (clubSettings?.whatsappTemplate) {
+      message = clubSettings.whatsappTemplate
+        .replace(/{name}/g, member.name)
+        .replace(/{firstName}/g, member.firstName || "")
+        .replace(/{lastName}/g, member.lastName || "")
+        .replace(/{memberId}/g, member.memberId)
+        .replace(/{phone}/g, member.phone)
+        .replace(/{startDate}/g, member.subscriptionStart || "")
+        .replace(/{endDate}/g, member.subscriptionEnd || "")
+        .replace(/{balance}/g, member.balance ? member.balance.toString() : "0")
+        .replace(/{status}/g, member.status === "active" ? "نشط" : "منتهي");
+    }
+
+    const phone = member.phone || "";
+    window.open(`https://wa.me/${phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`, '_blank');
+  };
 
   const filteredExpiring = stats?.expiringSubscriptions?.filter(
     (member) =>
@@ -70,11 +129,42 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" >
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold" data-testid="text-page-title">لوحة التحكم</h1>
           <p className="text-sm text-muted-foreground">{formatDate()}</p>
+        </div>
+        <div className="flex flex-col gap-4">
+          <div>
+            <h1 className="text-2xl font-bold" data-testid="text-page-title">لوحة التحكم</h1>
+            <p className="text-sm text-muted-foreground">{formatDate()}</p>
+          </div>
+
+          <div className="flex flex-wrap gap-2 items-end bg-card p-3 rounded-lg border shadow-sm">
+            <div className="space-y-1">
+              <Label className="text-xs">من</Label>
+              <Input
+                type="date"
+                value={dateRange.start}
+                onChange={e => setDateRange({ ...dateRange, start: e.target.value })}
+                className="h-9 w-36"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">إلى</Label>
+              <Input
+                type="date"
+                value={dateRange.end}
+                onChange={e => setDateRange({ ...dateRange, end: e.target.value })}
+                className="h-9 w-36"
+              />
+            </div>
+            <div className="flex gap-1">
+              <Button variant="outline" size="sm" onClick={setThisMonth} className="h-9">هذا الشهر</Button>
+              <Button variant="outline" size="sm" onClick={setLastMonth} className="h-9">الشهر السابق</Button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -137,6 +227,40 @@ export default function Dashboard() {
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
+              <div className="p-3 rounded-lg bg-pink-100 dark:bg-pink-900/30">
+                <ShoppingCart className="h-5 w-5 text-pink-600 dark:text-pink-400" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">دخل المبيعات</p>
+                <p className="text-2xl font-bold" data-testid="text-sales-income">
+                  {stats?.salesIncome?.toLocaleString() ?? 0} د.ب
+                </p>
+                <p className="text-xs text-muted-foreground">في الفترة المحددة</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-lg bg-purple-100 dark:bg-purple-900/30">
+                <TrendingUp className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">دخل الاشتراكات</p>
+                <p className="text-2xl font-bold" data-testid="text-monthly-income">
+                  {stats?.monthlyIncome?.toLocaleString() ?? 0} د.ب
+                </p>
+                <p className="text-xs text-green-600 dark:text-green-400">في الفترة المحددة</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
               <div className="p-3 rounded-lg bg-orange-100 dark:bg-orange-900/30">
                 <Wallet className="h-5 w-5 text-orange-600 dark:text-orange-400" />
               </div>
@@ -151,6 +275,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
@@ -199,9 +324,17 @@ export default function Dashboard() {
                             {getStatusBadge(member.subscriptionEnd)}
                           </td>
                           <td className="py-3 px-2">
-                            <div className="flex items-center gap-1 text-muted-foreground">
-                              <Phone className="h-3 w-3" />
-                              {member.phone}
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                onClick={() => handleWhatsApp(member)}
+                                title="إرسال تذكير واتساب"
+                              >
+                                <Phone className="h-4 w-4" />
+                              </Button>
+                              <span className="text-xs ml-2 dir-ltr inline-block">{member.phone}</span>
                             </div>
                           </td>
                         </tr>

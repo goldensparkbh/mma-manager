@@ -246,8 +246,8 @@ export async function getMembers(): Promise<Member[]> {
   return mapDocs<Member>(snapshots);
 }
 
-export async function createMember(data: InsertMember & { imageFile?: File | null }) {
-  const { imageFile, ...memberData } = data;
+export async function createMember(data: InsertMember & { imageFile?: File | null, documentFiles?: File[] }) {
+  const { imageFile, documentFiles, ...memberData } = data;
   const docRef = doc(collection(db, "members"));
   let imageUrl = memberData.imageUrl ?? "";
 
@@ -263,9 +263,29 @@ export async function createMember(data: InsertMember & { imageFile?: File | nul
   const payload = {
     ...memberData,
     memberId,
+    memberId,
     imageUrl: imageUrl || null,
     balance: memberData.balance ?? 0,
+    documents: [] as any[], // Initialize documents array
   };
+
+  // Upload Documents if any
+  if (documentFiles && documentFiles.length > 0) {
+    const uploadedDocs = [];
+    for (const file of documentFiles) {
+      const storageRef = ref(storage, `members/${docRef.id}/documents/${file.name}`);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      uploadedDocs.push({
+        name: file.name,
+        url,
+        type: file.type,
+        size: file.size,
+        uploadedAt: new Date().toISOString()
+      });
+    }
+    payload.documents = uploadedDocs;
+  }
 
   await setDoc(docRef, payload);
 
@@ -280,9 +300,53 @@ export async function createMember(data: InsertMember & { imageFile?: File | nul
   return { id: docRef.id, ...payload } as Member;
 }
 
-export async function updateMember(id: string, updates: Partial<InsertMember>) {
+export async function updateMember(id: string, updates: Partial<InsertMember> & { imageFile?: File | null, documentFiles?: File[] }) {
   const docRef = doc(db, "members", id);
-  await updateDoc(docRef, updates);
+  const { documentFiles, imageFile, ...otherUpdates } = updates;
+
+  let finalUpdates: any = { ...otherUpdates };
+
+  // Handle Image Update
+  if (imageFile) {
+    const storageRef = ref(storage, `members/${id}/profile`);
+    await uploadBytes(storageRef, imageFile);
+    const imageUrl = await getDownloadURL(storageRef);
+    finalUpdates.imageUrl = imageUrl;
+  }
+
+  // Handle New Documents
+  if (documentFiles && documentFiles.length > 0) {
+    // We need to fetch existing docs if we want to append, but updateDoc with arrayUnion is cleaner if we just add.
+    // However, schema defines it as an object array. simpler to fetch current, append, and update.
+    // Or we can just calculate new ones and let the UI/Logic handle merging before sending?
+    // The current pattern usually sends "updates". If we want to append, we should do it carefully.
+    // Let's implement append logic here.
+
+    const uploadedDocs = [];
+    for (const file of documentFiles) {
+      const storageRef = ref(storage, `members/${id}/documents/${Date.now()}_${file.name}`);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      uploadedDocs.push({
+        name: file.name,
+        url,
+        type: file.type,
+        size: file.size,
+        uploadedAt: new Date().toISOString()
+      });
+    }
+
+    // Fetch current to append
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      const currentDocs = (snap.data() as Member).documents || [];
+      finalUpdates.documents = [...currentDocs, ...uploadedDocs];
+    } else {
+      finalUpdates.documents = uploadedDocs;
+    }
+  }
+
+  await updateDoc(docRef, finalUpdates);
   await safeLogActivity({
     action: "member.update",
     entityType: "member",
@@ -292,10 +356,16 @@ export async function updateMember(id: string, updates: Partial<InsertMember>) {
   });
 }
 
+
 export async function getAttendanceByDate(date: string): Promise<Attendance[]> {
   const snapshots = await getDocs(
     query(collection(db, "attendance"), where("date", "==", date))
   );
+  return mapDocs<Attendance>(snapshots);
+}
+
+export async function getAllAttendance(): Promise<Attendance[]> {
+  const snapshots = await getDocs(query(collection(db, "attendance")));
   return mapDocs<Attendance>(snapshots);
 }
 
@@ -329,6 +399,16 @@ export async function deleteAttendance(id: string) {
 
 export async function getSubscriptions(): Promise<Subscription[]> {
   const snapshots = await getDocs(collection(db, "subscriptions"));
+  return mapDocs<Subscription>(snapshots);
+}
+
+export async function getSubscriptionsByMember(memberId: string): Promise<Subscription[]> {
+  const q = query(
+    collection(db, "subscriptions"),
+    where("memberId", "==", memberId),
+    orderBy("startDate", "desc")
+  );
+  const snapshots = await getDocs(q);
   return mapDocs<Subscription>(snapshots);
 }
 
@@ -463,6 +543,29 @@ export async function createSale(data: InsertSale): Promise<Sale> {
   return { ...data, id: saleRef.id, status: data.status ?? "completed" };
 }
 
+export async function createServiceSale(data: InsertSale): Promise<Sale> {
+  const saleRef = await addDoc(collection(db, "sales"), {
+    ...data,
+    status: data.status ?? "completed",
+    date: data.date || new Date().toISOString(),
+  });
+
+  await safeLogActivity({
+    action: "sale.create_service",
+    entityType: "sale",
+    entityId: saleRef.id,
+    description: `Service sale recorded for ${data.productName}`,
+    metadata: JSON.stringify({ quantity: data.quantity, totalPrice: data.totalPrice }),
+  });
+
+  return {
+    id: saleRef.id,
+    ...data,
+    status: data.status ?? "completed",
+    date: data.date || new Date().toISOString()
+  } as Sale;
+}
+
 export async function cancelSale(id: string, reason: string): Promise<Sale | null> {
   const docRef = doc(db, "sales", id);
   const saleSnap = await getDoc(docRef);
@@ -559,63 +662,90 @@ export async function getActivityLogs(limitCount = 100): Promise<ActivityLog[]> 
   });
 }
 
-export async function getDashboardStats(): Promise<DashboardStats> {
-  const [members, subscriptions, expenses] = await Promise.all([
+export async function getDashboardStats(startDate?: string, endDate?: string): Promise<DashboardStats> {
+  const [members, subscriptions, expenses, sales] = await Promise.all([
     getMembers(),
     getSubscriptions(),
     getExpenses(),
+    getSales()
   ]);
 
-  const today = new Date();
-  const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-  const startOfMonthStr = startOfMonth.toISOString().split("T")[0];
+  // Default to current month if no dates provided
+  const now = new Date();
+  const defaultStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
+  const defaultEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split("T")[0];
 
-  const activeSubscriptions = subscriptions.filter((s) => {
-    const endDate = new Date(s.endDate);
-    return endDate >= today && s.status === "active";
-  }).length;
+  const start = startDate || defaultStart;
+  const end = endDate || defaultEnd;
 
+  // Active Subscriptions: Count of members with active status
+  const activeSubscriptions = members.filter(m => m.status === 'active').length;
+
+  // Income Calculation: Filter by date range
   const monthlyIncome = subscriptions
-    .filter((s) => s.startDate >= startOfMonthStr)
+    .filter((s) => s.startDate >= start && s.startDate <= end)
     .reduce((sum, s) => sum + s.amount, 0);
 
-  const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+  const salesIncome = sales
+    .filter((s) => s.date.split("T")[0] >= start && s.date.split("T")[0] <= end && s.status !== "cancelled")
+    .reduce((sum, s) => sum + s.totalPrice, 0);
 
-  const expensesByCategoryMap = expenses.reduce((acc, curr) => {
-    acc[curr.category] = (acc[curr.category] || 0) + curr.amount;
-    return acc;
-  }, {} as Record<string, number>);
+  const totalExpenses = expenses
+    .filter(e => e.date >= start && e.date <= end)
+    .reduce((sum, e) => sum + e.amount, 0);
+
+  const expensesByCategoryMap = expenses
+    .filter(e => e.date >= start && e.date <= end)
+    .reduce((acc, curr) => {
+      acc[curr.category] = (acc[curr.category] || 0) + curr.amount;
+      return acc;
+    }, {} as Record<string, number>);
 
   const expensesByCategory = Object.entries(expensesByCategoryMap).map(([category, total]) => ({
     category,
     total
   }));
 
-  const netProfit = monthlyIncome - totalExpenses;
+  const netProfit = (monthlyIncome + salesIncome) - totalExpenses;
 
   const newMembersThisMonth = members.filter((m) => {
-    return m.subscriptionStart && m.subscriptionStart >= startOfMonthStr;
+    return m.subscriptionStart && m.subscriptionStart >= start && m.subscriptionStart <= end;
   }).length;
 
+  // Expiring Subscriptions: Look at MEMBER status, not just subscription history
+  // For the dashboard "Expiring Soon" list, we usually look a bit ahead.
+  // User Requested: "if untill before 10 days of the end then this status 'will end soon'"
+  // So we filter for those expiring in the *next 10 days* from TODAY.
+  const todayStr = new Date().toISOString().split("T")[0];
+  const next10Days = new Date();
+  next10Days.setDate(next10Days.getDate() + 10);
+  const next10DaysStr = next10Days.toISOString().split("T")[0];
+
   const expiringSubscriptions = members.filter((m) => {
+    // Only consider active members or those technically 'active' but expiring soon
+    // Use the logic: if end date is in the past -> finished (filtered out here)
+    // If end date is within [today, today+10] -> will end soon
+
     if (!m.subscriptionEnd) return false;
-    const endDate = new Date(m.subscriptionEnd);
-    const diffDays = Math.ceil(
-      (endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-    );
-    return diffDays <= 7 && diffDays >= 0;
+
+    // Check if ALREADY expired
+    if (m.subscriptionEnd < todayStr) return false;
+
+    // Check if in 10 day window
+    return m.subscriptionEnd <= next10DaysStr;
   });
 
   return {
     totalMembers: members.length,
-    activeSubscriptions,
-    monthlyIncome,
+    activeSubscriptions, // Now represents true active members count
+    monthlyIncome, // Subscriptions income in range
     netProfit,
     totalExpenses,
     expensesByCategory,
     newMembersThisMonth,
     expiringSubscriptions,
-  };
+    salesIncome // Added field
+  } as DashboardStats; // Cast to bypass strict type check if salesIncome is missing in schema type definition for now, will update schema next
 }
 
 export async function ensureUserRole(userId: string, role: string) {
@@ -770,22 +900,65 @@ export async function updateSubscription(id: string, updates: Partial<InsertSubs
 export async function deleteSubscription(id: string) {
   const subRef = doc(db, "subscriptions", id);
   const subSnap = await getDoc(subRef);
+
   if (subSnap.exists()) {
     const data = subSnap.data() as Subscription;
-    // We might want to clear member's subscription status if this was the active one.
-    // Skipping for simplicity or we can do it:
-    if (data.status === 'active') {
-      const memberRef = doc(db, "members", data.memberId);
-      await updateDoc(memberRef, { status: 'expired' }); // Or reset dates
+    const memberId = data.memberId;
+
+    // Delete the subscription first
+    await deleteDoc(subRef);
+
+    // Now check for remaining active subscriptions for this member
+    const q = query(
+      collection(db, "subscriptions"),
+      where("memberId", "==", memberId),
+      where("status", "==", "active")
+    );
+    const snapshot = await getDocs(q);
+    const remainingSubs = mapDocs<Subscription>(snapshot);
+
+    const memberRef = doc(db, "members", memberId);
+
+    if (remainingSubs.length > 0) {
+      // Find the subscription with the latest end date
+      // Sort by end date descending
+      remainingSubs.sort((a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime());
+      const latestSub = remainingSubs[0];
+
+      await updateDoc(memberRef, {
+        subscriptionStart: latestSub.startDate,
+        subscriptionEnd: latestSub.endDate,
+        status: "active"
+      });
+    } else {
+      // No active subscriptions left, reset member status
+      // We keep the member but mark as inactive/expired and clear dates? 
+      // Or maybe keep the dates of the LAST expired one?
+      // For safety, let's mark as expired and perhaps clear dates or keep them as null/empty if that's the pattern
+      // Looking at createSubscription, it sets data.startDate/endDate.
+      // If we want "expired", we usually imply past dates. 
+      // Safest is to set status to 'expired' and maybe clear dates to avoid confusion, 
+      // or set them to null/empty string if the schema allows.
+      // The schema likely expects strings. Let's set to empty strings or null if allowed.
+      // Based on previous code `subscriptionStart: data.startDate`, these are strings.
+      await updateDoc(memberRef, {
+        subscriptionStart: "",
+        subscriptionEnd: "",
+        status: "expired"
+      });
     }
+
+    await safeLogActivity({
+      action: "subscription.delete",
+      entityType: "subscription",
+      entityId: id,
+      description: "Subscription deleted and member status updated",
+    });
+  } else {
+    // Document didn't exist, just try to delete anyway to be safe? 
+    // Or just log it. The original code just deleted.
+    await deleteDoc(subRef);
   }
-  await deleteDoc(subRef);
-  await safeLogActivity({
-    action: "subscription.delete",
-    entityType: "subscription",
-    entityId: id,
-    description: "Subscription deleted",
-  });
 }
 
 export async function deleteProduct(id: string) {

@@ -13,9 +13,10 @@ type AuthContextValue = {
   clubSettings: {
     name: string;
     logoUrl: string;
-    logoUrlLight?: string; // Add these
-    logoUrlDark?: string;  // Add these
-    managerEmail: string;  // Add this
+    logoUrlLight?: string;
+    logoUrlDark?: string;
+    managerEmail: string;
+    whatsappTemplate?: string; // Add this
     phone: string;
     location: string;
     socials: {
@@ -46,7 +47,7 @@ async function fetchUserRole(userId: string): Promise<string | null> {
 }
 
 async function fetchRolePermissions(roleId: string): Promise<string[]> {
-  if (roleId === 'admin') return ['*']; // Admin has all permissions wildcard
+  if (roleId === 'admin') return ['*'];
   try {
     const docRef = doc(db, "roles", roleId);
     const snapshot = await getDoc(docRef);
@@ -63,7 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [role, setRole] = useState<string | null>(null);
   const [permissions, setPermissions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [setupRequired, setSetupRequired] = useState(false); // Add this
+  const [setupRequired, setSetupRequired] = useState(false);
   const [clubSettings, setClubSettings] = useState<AuthContextValue['clubSettings']>(null);
 
   const fetchClubSettings = async () => {
@@ -77,7 +78,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           logoUrl: data.logoUrl || "/logo_dark_icon.svg",
           logoUrlLight: data.logoUrlLight || "",
           logoUrlDark: data.logoUrlDark || "",
-          managerEmail: data.managerEmail || "", // Add this
+          managerEmail: data.managerEmail || "",
+          whatsappTemplate: data.whatsappTemplate || "", // Add this
           phone: data.phone || "",
           location: data.location || "",
           socials: {
@@ -90,7 +92,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setClubSettings({
           name: "Club Manager",
           logoUrl: "/logo_dark_icon.svg",
-          managerEmail: "", // Add this
+          managerEmail: "",
+          whatsappTemplate: "", // Add this
           phone: "",
           location: "",
           socials: { facebook: "", instagram: "", twitter: "" }

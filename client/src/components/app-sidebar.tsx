@@ -12,6 +12,7 @@ import {
   LogOut,
   Award,
   UserCog,
+  Settings,
 } from "lucide-react";
 import {
   Sidebar,
@@ -127,21 +128,14 @@ export function AppSidebar() {
     <Sidebar side="right">
       <SidebarHeader className="p-4">
         <div className="flex items-center gap-3">
-          <div
-            className={`flex-shrink-0 ${role === 'admin' ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
-            onClick={() => {
-              if (role === 'admin') {
-                setLocation("/system-settings");
-              }
-            }}
-          >
+          <div className="flex-shrink-0">
             <img src={logoUrl} alt="Club Logo" className="w-10 h-10 rounded-full object-contain" />
           </div>
           <div className="overflow-hidden">
-            <div className="font-semibold text-sidebar-foreground truncate" dir="ltr">
+            <div className="font-semibold text-sidebar-foreground truncate">
               {user?.displayName || user?.email?.split('@')[0] || "User"}
             </div>
-            <div className="text-xs text-muted-foreground truncate" dir="ltr">
+            <div className="text-xs text-muted-foreground truncate">
               {clubSettings?.name || "Club Manager"}
             </div>
           </div>
@@ -243,6 +237,20 @@ export function AppSidebar() {
 
       <SidebarFooter className="p-4 border-t border-sidebar-border">
         <SidebarMenu className="mb-4">
+          {role === 'admin' && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={isActive("/system-settings")}
+                tooltip="إعدادات النظام"
+              >
+                <Link href="/system-settings">
+                  <Settings className="w-4 h-4" />
+                  <span className="font-medium">إعدادات النظام</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
           <SidebarMenuItem>
             <SidebarMenuButton
               onClick={() => signOutUser()}

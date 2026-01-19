@@ -5,7 +5,9 @@ import {
   createExpense,
   createMember,
   createProduct,
+  createProduct,
   createSale,
+  createServiceSale,
   createSubscription,
   deleteAttendance,
   getActivityLogs,
@@ -70,7 +72,11 @@ const jsonResponse = (payload?: unknown, status = 200) => {
 };
 
 const queryHandlers: Record<string, (queryKey: readonly unknown[]) => Promise<unknown>> = {
-  "/api/dashboard/stats": () => getDashboardStats(),
+  "/api/dashboard/stats": (queryKey) => {
+    const start = typeof queryKey[1] === "string" ? queryKey[1] : undefined;
+    const end = typeof queryKey[2] === "string" ? queryKey[2] : undefined;
+    return getDashboardStats(start, end);
+  },
   "/api/members": () => getMembers(),
   "/api/attendance": (queryKey) => {
     const date =
@@ -125,6 +131,23 @@ export async function apiRequest(
 
   if (method === "POST" && route === "/api/subscriptions") {
     const result = await createSubscription(data as InsertSubscription);
+
+    // Auto-create sale if paymentStatus is paid
+    if ((data as InsertSubscription).paymentStatus === 'paid') {
+      const subData = data as InsertSubscription;
+      await createServiceSale({
+        productId: "subscription", // Generic ID for services
+        productName: `اشتراك: ${subData.planName}`,
+        quantity: 1,
+        unitPrice: subData.amount,
+        totalPrice: subData.amount,
+        buyerName: subData.memberName,
+        date: new Date().toISOString(),
+        paymentMethod: subData.paymentMethod || "cash",
+        status: "completed"
+      });
+    }
+
     return jsonResponse(result, 201);
   }
 

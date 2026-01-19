@@ -12,15 +12,33 @@ export interface User {
 export interface Member {
   id: string;
   name: string;
+  firstName?: string | null;
+  grandFatherName?: string | null; // Middle/Second Name
+  lastName?: string | null;
   memberId: string;
   phone: string;
+  email?: string | null;
+  dob?: string | null; // Date of Birth
+  gender?: "male" | "female" | null;
   age?: number | null;
+  height?: string | null;
+  weight?: string | null;
+  bloodType?: string | null;
+  beltSize?: string | null;
+  suitSize?: string | null;
   healthNotes?: string | null;
   subscriptionStart?: string | null;
   subscriptionEnd?: string | null;
   status: string;
   balance?: number | null;
   imageUrl?: string | null;
+  documents?: {
+    name: string;
+    url: string;
+    type: string;
+    size: number;
+    uploadedAt: string;
+  }[] | null;
 }
 
 export type InsertMember = Omit<Member, "id">;
@@ -148,6 +166,7 @@ export interface DashboardStats {
   expensesByCategory: { category: string; total: number }[];
   newMembersThisMonth: number;
   expiringSubscriptions: Member[];
+  salesIncome: number;
 }
 
 export interface FinanceReport {

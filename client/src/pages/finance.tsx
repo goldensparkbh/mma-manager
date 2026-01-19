@@ -31,6 +31,9 @@ import {
   Receipt,
   Pencil,
   Trash2,
+  Calendar as CalendarIcon,
+  Download,
+  Filter
 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { FinanceReport, Expense, InsertExpense, Subscription, Sale } from "@shared/schema";
@@ -54,6 +57,32 @@ export default function Finance() {
     amount: 0,
     date: new Date().toISOString().split("T")[0],
   });
+
+  // Date Filtering State
+  const [dateRange, setDateRange] = useState({
+    startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split("T")[0],
+    endDate: new Date().toISOString().split("T")[0],
+  });
+
+  const setMonthlyCycle = () => {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0); // Last day of month
+    setDateRange({
+      startDate: start.toISOString().split("T")[0],
+      endDate: end.toISOString().split("T")[0]
+    });
+  };
+
+  const setYearlyCycle = () => {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), 0, 1);
+    const end = new Date(now.getFullYear(), 11, 31);
+    setDateRange({
+      startDate: start.toISOString().split("T")[0],
+      endDate: end.toISOString().split("T")[0]
+    });
+  };
 
   const { data: subscriptions } = useQuery<Subscription[]>({
     queryKey: ["/api/subscriptions"],
@@ -156,17 +185,60 @@ export default function Finance() {
 
   // ... (keep calculations)
 
-  const totalSubscriptionIncome = subscriptions?.reduce((sum, sub) => sum + sub.amount, 0) ?? 0;
-  const activeSales = sales?.filter((sale) => sale.status !== "cancelled") ?? [];
-  const totalSalesIncome = activeSales.reduce((sum, sale) => sum + sale.totalPrice, 0);
+  // Filter Data
+  const filterByDate = (dateStr: string) => {
+    if (!dateStr) return false;
+    return dateStr >= dateRange.startDate && dateStr <= dateRange.endDate;
+  };
+
+  const filteredSubscriptions = subscriptions?.filter(sub => filterByDate(sub.startDate)) ?? [];
+  const filteredSales = sales?.filter(sale => filterByDate(sale.date) && sale.status !== "cancelled") ?? [];
+  const filteredExpenses = expenses?.filter(exp => filterByDate(exp.date)) ?? [];
+
+  const totalSubscriptionIncome = filteredSubscriptions.reduce((sum, sub) => sum + sub.amount, 0);
+  const totalSalesIncome = filteredSales.reduce((sum, sale) => sum + sale.totalPrice, 0);
   const totalIncome = totalSubscriptionIncome + totalSalesIncome;
-  const totalExpenses = expenses?.reduce((sum, exp) => sum + exp.amount, 0) ?? 0;
+  const totalExpenses = filteredExpenses.reduce((sum, exp) => sum + exp.amount, 0);
   const netProfit = totalIncome - totalExpenses;
 
   const expensesByCategory = expenseCategories.map((cat) => ({
     category: cat.label,
-    total: expenses?.filter((e) => e.category === cat.value).reduce((sum, e) => sum + e.amount, 0) ?? 0,
+    total: filteredExpenses.filter((e) => e.category === cat.value).reduce((sum, e) => sum + e.amount, 0),
   })).filter((c) => c.total > 0);
+
+  const handleExport = () => {
+    const csvContent = [
+      ["التقرير المالي", `من: ${dateRange.startDate}`, `إلى: ${dateRange.endDate}`],
+      [],
+      ["ملخص", "المبلغ"],
+      ["دخل الاشتراكات", totalSubscriptionIncome],
+      ["دخل المبيعات", totalSalesIncome],
+      ["إجمالي الدخل", totalIncome],
+      ["إجمالي المصروفات", totalExpenses],
+      ["صافي الربح", netProfit],
+      [],
+      ["تفاصيل المصروفات"],
+      ["التاريخ", "الفئة", "الوصف", "المبلغ"],
+      ...filteredExpenses.map(e => [e.date, getCategoryLabel(e.category), e.description, e.amount]),
+      [],
+      ["تفاصيل الدخل (اشتراكات)"],
+      ["التاريخ", "العضو", "الباقة", "المبلغ"],
+      ...filteredSubscriptions.map(s => [s.startDate, s.memberName, s.planName, s.amount]),
+      [],
+      ["تفاصيل الدخل (مبيعات)"],
+      ["التاريخ", "المنتج", "المبلغ"],
+      ...filteredSales.map(s => [s.date.split("T")[0], s.productName, s.totalPrice])
+    ].map(e => e.join(",")).join("\n");
+
+    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `finance_report_${dateRange.startDate}_${dateRange.endDate}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const getCategoryLabel = (value: string) => {
     return expenseCategories.find((c) => c.value === value)?.label ?? value;
@@ -201,6 +273,25 @@ export default function Finance() {
         <div>
           <h1 className="text-2xl font-bold" data-testid="text-page-title">التقارير المالية</h1>
           <p className="text-sm text-muted-foreground">ملخص الإيرادات والمصروفات</p>
+        </div>
+
+        <div className="flex flex-wrap gap-2 items-end">
+          <div className="space-y-1">
+            <Label className="text-xs">من</Label>
+            <Input type="date" value={dateRange.startDate} onChange={e => setDateRange({ ...dateRange, startDate: e.target.value })} className="h-9 w-36" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">إلى</Label>
+            <Input type="date" value={dateRange.endDate} onChange={e => setDateRange({ ...dateRange, endDate: e.target.value })} className="h-9 w-36" />
+          </div>
+          <div className="flex gap-1">
+            <Button variant="outline" size="sm" onClick={setMonthlyCycle} className="h-9">شهري</Button>
+            <Button variant="outline" size="sm" onClick={setYearlyCycle} className="h-9">سنوي</Button>
+            <Button variant="default" size="sm" onClick={handleExport} className="h-9 gap-2">
+              <Download className="w-4 h-4" />
+              تصدير
+            </Button>
+          </div>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
           <DialogTrigger asChild>
@@ -395,8 +486,8 @@ export default function Finance() {
                   </tr>
                 </thead>
                 <tbody>
-                  {expenses && expenses.length > 0 ? (
-                    expenses.slice(0, 10).map((expense) => (
+                  {filteredExpenses && filteredExpenses.length > 0 ? (
+                    filteredExpenses.slice(0, 10).map((expense) => (
                       <tr key={expense.id} className="border-b last:border-0" data-testid={`row-expense-${expense.id}`}>
                         <td className="py-2 px-2">
                           <Badge variant="secondary">{getCategoryLabel(expense.category)}</Badge>
@@ -474,7 +565,7 @@ export default function Finance() {
                 {totalExpenses.toFixed(2)} د.ب
               </p>
               <p className="mt-2 text-xs text-muted-foreground">
-                {expenses?.length ?? 0} عملية مسجلة
+                {filteredExpenses?.length ?? 0} عملية مسجلة
               </p>
             </div>
 

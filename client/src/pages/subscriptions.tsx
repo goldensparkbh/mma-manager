@@ -28,7 +28,7 @@ import type { Subscription, Member, InsertSubscription, SubscriptionPackage, Ins
 import { useAuth } from "@/context/auth-context";
 
 export default function Subscriptions() {
-  const { role } = useAuth();
+  const { role, clubSettings } = useAuth();
   const isAdmin = role === "admin";
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("subscriptions");
@@ -156,9 +156,28 @@ export default function Subscriptions() {
         ...formData,
         planName,
         amount: plan.price,
+        startDate,
         endDate: endDate.toISOString().split("T")[0],
       });
     }
+  };
+
+  const handleStartDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newStartDate = e.target.value;
+    const plan = packages.find((p) => p.name === formData.planName);
+
+    let newEndDate = formData.endDate;
+    if (plan && newStartDate) {
+      const endDate = new Date(newStartDate);
+      endDate.setDate(endDate.getDate() + plan.duration);
+      newEndDate = endDate.toISOString().split("T")[0];
+    }
+
+    setFormData({
+      ...formData,
+      startDate: newStartDate,
+      endDate: newEndDate,
+    });
   };
 
   const resetForm = () => {
@@ -267,11 +286,11 @@ export default function Subscriptions() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>تاريخ البدء</Label>
-                      <Input type="date" value={formData.startDate} onChange={e => setFormData({ ...formData, startDate: e.target.value })} />
+                      <Input type="date" value={formData.startDate} onChange={handleStartDateChange} />
                     </div>
                     <div className="space-y-2">
                       <Label>تاريخ الانتهاء</Label>
-                      <Input type="date" value={formData.endDate} onChange={e => setFormData({ ...formData, endDate: e.target.value })} />
+                      <Input type="date" value={formData.endDate} disabled className="bg-muted text-muted-foreground" />
                     </div>
                   </div>
 
@@ -401,14 +420,78 @@ export default function Subscriptions() {
               <Button className="w-full" onClick={() => {
                 const content = document.getElementById('receipt-area')?.innerHTML;
                 const printWindow = window.open('', '', 'height=600,width=800');
-                if (printWindow && content) {
-                  printWindow.document.write('<html><head><title>Receipt</title>');
-                  printWindow.document.write('<style>body{font-family: sans-serif; direction: rtl;} .flex{display:flex; justify-content:space-between;}</style>');
-                  printWindow.document.write('</head><body>');
-                  printWindow.document.write(content);
-                  printWindow.document.write('</body></html>');
+                if (printWindow) {
+                  printWindow.document.write(`
+                    <html>
+                      <head>
+                        <title>Receipt - ${receiptData.memberName}</title>
+                        <script src="https://cdn.tailwindcss.com"></script>
+                        <style>
+                          @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
+                          body { font-family: 'Cairo', sans-serif; }
+                          @page { size: 80mm 150mm; margin: 0; }
+                        </style>
+                      </head>
+                      <body class="bg-white p-4" dir="rtl">
+                        <div class="max-w-[80mm] mx-auto">
+                          <!-- Header -->
+                          <div class="flex flex-col items-center mb-6 text-center">
+                            ${clubSettings?.logoUrlLight ? `<img src="${clubSettings.logoUrlLight}" class="w-20 h-20 object-contain mb-2" alt="Logo" />` : ''}
+                            <h1 class="text-xl font-bold text-gray-900">${clubSettings?.name || "النادي"}</h1>
+                            <p class="text-xs text-gray-500 mt-1">${new Date().toLocaleDateString('ar-BH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                          </div>
+
+                          <!-- Receipt Details -->
+                          <div class="border-t-2 border-dashed border-gray-200 py-4 space-y-3">
+                             <div class="flex justify-between items-center text-sm">
+                              <span class="text-gray-500">رقم الإيصال:</span>
+                              <span class="font-mono font-bold">#${receiptData.id.slice(0, 8)}</span>
+                            </div>
+                            <div class="flex justify-between items-center text-sm">
+                              <span class="text-gray-500">المشترك:</span>
+                              <span class="font-semibold text-gray-900">${receiptData.memberName}</span>
+                            </div>
+                            <div class="flex justify-between items-center text-sm">
+                              <span class="text-gray-500">الباقة:</span>
+                              <span class="font-semibold text-gray-900">${receiptData.planName}</span>
+                            </div>
+                             <div class="flex justify-between items-center text-sm">
+                              <span class="text-gray-500">من:</span>
+                              <span class="font-mono text-gray-900">${receiptData.startDate}</span>
+                            </div>
+                             <div class="flex justify-between items-center text-sm">
+                              <span class="text-gray-500">إلى:</span>
+                              <span class="font-mono text-gray-900">${receiptData.endDate}</span>
+                            </div>
+                          </div>
+
+                          <!-- Totals -->
+                          <div class="border-t-2 border-dashed border-gray-200 pt-4 mt-2">
+                            <div class="flex justify-between items-center mb-4">
+                              <span class="text-base font-bold text-gray-900">المبلغ الإجمالي</span>
+                              <span class="text-xl font-bold text-gray-900">${receiptData.amount} د.ب</span>
+                            </div>
+                             <div class="flex justify-between items-center text-xs text-gray-500 bg-gray-50 p-2 rounded">
+                              <span>حالة الدفع:</span>
+                              <span class="font-medium ${receiptData.paymentStatus === 'paid' ? 'text-green-600' : 'text-red-600'}">
+                                ${receiptData.paymentStatus === 'paid' ? 'مدفوع نقدًا' : 'غير مدفوع'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <!-- Footer -->
+                          <div class="mt-8 text-center space-y-1">
+                             <p class="text-xs text-gray-400">شكرًا لثقتكم بنا!</p>
+                             <p class="text-[10px] text-gray-300">تم إصدار هذا الإيصال إلكترونيًا</p>
+                          </div>
+                        </div>
+                        <script>
+                          window.onload = () => { setTimeout(() => window.print(), 500); };
+                        </script>
+                      </body>
+                    </html>
+                  `);
                   printWindow.document.close();
-                  printWindow.print();
                 }
               }}>
                 <Printer className="w-4 h-4 ml-2" /> طباعة
