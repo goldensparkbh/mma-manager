@@ -34,6 +34,7 @@ export interface Member {
   imageUrl?: string | null;
   documents?: {
     name: string;
+    label?: string | null;
     url: string;
     type: string;
     size: number;
@@ -116,13 +117,17 @@ export interface Sale {
   quantity: number;
   unitPrice: number;
   totalPrice: number;
+  memberId?: string;
   buyerName?: string | null;
   buyerPhone?: string | null;
   date: string;
   paymentMethod?: string | null;
+  paymentStatus?: "paid" | "unpaid" | "partially_paid";
   status?: string | null;
   cancelledReason?: string | null;
   cancelledAt?: string | null;
+  receiptId?: string | null;
+  subscriptionId?: string | null;
 }
 
 export type InsertSale = Omit<Sale, "id">;

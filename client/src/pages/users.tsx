@@ -22,11 +22,13 @@ import { Search, UserCog, Shield, ShieldAlert, Plus, Trash2, Pencil, Mail } from
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { User } from "@shared/schema";
 import { useAuth } from "@/context/auth-context";
+import { useLanguage } from "@/context/language-context";
 import { Role } from "@/lib/firebaseData";
 import { PERMISSION_GROUPS, PERMISSIONS } from "@/lib/permissions";
 
 export default function Users() {
     const { role: currentUserRole, hasPermission, clubSettings } = useAuth();
+    const { t, dir } = useLanguage();
     const { toast } = useToast();
     const [searchQuery, setSearchQuery] = useState("");
     const [roleForm, setRoleForm] = useState<{ name: string; permissions: string[] }>({ name: "", permissions: [] });
@@ -48,10 +50,10 @@ export default function Users() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/users"] });
-            toast({ title: "تم بنجاح", description: "تم تحديث الصلاحيات" });
+            toast({ title: t("common.success"), description: t("users.permissionsUpdated") });
         },
         onError: () => {
-            toast({ variant: "destructive", title: "خطأ", description: "فشل تحديث الصلاحيات" });
+            toast({ variant: "destructive", title: t("common.error"), description: t("users.permissionsUpdateError") });
         },
     });
 
@@ -64,7 +66,7 @@ export default function Users() {
             queryClient.invalidateQueries({ queryKey: ["/api/roles"] });
             setIsRoleDialogOpen(false);
             setRoleForm({ name: "", permissions: [] });
-            toast({ title: "تم بنجاح", description: "تم إضافة الدور بنجاح" });
+            toast({ title: t("common.success"), description: t("users.roleCreateSuccess") });
         }
     });
 
@@ -77,7 +79,7 @@ export default function Users() {
             setIsRoleDialogOpen(false);
             setEditingRole(null);
             setRoleForm({ name: "", permissions: [] });
-            toast({ title: "تم بنجاح", description: "تم تعديل الدور" });
+            toast({ title: t("common.success"), description: t("users.roleUpdateSuccess") });
         }
     });
 
@@ -87,7 +89,7 @@ export default function Users() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/roles"] });
-            toast({ title: "تم الحذف", description: "تم حذف الدور" });
+            toast({ title: t("common.success"), description: t("users.roleDeleteSuccess") });
         }
     });
 
@@ -97,10 +99,10 @@ export default function Users() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/users"] });
-            toast({ title: "تم الحذف", description: "تم حذف ملف المستخدم" });
+            toast({ title: t("common.success"), description: t("users.userDeleteSuccess") });
         },
         onError: () => {
-            toast({ variant: "destructive", title: "خطأ", description: "فشل حذف المستخدم" });
+            toast({ variant: "destructive", title: t("common.error"), description: t("users.userDeleteError") });
         }
     });
 
@@ -109,8 +111,8 @@ export default function Users() {
             <div className="flex h-[80vh] items-center justify-center">
                 <div className="text-center space-y-4">
                     <ShieldAlert className="w-16 h-16 text-destructive mx-auto" />
-                    <h2 className="text-2xl font-bold">غير مصرح لك بالدخول</h2>
-                    <p className="text-muted-foreground">ليس لديك الصلاحية المطلوبة</p>
+                    <h2 className="text-2xl font-bold">{t('users.accessDenied')}</h2>
+                    <p className="text-muted-foreground">{t('users.accessDeniedMsg')}</p>
                 </div>
             </div>
         )
@@ -137,6 +139,15 @@ export default function Users() {
     const handleRoleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!roleForm.name.trim()) return;
+        const normalized = roleForm.name.trim().toLowerCase();
+        const duplicate = roles.some((role) => {
+            if (editingRole && role.id === editingRole.id) return false;
+            return role.name.trim().toLowerCase() === normalized;
+        });
+        if (duplicate) {
+            toast({ variant: "destructive", title: t('common.error'), description: t("users.roleNameExists") });
+            return;
+        }
 
         if (editingRole) {
             mutationUpdateRole.mutate({ id: editingRole.id, data: roleForm });
@@ -175,10 +186,10 @@ export default function Users() {
             queryClient.invalidateQueries({ queryKey: ["/api/users"] });
             setIsUserDialogOpen(false);
             setUserForm({ email: "", password: "", name: "", role: "staff" });
-            toast({ title: "تم إنشاء المستخدم", description: "تم إنشاء حساب المستخدم وتعيين الصلاحية بنجاح." });
+            toast({ title: t("common.success"), description: t("users.userCreateSuccess") });
         },
         onError: (err: Error) => {
-            toast({ variant: "destructive", title: "خطأ", description: err.message });
+            toast({ variant: "destructive", title: t("common.error"), description: err.message });
         }
     });
 
@@ -189,8 +200,13 @@ export default function Users() {
 
     // Helper to open email client - keeping for legacy invites or contacting users
     const sendInviteEmail = (email: string, name: string) => {
-        const subject = encodeURIComponent("بيانات الدخول للنظام");
-        const body = encodeURIComponent(`مرحباً ${name}،\n\nتم إنشاء حساب لك في النظام.\nالبريد الإلكتروني: ${email}\nرابط النظام: ${window.location.origin}`);
+        const subject = encodeURIComponent(t("users.inviteEmailSubject"));
+        const body = encodeURIComponent(
+            t("users.inviteEmailBody")
+                .replace("{name}", name)
+                .replace("{email}", email)
+                .replace("{link}", window.location.origin)
+        );
         window.open(`mailto:${email}?subject=${subject}&body=${body}`);
     };
 
@@ -199,15 +215,15 @@ export default function Users() {
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold">إدارة النظام</h1>
-                    <p className="text-sm text-muted-foreground">إدارة المستخدمين والأدوار</p>
+                    <h1 className="text-2xl font-bold">{t('users.title')}</h1>
+                    <p className="text-sm text-muted-foreground">{t('users.subtitle')}</p>
                 </div>
             </div>
 
             <Tabs defaultValue="users" className="w-full">
                 <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
-                    <TabsTrigger value="users">المستخدمين</TabsTrigger>
-                    <TabsTrigger value="roles">الأدوار والصلاحيات</TabsTrigger>
+                    <TabsTrigger value="users">{t('users.tabs.users')}</TabsTrigger>
+                    <TabsTrigger value="roles">{t('users.tabs.roles')}</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="users">
@@ -215,42 +231,42 @@ export default function Users() {
                         <CardHeader className="pb-4">
                             <div className="flex justify-between items-center gap-4">
                                 <div>
-                                    <CardTitle className="text-base">قائمة المستخدمين</CardTitle>
+                                    <CardTitle className="text-base">{t('users.usersList')}</CardTitle>
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <Dialog open={isUserDialogOpen} onOpenChange={setIsUserDialogOpen}>
                                         <DialogTrigger asChild>
                                             <Button>
-                                                <Plus className="w-4 h-4 ml-2" />
-                                                إضافة مستخدم
+                                                <Plus className="w-4 h-4 me-2" />
+                                                {t('users.addUser')}
                                             </Button>
                                         </DialogTrigger>
                                         <DialogContent>
                                             <DialogHeader>
-                                                <DialogTitle>إضافة مستخدم جديد</DialogTitle>
+                                                <DialogTitle>{t("users.addUserTitle")}</DialogTitle>
                                             </DialogHeader>
                                             <form onSubmit={handleUserSubmit} className="space-y-4">
                                                 <div className="space-y-2">
-                                                    <Label>الاسم الكامل</Label>
+                                                    <Label>{t('users.fullName')}</Label>
                                                     <Input
                                                         required
                                                         value={userForm.name}
                                                         onChange={e => setUserForm({ ...userForm, name: e.target.value })}
-                                                        placeholder="مثال: محمد علي"
+                                                        placeholder={t("members.name")}
                                                     />
                                                 </div>
                                                 <div className="space-y-2">
-                                                    <Label>البريد الإلكتروني</Label>
+                                                    <Label>{t('users.email')}</Label>
                                                     <Input
                                                         required
                                                         type="email"
                                                         value={userForm.email}
                                                         onChange={e => setUserForm({ ...userForm, email: e.target.value })}
-                                                        placeholder="email@example.com"
+                                                        placeholder={t("users.emailPlaceholder")}
                                                     />
                                                 </div>
                                                 <div className="space-y-2">
-                                                    <Label>كلمة المرور</Label>
+                                                    <Label>{t('users.password')}</Label>
                                                     <Input
                                                         required
                                                         type="password"
@@ -261,7 +277,7 @@ export default function Users() {
                                                     />
                                                 </div>
                                                 <div className="space-y-2">
-                                                    <Label>الدور</Label>
+                                                    <Label>{t("users.role")}</Label>
                                                     <Select
                                                         value={userForm.role}
                                                         onValueChange={(val) => setUserForm({ ...userForm, role: val })}
@@ -277,15 +293,15 @@ export default function Users() {
                                                     </Select>
                                                 </div>
                                                 <Button type="submit" className="w-full" disabled={mutationCreateUser.isPending}>
-                                                    {mutationCreateUser.isPending ? "جاري الإنشاء..." : "إنشاء المستخدم"}
+                                                    {mutationCreateUser.isPending ? t('common.loading') : t('users.addUser')}
                                                 </Button>
                                             </form>
                                         </DialogContent>
                                     </Dialog>
 
                                     <div className="relative w-full max-w-sm">
-                                        <Search className="absolute right-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                                        <Input placeholder="بحث عن مستخدم..." className="pr-10" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                                        <Search className="absolute start-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                                        <Input placeholder={t("common.search")} className="ps-10" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
                                     </div>
                                 </div>
                             </div>
@@ -293,7 +309,7 @@ export default function Users() {
                         <CardContent>
                             {usersError ? (
                                 <div className="p-4 text-center text-destructive bg-destructive/10 rounded-md">
-                                    <p>حدث خطأ أثناء تحميل المستخدمين: {usersError.message}</p>
+                                    <p>{t("users.loadError")}: {usersError.message}</p>
                                 </div>
                             ) : loadingUsers ? (
                                 <div className="space-y-4">
@@ -301,36 +317,36 @@ export default function Users() {
                                 </div>
                             ) : (
                                 <div className="overflow-x-auto">
-                                    <table className="w-full text-sm" dir="rtl">
+                                    <table className="w-full text-sm" dir={dir}>
                                         <thead className="bg-muted/50 border-b">
                                             <tr>
-                                                <th className="p-4 text-right">المستخدم</th>
-                                                <th className="p-4 text-right">البريد الإلكتروني</th>
-                                                <th className="p-4 text-right">آخر تسجيل دخول</th>
-                                                <th className="p-4 text-right">الدور / الصلاحية</th>
+                                                <th className="p-4 text-start">{t('users.user')}</th>
+                                                <th className="p-4 text-start">{t('users.email')}</th>
+                                                <th className="p-4 text-start">{t('users.lastLogin')}</th>
+                                                <th className="p-4 text-start">{t('users.role')}</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {filteredUsers && filteredUsers.length > 0 ? filteredUsers.map(user => (
                                                 <tr key={user.id} className="border-b">
-                                                    <td className="p-4 text-right font-medium">
+                                                    <td className="p-4 text-start font-medium">
                                                         <div className="flex items-center gap-2">
                                                             {user.photoURL ? <img src={user.photoURL} className="w-8 h-8 rounded-full" /> : <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">{user.displayName?.[0] || user.email?.[0]}</div>}
                                                             <div>
-                                                                <div>{user.displayName || "مستخدم"}</div>
-                                                                {(user as any).isInvite && <Badge variant="outline" className="text-xs mt-1">دعوة معلقة</Badge>}
+                                                                <div>{user.displayName || t('users.user')}</div>
+                                                                {(user as any).isInvite && <Badge variant="outline" className="text-xs mt-1">{t('users.invitePending')}</Badge>}
                                                             </div>
                                                         </div>
                                                     </td>
-                                                    <td className="p-4 text-right font-mono text-muted-foreground">{user.email}</td>
-                                                    <td className="p-4 text-right text-muted-foreground">{user.createdAt || "-"}</td>
-                                                    <td className="p-4 text-right">
+                                                    <td className="p-4 text-start font-mono text-muted-foreground">{user.email}</td>
+                                                    <td className="p-4 text-start text-muted-foreground">{user.createdAt || t("common.none")}</td>
+                                                    <td className="p-4 text-start">
                                                         <div className="flex items-center gap-2">
                                                             {(user as any).isInvite && (
                                                                 <Button
                                                                     variant="ghost"
                                                                     size="icon"
-                                                                    title="إرسال دعوة بالبريد"
+                                                                    title={t("users.inviteEmailTooltip")}
                                                                     onClick={() => sendInviteEmail(user.email, user.displayName?.replace(" (مدعو)", "") || "")}
                                                                 >
                                                                     <Mail className="w-4 h-4 text-blue-500" />
@@ -339,7 +355,7 @@ export default function Users() {
                                                             <Select
                                                                 value={user.role || 'staff'}
                                                                 onValueChange={(val) => {
-                                                                    if (confirm(`تغيير صلاحية ${user.email} إلى ${val}؟`)) {
+                                                                    if (confirm(t('users.changeRoleConfirm'))) {
                                                                         updateRoleMutation.mutate({ id: user.id, role: val });
                                                                     }
                                                                 }}
@@ -363,11 +379,11 @@ export default function Users() {
                                                                     size="icon"
                                                                     className="text-destructive hover:text-destructive"
                                                                     onClick={() => {
-                                                                        if (confirm("هل أنت متأكد من حذف ملف المستخدم؟")) {
+                                                                        if (confirm(t('users.deleteUserConfirm'))) {
                                                                             mutationDeleteUser.mutate(user.id);
                                                                         }
                                                                     }}
-                                                                    title="حذف المستخدم"
+                                                                    title={t('common.delete')}
                                                                 >
                                                                     <Trash2 className="w-4 h-4" />
                                                                 </Button>
@@ -376,7 +392,7 @@ export default function Users() {
                                                     </td>
                                                 </tr>
                                             )) : (
-                                                <tr><td colSpan={4} className="text-center py-8">لا يوجد مستخدمين</td></tr>
+                                                <tr><td colSpan={4} className="text-center py-8">{t("users.noUsers")}</td></tr>
                                             )}
                                         </tbody>
                                     </table>
@@ -391,40 +407,43 @@ export default function Users() {
                         <CardHeader className="pb-4">
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                                 <div>
-                                    <CardTitle className="text-base">الأدوار المتاحة</CardTitle>
-                                    <CardDescription>إدارة الأدوار التي يمكن إسنادها للمستخدمين</CardDescription>
+                                    <CardTitle className="text-base">{t('users.rolesList')}</CardTitle>
+                                    <CardDescription>{t('users.rolesSubtitle')}</CardDescription>
                                 </div>
                                 <Dialog open={isRoleDialogOpen} onOpenChange={setIsRoleDialogOpen}>
                                     <DialogTrigger asChild>
                                         <Button onClick={openCreateRole}>
-                                            <Plus className="w-4 h-4 ml-2" />
-                                            إضافة دور جديد
+                                            <Plus className="w-4 h-4 me-2" />
+                                            {t('users.addRole')}
                                         </Button>
                                     </DialogTrigger>
                                     <DialogContent className="max-w-2xl">
                                         <DialogHeader>
-                                            <DialogTitle>{editingRole ? "تعديل الدور" : "إضافة دور جديد"}</DialogTitle>
+                                            <DialogTitle>{editingRole ? t('common.edit') : t('users.addRole')}</DialogTitle>
                                         </DialogHeader>
                                         <form onSubmit={handleRoleSubmit} className="space-y-6">
                                             <div className="space-y-2">
-                                                <Label>اسم الدور</Label>
+                                                <Label>{t('users.roleName')}</Label>
                                                 <Input
                                                     value={roleForm.name}
                                                     onChange={e => setRoleForm({ ...roleForm, name: e.target.value })}
-                                                    placeholder="مثال: مدرب، مشرف مبيعات"
+                                                    placeholder={t("users.roleNamePlaceholder")}
                                                 />
                                             </div>
 
                                             <div className="space-y-2">
-                                                <Label>الصلاحيات الممنوحة</Label>
+                                                <Label>{t('users.permissions')}</Label>
                                                 <ScrollArea className="h-[400px] border rounded-md p-4 bg-muted/20">
                                                     <div className="space-y-6">
                                                         {PERMISSION_GROUPS.map((group) => (
                                                             <div key={group.label} className="space-y-3">
-                                                                <h4 className="font-medium text-primary text-sm border-b pb-1">{group.label}</h4>
-                                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" dir="rtl">
+                                                                <h4 className="font-medium text-primary text-sm border-b pb-1">{t(group.label)}</h4>
+                                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" dir={dir}>
                                                                     {group.permissions.map((perm) => (
-                                                                        <div key={perm.id} className="flex items-center space-x-2 space-x-reverse">
+                                                                        <div
+                                                                            key={perm.id}
+                                                                            className={`flex items-center ${dir === "rtl" ? "space-x-2 space-x-reverse" : "space-x-2"}`}
+                                                                        >
                                                                             <Checkbox
                                                                                 id={perm.id}
                                                                                 checked={roleForm.permissions.includes(perm.id)}
@@ -434,7 +453,7 @@ export default function Users() {
                                                                                 htmlFor={perm.id}
                                                                                 className="text-sm font-normal cursor-pointer"
                                                                             >
-                                                                                {perm.label}
+                                                                                {t(perm.label)}
                                                                             </Label>
                                                                         </div>
                                                                     ))}
@@ -446,7 +465,7 @@ export default function Users() {
                                             </div>
 
                                             <Button type="submit" className="w-full" disabled={mutationCreateRole.isPending || mutationUpdateRole.isPending}>
-                                                {mutationCreateRole.isPending || mutationUpdateRole.isPending ? "جاري الحفظ..." : "حفظ"}
+                                                {mutationCreateRole.isPending || mutationUpdateRole.isPending ? t('common.loading') : t('common.save')}
                                             </Button>
                                         </form>
                                     </DialogContent>
@@ -461,7 +480,7 @@ export default function Users() {
                                             <Shield className="w-5 h-5 text-muted-foreground" />
                                             <div>
                                                 <p className="font-medium">{role.name}</p>
-                                                <p className="text-xs text-muted-foreground font-mono">ID: {role.id}</p>
+                                                <p className="text-xs text-muted-foreground font-mono">{t("common.id")}: {role.id}</p>
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
@@ -476,13 +495,13 @@ export default function Users() {
                                                     size="icon"
                                                     className="text-destructive hover:text-destructive"
                                                     onClick={() => {
-                                                        if (confirm('حذف هذا الدور؟')) mutationDeleteRole.mutate(role.id);
+                                                        if (confirm(t('users.deleteRoleConfirm'))) mutationDeleteRole.mutate(role.id);
                                                     }}
                                                 >
                                                     <Trash2 className="w-4 h-4" />
                                                 </Button>
                                             )}
-                                            {role.isSystem && <Badge variant="secondary">نظام</Badge>}
+                                            {role.isSystem && <Badge variant="secondary">{t('common.active')}</Badge>}
                                         </div>
                                     </div>
                                 ))}

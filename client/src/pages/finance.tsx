@@ -39,17 +39,21 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { FinanceReport, Expense, InsertExpense, Subscription, Sale } from "@shared/schema";
 
 const expenseCategories = [
-  { value: "rent", label: "إيجار" },
-  { value: "salaries", label: "رواتب" },
-  { value: "utilities", label: "فواتير خدمات" },
-  { value: "equipment", label: "معدات" },
-  { value: "maintenance", label: "صيانة" },
-  { value: "marketing", label: "تسويق" },
-  { value: "other", label: "أخرى" },
+  "rent",
+  "salaries",
+  "utilities",
+  "equipment",
+  "maintenance",
+  "marketing",
+  "other",
 ];
+
+import { useAuth } from "@/context/auth-context";
+import { useLanguage } from "@/context/language-context";
 
 export default function Finance() {
   const { toast } = useToast();
+  const { t, language } = useLanguage();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [formData, setFormData] = useState<Partial<InsertExpense>>({
     category: "other",
@@ -110,10 +114,10 @@ export default function Finance() {
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       setIsDialogOpen(false);
       resetForm();
-      toast({ title: "تم بنجاح", description: "تم إضافة المصروف بنجاح" });
+      toast({ title: t("common.success"), description: t("finance.expenseCreateSuccess") });
     },
     onError: () => {
-      toast({ variant: "destructive", title: "خطأ", description: "حدث خطأ أثناء إضافة المصروف" });
+      toast({ variant: "destructive", title: t("common.error"), description: t("finance.expenseCreateError") });
     },
   });
 
@@ -127,10 +131,10 @@ export default function Finance() {
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       setIsDialogOpen(false);
       resetForm();
-      toast({ title: "تم بنجاح", description: "تم تعديل المصروف بنجاح" });
+      toast({ title: t("common.success"), description: t("finance.expenseUpdateSuccess") });
     },
     onError: () => {
-      toast({ variant: "destructive", title: "خطأ", description: "فشل تعديل المصروف" });
+      toast({ variant: "destructive", title: t("common.error"), description: t("finance.expenseUpdateError") });
     }
   });
 
@@ -141,10 +145,10 @@ export default function Finance() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
-      toast({ title: "تم الحذف", description: "تم حذف المصروف بنجاح" });
+      toast({ title: t("common.success"), description: t("finance.expenseDeleteSuccess") });
     },
     onError: () => {
-      toast({ variant: "destructive", title: "خطأ", description: "فشل حذف المصروف" });
+      toast({ variant: "destructive", title: t("common.error"), description: t("finance.expenseDeleteError") });
     }
   });
 
@@ -172,7 +176,7 @@ export default function Finance() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.amount || formData.amount <= 0) {
-      toast({ title: "خطأ", description: "يرجى إدخال مبلغ صحيح", variant: "destructive" });
+      toast({ title: t("common.error"), description: t("finance.invalidAmount"), variant: "destructive" });
       return;
     }
 
@@ -202,31 +206,31 @@ export default function Finance() {
   const netProfit = totalIncome - totalExpenses;
 
   const expensesByCategory = expenseCategories.map((cat) => ({
-    category: cat.label,
-    total: filteredExpenses.filter((e) => e.category === cat.value).reduce((sum, e) => sum + e.amount, 0),
+    category: cat,
+    total: filteredExpenses.filter((e) => e.category === cat).reduce((sum, e) => sum + e.amount, 0),
   })).filter((c) => c.total > 0);
 
   const handleExport = () => {
     const csvContent = [
-      ["التقرير المالي", `من: ${dateRange.startDate}`, `إلى: ${dateRange.endDate}`],
+      [t("finance.reportTitle"), `${t("common.from")}: ${dateRange.startDate}`, `${t("common.to")}: ${dateRange.endDate}`],
       [],
-      ["ملخص", "المبلغ"],
-      ["دخل الاشتراكات", totalSubscriptionIncome],
-      ["دخل المبيعات", totalSalesIncome],
-      ["إجمالي الدخل", totalIncome],
-      ["إجمالي المصروفات", totalExpenses],
-      ["صافي الربح", netProfit],
+      [t("finance.reportSummary"), t("common.amount")],
+      [t("finance.subscriptionIncome"), totalSubscriptionIncome],
+      [t("finance.salesIncome"), totalSalesIncome],
+      [t("finance.totalIncome"), totalIncome],
+      [t("finance.totalExpenses"), totalExpenses],
+      [t("finance.netProfit"), netProfit],
       [],
-      ["تفاصيل المصروفات"],
-      ["التاريخ", "الفئة", "الوصف", "المبلغ"],
+      [t("finance.expenseDetails")],
+      [t("common.date"), t("finance.category"), t("common.description"), t("common.amount")],
       ...filteredExpenses.map(e => [e.date, getCategoryLabel(e.category), e.description, e.amount]),
       [],
-      ["تفاصيل الدخل (اشتراكات)"],
-      ["التاريخ", "العضو", "الباقة", "المبلغ"],
+      [t("finance.incomeDetailsSubscriptions")],
+      [t("common.date"), t("subscriptions.member"), t("subscriptions.package"), t("common.amount")],
       ...filteredSubscriptions.map(s => [s.startDate, s.memberName, s.planName, s.amount]),
       [],
-      ["تفاصيل الدخل (مبيعات)"],
-      ["التاريخ", "المنتج", "المبلغ"],
+      [t("finance.incomeDetailsSales")],
+      [t("common.date"), t("sales.product"), t("common.amount")],
       ...filteredSales.map(s => [s.date.split("T")[0], s.productName, s.totalPrice])
     ].map(e => e.join(",")).join("\n");
 
@@ -241,12 +245,14 @@ export default function Finance() {
   };
 
   const getCategoryLabel = (value: string) => {
-    return expenseCategories.find((c) => c.value === value)?.label ?? value;
+    const key = `finance.categories.${value}`;
+    const label = t(key);
+    return label === key ? value : label;
   };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return new Intl.DateTimeFormat("ar-BH", {
+    return new Intl.DateTimeFormat(language === 'ar' ? 'ar-BH' : 'en-US', {
       year: "numeric",
       month: "short",
       day: "numeric",
@@ -271,25 +277,25 @@ export default function Finance() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold" data-testid="text-page-title">التقارير المالية</h1>
-          <p className="text-sm text-muted-foreground">ملخص الإيرادات والمصروفات</p>
+          <h1 className="text-2xl font-bold" data-testid="text-page-title">{t('finance.title')}</h1>
+          <p className="text-sm text-muted-foreground">{t('finance.subtitle')}</p>
         </div>
 
         <div className="flex flex-wrap gap-2 items-end">
           <div className="space-y-1">
-            <Label className="text-xs">من</Label>
+            <Label className="text-xs">{t("common.from")}</Label>
             <Input type="date" value={dateRange.startDate} onChange={e => setDateRange({ ...dateRange, startDate: e.target.value })} className="h-9 w-36" />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">إلى</Label>
+            <Label className="text-xs">{t("common.to")}</Label>
             <Input type="date" value={dateRange.endDate} onChange={e => setDateRange({ ...dateRange, endDate: e.target.value })} className="h-9 w-36" />
           </div>
           <div className="flex gap-1">
-            <Button variant="outline" size="sm" onClick={setMonthlyCycle} className="h-9">شهري</Button>
-            <Button variant="outline" size="sm" onClick={setYearlyCycle} className="h-9">سنوي</Button>
+            <Button variant="outline" size="sm" onClick={setMonthlyCycle} className="h-9">{t("common.monthly")}</Button>
+            <Button variant="outline" size="sm" onClick={setYearlyCycle} className="h-9">{t("common.yearly")}</Button>
             <Button variant="default" size="sm" onClick={handleExport} className="h-9 gap-2">
               <Download className="w-4 h-4" />
-              تصدير
+              {t('common.export')}
             </Button>
           </div>
         </div>
@@ -297,19 +303,19 @@ export default function Finance() {
           <DialogTrigger asChild>
             <Button variant="outline" data-testid="button-add-expense">
               <Plus className="h-4 w-4 ml-2" />
-              إضافة مصروف
+              {t('finance.addExpense')}
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Receipt className="h-5 w-5" />
-                {editingId ? "تعديل المصروف" : "تسجيل مصروف جديد"}
+                {editingId ? t("finance.editExpenseTitle") : t("finance.newExpenseTitle")}
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label>الفئة</Label>
+                <Label>{t('finance.category')}</Label>
                 <Select
                   value={formData.category}
                   onValueChange={(v) => setFormData({ ...formData, category: v })}
@@ -319,8 +325,8 @@ export default function Finance() {
                   </SelectTrigger>
                   <SelectContent>
                     {expenseCategories.map((cat) => (
-                      <SelectItem key={cat.value} value={cat.value}>
-                        {cat.label}
+                      <SelectItem key={cat} value={cat}>
+                        {getCategoryLabel(cat)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -328,9 +334,9 @@ export default function Finance() {
               </div>
 
               <div className="space-y-2">
-                <Label>الوصف</Label>
+                <Label>{t("common.description")}</Label>
                 <Input
-                  placeholder="وصف المصروف..."
+                  placeholder={t("finance.descriptionPlaceholder")}
                   value={formData.description ?? ""}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   data-testid="input-expense-description"
@@ -339,7 +345,7 @@ export default function Finance() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>المبلغ (د.ب) *</Label>
+                  <Label>{t('common.amount')} *</Label>
                   <Input
                     type="number"
                     step="0.01"
@@ -352,7 +358,7 @@ export default function Finance() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>التاريخ</Label>
+                  <Label>{t("common.date")}</Label>
                   <Input
                     type="date"
                     value={formData.date}
@@ -368,7 +374,7 @@ export default function Finance() {
                 disabled={createExpense.isPending || updateExpense.isPending}
                 data-testid="button-submit-expense"
               >
-                {createExpense.isPending || updateExpense.isPending ? "جاري الحفظ..." : "حفظ"}
+                {createExpense.isPending || updateExpense.isPending ? t('common.loading') : t('common.save')}
               </Button>
             </form>
           </DialogContent>
@@ -384,9 +390,9 @@ export default function Finance() {
                 <CreditCard className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">دخل الاشتراكات</p>
+                <p className="text-sm text-muted-foreground">{t('dashboard.monthlyIncome')}</p>
                 <p className="text-2xl font-bold" data-testid="text-subscription-income">
-                  {totalSubscriptionIncome.toFixed(2)} د.ب
+                  {totalSubscriptionIncome.toFixed(2)} {t("common.currency")}
                 </p>
               </div>
             </div>
@@ -400,9 +406,9 @@ export default function Finance() {
                 <Package className="h-5 w-5 text-purple-600 dark:text-purple-400" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">دخل المبيعات</p>
+                <p className="text-sm text-muted-foreground">{t('dashboard.salesIncome')}</p>
                 <p className="text-2xl font-bold" data-testid="text-sales-income">
-                  {totalSalesIncome.toFixed(2)} د.ب
+                  {totalSalesIncome.toFixed(2)} {t("common.currency")}
                 </p>
               </div>
             </div>
@@ -416,9 +422,9 @@ export default function Finance() {
                 <TrendingDown className="h-5 w-5 text-red-600 dark:text-red-400" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">إجمالي المصروفات</p>
+                <p className="text-sm text-muted-foreground">{t("finance.totalExpenses")}</p>
                 <p className="text-2xl font-bold" data-testid="text-total-expenses">
-                  {totalExpenses.toFixed(2)} د.ب
+                  {totalExpenses.toFixed(2)} {t("common.currency")}
                 </p>
               </div>
             </div>
@@ -436,9 +442,9 @@ export default function Finance() {
                 )}
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">صافي الربح</p>
+                <p className="text-sm text-muted-foreground">{t("finance.netProfit")}</p>
                 <p className={`text-2xl font-bold ${netProfit >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`} data-testid="text-net-profit">
-                  {netProfit.toFixed(2)} د.ب
+                  {netProfit.toFixed(2)} {t("common.currency")}
                 </p>
               </div>
             </div>
@@ -449,7 +455,7 @@ export default function Finance() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">تفصيل المصروفات حسب الفئة</CardTitle>
+            <CardTitle className="text-base">{t("finance.expensesByCategory")}</CardTitle>
           </CardHeader>
           <CardContent>
             {expensesByCategory.length > 0 ? (
@@ -457,13 +463,13 @@ export default function Finance() {
                 {expensesByCategory.map((cat) => (
                   <div key={cat.category} className="flex items-center justify-between py-2 border-b last:border-0">
                     <span className="font-medium">{cat.category}</span>
-                    <Badge variant="secondary">{cat.total.toFixed(2)} د.ب</Badge>
+                    <Badge variant="secondary">{cat.total.toFixed(2)} {t("common.currency")}</Badge>
                   </div>
                 ))}
               </div>
             ) : (
               <div className="py-8 text-center text-muted-foreground">
-                لا توجد مصروفات مسجلة
+                {t("finance.noExpenses")}
               </div>
             )}
           </CardContent>
@@ -471,18 +477,18 @@ export default function Finance() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">آخر المصروفات</CardTitle>
+            <CardTitle className="text-base">{t("finance.latestExpenses")}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b">
-                    <th className="text-right py-2 px-2 font-medium text-muted-foreground">الفئة</th>
-                    <th className="text-right py-2 px-2 font-medium text-muted-foreground">الوصف</th>
-                    <th className="text-right py-2 px-2 font-medium text-muted-foreground">المبلغ</th>
-                    <th className="text-right py-2 px-2 font-medium text-muted-foreground">التاريخ</th>
-                    <th className="text-right py-2 px-2 font-medium text-muted-foreground">إجراء</th>
+                    <th className="text-right py-2 px-2 font-medium text-muted-foreground">{t('finance.category')}</th>
+                    <th className="text-right py-2 px-2 font-medium text-muted-foreground">{t('common.description')}</th>
+                    <th className="text-right py-2 px-2 font-medium text-muted-foreground">{t('common.amount')}</th>
+                    <th className="text-right py-2 px-2 font-medium text-muted-foreground">{t('common.date')}</th>
+                    <th className="text-right py-2 px-2 font-medium text-muted-foreground">{t('common.actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -495,7 +501,7 @@ export default function Finance() {
                         <td className="py-2 px-2 text-muted-foreground max-w-[150px] truncate">
                           {expense.description || "-"}
                         </td>
-                        <td className="py-2 px-2 font-medium">{expense.amount.toFixed(2)} د.ب</td>
+                        <td className="py-2 px-2 font-medium">{expense.amount.toFixed(2)} {t("common.currency")}</td>
                         <td className="py-2 px-2 text-muted-foreground">{formatDate(expense.date)}</td>
                         <td className="py-2 px-2 flex gap-1 justify-end">
                           <Button
@@ -511,7 +517,7 @@ export default function Finance() {
                             size="icon"
                             className="h-8 w-8 text-destructive hover:text-destructive"
                             onClick={() => {
-                              if (confirm('حذف هذا المصروف؟')) deleteExpense.mutate(expense.id);
+                              if (confirm(t('finance.deleteExpenseConfirm'))) deleteExpense.mutate(expense.id);
                             }}
                           >
                             <Trash2 className="h-4 w-4" />
@@ -522,7 +528,7 @@ export default function Finance() {
                   ) : (
                     <tr>
                       <td colSpan={5} className="py-8 text-center text-muted-foreground">
-                        لا توجد مصروفات مسجلة
+                        {t("finance.noExpenses")}
                       </td>
                     </tr>
                   )}
@@ -537,45 +543,45 @@ export default function Finance() {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Wallet className="h-4 w-4" />
-            ملخص مالي
+            {t("finance.summaryTitle")}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="p-4 bg-muted/50 rounded-lg">
-              <p className="text-sm text-muted-foreground mb-2">إجمالي الإيرادات</p>
+              <p className="text-sm text-muted-foreground mb-2">{t("finance.totalIncome")}</p>
               <p className="text-3xl font-bold text-green-600 dark:text-green-400">
-                {totalIncome.toFixed(2)} د.ب
+                {totalIncome.toFixed(2)} {t("common.currency")}
               </p>
               <div className="mt-2 space-y-1 text-xs text-muted-foreground">
                 <div className="flex justify-between">
-                  <span>الاشتراكات:</span>
-                  <span>{totalSubscriptionIncome.toFixed(2)} د.ب</span>
+                  <span>{t("finance.subscriptionIncome")}: </span>
+                  <span>{totalSubscriptionIncome.toFixed(2)} {t("common.currency")}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>المبيعات:</span>
-                  <span>{totalSalesIncome.toFixed(2)} د.ب</span>
+                  <span>{t("finance.salesIncome")}: </span>
+                  <span>{totalSalesIncome.toFixed(2)} {t("common.currency")}</span>
                 </div>
               </div>
             </div>
 
             <div className="p-4 bg-muted/50 rounded-lg">
-              <p className="text-sm text-muted-foreground mb-2">إجمالي المصروفات</p>
+              <p className="text-sm text-muted-foreground mb-2">{t("finance.totalExpenses")}</p>
               <p className="text-3xl font-bold text-red-600 dark:text-red-400">
-                {totalExpenses.toFixed(2)} د.ب
+                {totalExpenses.toFixed(2)} {t("common.currency")}
               </p>
               <p className="mt-2 text-xs text-muted-foreground">
-                {filteredExpenses?.length ?? 0} عملية مسجلة
+                {filteredExpenses?.length ?? 0} {t("finance.records")}
               </p>
             </div>
 
             <div className="p-4 bg-muted/50 rounded-lg">
-              <p className="text-sm text-muted-foreground mb-2">صافي الربح</p>
+              <p className="text-sm text-muted-foreground mb-2">{t("finance.netProfit")}</p>
               <p className={`text-3xl font-bold ${netProfit >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
-                {netProfit.toFixed(2)} د.ب
+                {netProfit.toFixed(2)} {t("common.currency")}
               </p>
               <p className="mt-2 text-xs text-muted-foreground">
-                {totalIncome > 0 ? ((netProfit / totalIncome) * 100).toFixed(1) : 0}٪ هامش ربح
+                {totalIncome > 0 ? ((netProfit / totalIncome) * 100).toFixed(1) : 0}% {t("finance.profitMargin")}
               </p>
             </div>
           </div>

@@ -6,13 +6,16 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
+import { endOfDay, isWithinInterval, parseISO, startOfDay } from "date-fns";
 import { Calendar, LogIn, Search } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import type { Attendance, Member, InsertAttendance } from "@shared/schema";
+import { useLanguage } from "@/context/language-context";
 
 export default function AttendancePage() {
   const { toast } = useToast();
+  const { t, language } = useLanguage();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
 
@@ -32,14 +35,14 @@ export default function AttendancePage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/attendance"] });
       toast({
-        title: "تم بنجاح",
-        description: "تم تسجيل الحضور بنجاح",
+        title: t("common.success"),
+        description: t("attendance.addAttendanceSuccess"),
       });
     },
     onError: () => {
       toast({
-        title: "خطأ",
-        description: "حدث خطأ أثناء تسجيل الحضور",
+        title: t("common.error"),
+        description: t("attendance.addAttendanceError"),
         variant: "destructive",
       });
     },
@@ -53,14 +56,14 @@ export default function AttendancePage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/attendance"] });
       toast({
-        title: "تم الإلغاء",
-        description: "تم حذف الحضور لهذا اليوم",
+        title: t("common.success"),
+        description: t("attendance.deleteSuccess"),
       });
     },
     onError: () => {
       toast({
-        title: "خطأ",
-        description: "حدث خطأ أثناء حذف الحضور",
+        title: t("common.error"),
+        description: t("attendance.deleteError"),
         variant: "destructive",
       });
     },
@@ -74,10 +77,15 @@ export default function AttendancePage() {
     attendanceByMember.get(member.memberId) ?? attendanceByMember.get(member.id);
 
   const isMemberActive = (member: Member, date: string) => {
-    if (member.status !== "active") return false;
-    if (member.subscriptionStart && member.subscriptionStart > date) return false;
-    if (member.subscriptionEnd && member.subscriptionEnd < date) return false;
-    return true;
+    if (!member.subscriptionStart || !member.subscriptionEnd) return false;
+    try {
+      const selected = startOfDay(parseISO(date));
+      const start = startOfDay(parseISO(member.subscriptionStart));
+      const end = endOfDay(parseISO(member.subscriptionEnd));
+      return isWithinInterval(selected, { start, end });
+    } catch {
+      return false;
+    }
   };
 
   const getCurrentTime = () => {
@@ -114,7 +122,7 @@ export default function AttendancePage() {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return new Intl.DateTimeFormat("ar-BH", {
+    return new Intl.DateTimeFormat(language === 'ar' ? 'ar-BH' : 'en-US', {
       weekday: "long",
       year: "numeric",
       month: "long",
@@ -153,7 +161,7 @@ export default function AttendancePage() {
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold" data-testid="text-page-title">
-            الحضور والانصراف
+            {t('attendance.title')}
           </h1>
           <p className="text-sm text-muted-foreground">{formatDate(selectedDate)}</p>
         </div>
@@ -171,7 +179,7 @@ export default function AttendancePage() {
           <div className="relative w-full sm:w-64">
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="ابحث عن الاسم أو رقم العضو..."
+              placeholder={t('common.search')}
               className="pr-10"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -186,7 +194,7 @@ export default function AttendancePage() {
           filteredMembers.map((member) => {
             const record = getAttendanceRecord(member);
             const isPresent = Boolean(record);
-            const cardLabel = isPresent ? "اضغط لإلغاء الحضور" : "اضغط لتسجيل الحضور";
+            const cardLabel = isPresent ? t('attendance.checkOut') : t('attendance.checkIn');
 
             return (
               <Card
@@ -223,17 +231,17 @@ export default function AttendancePage() {
                         </div>
                         {isPresent ? (
                           <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
-                            حاضر
+                            {t('common.present')}
                           </Badge>
                         ) : (
-                          <Badge variant="secondary">غير مسجل</Badge>
+                          <Badge variant="secondary">{t('common.absent')}</Badge>
                         )}
                       </div>
                       <div className="mt-2 space-y-1">
                         {record?.checkIn ? (
                           <div className="flex items-center gap-1 text-xs text-muted-foreground">
                             <LogIn className="h-3 w-3" />
-                            <span>وقت الحضور: {record.checkIn}</span>
+                            <span>{t('common.time')}: {record.checkIn}</span>
                           </div>
                         ) : null}
                         <p className="text-xs text-muted-foreground">{cardLabel}</p>
@@ -247,8 +255,8 @@ export default function AttendancePage() {
         ) : (
           <div className="col-span-full py-12 text-center text-muted-foreground">
             {searchQuery
-              ? "لا توجد نتائج للبحث"
-              : "لا توجد عضويات نشطة في هذا اليوم"}
+              ? t('common.noResults')
+              : t('members.noMembers')}
           </div>
         )}
       </div>

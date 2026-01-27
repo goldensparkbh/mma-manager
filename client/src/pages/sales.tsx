@@ -17,9 +17,11 @@ import { Search, ShoppingBag, TrendingUp, Package, Printer, Trash2 } from "lucid
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Sale } from "@shared/schema";
 import { useAuth } from "@/context/auth-context";
+import { useLanguage } from "@/context/language-context";
 
 export default function Sales() {
   const { role, clubSettings } = useAuth();
+  const { t, language } = useLanguage();
   const isAdmin = role === "admin";
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
@@ -39,10 +41,10 @@ export default function Sales() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/sales"] });
-      toast({ title: "تم الحذف", description: "تم حذف السجل بنجاح" });
+      toast({ title: t("common.success"), description: t("sales.deleteSuccess") });
     },
     onError: () => {
-      toast({ variant: "destructive", title: "خطأ", description: "فشل الحذف" });
+      toast({ variant: "destructive", title: t("common.error"), description: t("sales.deleteError") });
     }
   });
 
@@ -58,14 +60,14 @@ export default function Sales() {
       setSelectedSale(null);
       setCancelReason("");
       toast({
-        title: "تم الإلغاء",
-        description: "تم إلغاء عملية البيع بنجاح",
+        title: t("common.success"),
+        description: t("sales.cancelSuccess"),
       });
     },
     onError: () => {
       toast({
-        title: "خطأ",
-        description: "حدث خطأ أثناء إلغاء عملية البيع",
+        title: t("common.error"),
+        description: t("sales.cancelError"),
         variant: "destructive",
       });
     },
@@ -101,11 +103,18 @@ export default function Sales() {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return new Intl.DateTimeFormat("ar-BH", {
+    return new Intl.DateTimeFormat(language === 'ar' ? 'ar-BH' : 'en-US', {
       year: "numeric",
       month: "short",
       day: "numeric",
     }).format(date);
+  };
+
+  const getPaymentMethodLabel = (method?: string | null) => {
+    if (!method) return "-";
+    const key = `finance.paymentMethods.${method}`;
+    const label = t(key);
+    return label === key ? method : label;
   };
 
   if (isLoading) {
@@ -126,27 +135,27 @@ export default function Sales() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold" data-testid="text-page-title">سجل المبيعات</h1>
-          <p className="text-sm text-muted-foreground">عرض جميع عمليات البيع</p>
+          <h1 className="text-2xl font-bold" data-testid="text-page-title">{t('sales.title')}</h1>
+          <p className="text-sm text-muted-foreground">{t('sales.subtitle')}</p>
         </div>
       </div>
 
       <Dialog open={isCancelDialogOpen} onOpenChange={handleCancelDialogChange}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>إلغاء عملية البيع</DialogTitle>
+            <DialogTitle>{t('sales.cancelSale')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1 text-sm text-muted-foreground">
-              <p>المنتج: {selectedSale?.productName ?? "-"}</p>
-              <p>الإجمالي: {selectedSale ? selectedSale.totalPrice.toFixed(2) : "-"} د.ب</p>
+              <p>{t("sales.product")}: {selectedSale?.productName ?? "-"}</p>
+              <p>{t("sales.total")}: {selectedSale ? selectedSale.totalPrice.toFixed(2) : "-"} {t("common.currency")}</p>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">سبب الإلغاء</label>
+              <label className="text-sm font-medium">{t('sales.reason')}</label>
               <Textarea
                 value={cancelReason}
                 onChange={(e) => setCancelReason(e.target.value)}
-                placeholder="اكتب سبب الإلغاء..."
+                placeholder={t("sales.cancelReasonPlaceholder")}
                 rows={3}
                 data-testid="input-cancel-reason"
               />
@@ -157,7 +166,7 @@ export default function Sales() {
                 type="button"
                 onClick={() => handleCancelDialogChange(false)}
               >
-                رجوع
+                {t("common.back")}
               </Button>
               <Button
                 type="button"
@@ -166,8 +175,8 @@ export default function Sales() {
                   if (!selectedSale) return;
                   if (!reason) {
                     toast({
-                      title: "خطأ",
-                      description: "يرجى إدخال سبب الإلغاء",
+                      title: t("common.error"),
+                      description: t("sales.cancelReasonRequired"),
                       variant: "destructive",
                     });
                     return;
@@ -177,7 +186,7 @@ export default function Sales() {
                 disabled={cancelSale.isPending || !selectedSale}
                 data-testid="button-confirm-cancel"
               >
-                {cancelSale.isPending ? "جاري الإلغاء..." : "تأكيد الإلغاء"}
+                {cancelSale.isPending ? t("sales.cancelInProgress") : t("sales.cancelConfirm")}
               </Button>
             </div>
           </div>
@@ -193,9 +202,9 @@ export default function Sales() {
                 <TrendingUp className="h-5 w-5 text-green-600 dark:text-green-400" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">إجمالي المبيعات</p>
+                <p className="text-sm text-muted-foreground">{t("sales.totalSalesLabel")}</p>
                 <p className="text-2xl font-bold" data-testid="text-total-sales">
-                  {totalSales.toFixed(2)} د.ب
+                  {totalSales.toFixed(2)} {t("common.currency")}
                 </p>
               </div>
             </div>
@@ -209,9 +218,9 @@ export default function Sales() {
                 <ShoppingBag className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">عدد القطع المباعة</p>
+                <p className="text-sm text-muted-foreground">{t("sales.totalItemsLabel")}</p>
                 <p className="text-2xl font-bold" data-testid="text-total-items">
-                  {totalItems} قطعة
+                  {totalItems} {t("sales.itemsUnit")}
                 </p>
               </div>
             </div>
@@ -225,9 +234,9 @@ export default function Sales() {
                 <Package className="h-5 w-5 text-purple-600 dark:text-purple-400" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">المنتجات المباعة</p>
+                <p className="text-sm text-muted-foreground">{t("sales.uniqueProductsLabel")}</p>
                 <p className="text-2xl font-bold" data-testid="text-unique-products">
-                  {uniqueProducts} منتج
+                  {uniqueProducts} {t("sales.productsUnit")}
                 </p>
               </div>
             </div>
@@ -238,12 +247,12 @@ export default function Sales() {
       <Card>
         <CardHeader className="pb-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <CardTitle className="text-base">سجل المبيعات</CardTitle>
+            <CardTitle className="text-base">{t("sales.tableTitle")}</CardTitle>
             <div className="flex flex-col sm:flex-row gap-2">
               <div className="relative">
                 <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="بحث..."
+                  placeholder={t("common.search")}
                   className="pr-10 w-full sm:w-64"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -262,18 +271,18 @@ export default function Sales() {
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm" dir="rtl">
+            <table className="w-full text-sm" dir={language === 'ar' ? 'rtl' : 'ltr'}>
               <thead>
                 <tr className="border-b bg-muted/50">
-                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">المنتج</th>
-                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">المشتري</th>
-                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">الكمية</th>
-                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">سعر الوحدة</th>
-                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">الإجمالي</th>
-                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">التاريخ</th>
-                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">الدفع</th>
-                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">الحالة</th>
-                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">الإجراء</th>
+                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">{t("sales.product")}</th>
+                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">{t("sales.buyer")}</th>
+                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">{t("sales.quantity")}</th>
+                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">{t("sales.unitPrice")}</th>
+                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">{t("sales.total")}</th>
+                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">{t("common.date")}</th>
+                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">{t("finance.paymentMethod")}</th>
+                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">{t("common.status")}</th>
+                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">{t("common.actions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -285,28 +294,24 @@ export default function Sales() {
                       <td className="py-3 px-3 text-right">
                         <Badge variant="secondary">{sale.quantity}</Badge>
                       </td>
-                      <td className="py-3 px-3 text-right">{sale.unitPrice.toFixed(2)} د.ب</td>
-                      <td className="py-3 px-3 font-medium text-right">{sale.totalPrice.toFixed(2)} د.ب</td>
+                      <td className="py-3 px-3 text-right">{sale.unitPrice.toFixed(2)} {t("common.currency")}</td>
+                      <td className="py-3 px-3 font-medium text-right">{sale.totalPrice.toFixed(2)} {t("common.currency")}</td>
                       <td className="py-3 px-3 text-muted-foreground text-right">{formatDate(sale.date)}</td>
                       <td className="py-3 px-3 text-right">
                         <Badge variant="secondary">
-                          {sale.paymentMethod === "cash"
-                            ? "نقداً"
-                            : sale.paymentMethod === "card"
-                              ? "بطاقة"
-                              : "تحويل"}
+                          {getPaymentMethodLabel(sale.paymentMethod)}
                         </Badge>
                       </td>
                       <td className="py-3 px-3 text-right">
                         {sale.status === "cancelled" ? (
                           <div className="space-y-1">
-                            <Badge variant="destructive">ملغي</Badge>
+                            <Badge variant="destructive">{t("sales.statusCancelled")}</Badge>
                             <p className="text-xs text-muted-foreground">
                               {sale.cancelledReason || "-"}
                             </p>
                           </div>
                         ) : (
-                          <Badge variant="secondary">مكتمل</Badge>
+                          <Badge variant="secondary">{t("sales.statusCompleted")}</Badge>
                         )}
                       </td>
                       <td className="py-3 px-3 flex gap-2 text-right">
@@ -314,7 +319,7 @@ export default function Sales() {
                           size="sm"
                           variant="ghost"
                           onClick={() => setReceiptData(sale)}
-                          title="طباعة إيصال"
+                          title={t("sales.printReceipt")}
                         >
                           <Printer className="w-4 h-4" />
                         </Button>
@@ -325,16 +330,16 @@ export default function Sales() {
                           disabled={sale.status === "cancelled"}
                           data-testid={`button-cancel-sale-${sale.id}`}
                         >
-                          إلغاء
+                          {t("common.cancel")}
                         </Button>
                         {isAdmin && <Button
                           size="sm"
                           variant="ghost"
                           className="text-destructive hover:text-destructive"
                           onClick={() => {
-                            if (confirm('حذف السجل نهائياً؟')) deleteSaleMutation.mutate(sale.id);
+                            if (confirm(t('sales.deleteConfirm'))) deleteSaleMutation.mutate(sale.id);
                           }}
-                          title="حذف السجل"
+                          title={t("sales.deleteRecord")}
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>}
@@ -344,7 +349,7 @@ export default function Sales() {
                 ) : (
                   <tr>
                     <td colSpan={9} className="py-12 text-center text-muted-foreground">
-                      {searchQuery || selectedDate ? "لا توجد نتائج للبحث" : "لا توجد مبيعات حالياً"}
+                      {searchQuery || selectedDate ? t("common.noResults") : t("sales.noSales")}
                     </td>
                   </tr>
                 )}
@@ -357,20 +362,20 @@ export default function Sales() {
       {/* Receipt Dialog */}
       <Dialog open={!!receiptData} onOpenChange={(open) => !open && setReceiptData(null)}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>إيصال بيع</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t("sales.receiptTitle")}</DialogTitle></DialogHeader>
           {receiptData && (
             <div className="space-y-6" id="sale-receipt-area">
               <div className="text-center border-b pb-4">
                 <h2 className="text-xl font-bold">{clubSettings?.name || "Kumite Combat"}</h2>
-                <p className="text-muted-foreground text-sm">إيصال مشتريات</p>
-                <p className="text-xs text-muted-foreground mt-1">التاريخ: {new Date(receiptData.date).toLocaleDateString('ar-BH')}</p>
+                <p className="text-muted-foreground text-sm">{t("sales.receiptSubtitle")}</p>
+                <p className="text-xs text-muted-foreground mt-1">{t("common.date")}: {new Date(receiptData.date).toLocaleDateString(language === 'ar' ? 'ar-BH' : 'en-US')}</p>
               </div>
               <div className="space-y-2 text-sm">
-                <div className="flex justify-between"><span>المنتج:</span> <span className="font-medium">{receiptData.productName}</span></div>
-                <div className="flex justify-between"><span>المشتري:</span> <span>{receiptData.buyerName || '-'}</span></div>
-                <div className="flex justify-between"><span>الكمية:</span> <span>{receiptData.quantity}</span></div>
-                <div className="flex justify-between border-t pt-2 mt-2"><span>الإجمالي:</span> <span className="font-bold text-lg">{receiptData.totalPrice.toFixed(2)} د.ب</span></div>
-                <div className="flex justify-between"><span>طريقة الدفع:</span> <span>{receiptData.paymentMethod}</span></div>
+                <div className="flex justify-between"><span>{t("sales.product")}:</span> <span className="font-medium">{receiptData.productName}</span></div>
+                <div className="flex justify-between"><span>{t("sales.buyer")}:</span> <span>{receiptData.buyerName || '-'}</span></div>
+                <div className="flex justify-between"><span>{t("sales.quantity")}:</span> <span>{receiptData.quantity}</span></div>
+                <div className="flex justify-between border-t pt-2 mt-2"><span>{t("sales.total")}:</span> <span className="font-bold text-lg">{receiptData.totalPrice.toFixed(2)} {t("common.currency")}</span></div>
+                <div className="flex justify-between"><span>${t("finance.paymentMethod")}:</span> <span>{getPaymentMethodLabel(receiptData.paymentMethod)}</span></div>
               </div>
               <Button className="w-full" onClick={() => {
                 const content = document.getElementById('sale-receipt-area')?.innerHTML;
@@ -379,7 +384,7 @@ export default function Sales() {
                   printWindow.document.write(`
                     <html>
                       <head>
-                        <title>Receipt - ${receiptData.productName}</title>
+                        <title>${t("sales.receiptTitle")} - ${receiptData.productName}</title>
                         <script src="https://cdn.tailwindcss.com"></script>
                         <style>
                           @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
@@ -387,57 +392,57 @@ export default function Sales() {
                           @page { size: 80mm 150mm; margin: 0; }
                         </style>
                       </head>
-                      <body class="bg-white p-4" dir="rtl">
+                      <body class="bg-white p-4" dir="${language === 'ar' ? 'rtl' : 'ltr'}">
                         <div class="max-w-[80mm] mx-auto">
                           <!-- Header -->
                           <div class="flex flex-col items-center mb-6 text-center">
                             ${clubSettings?.logoUrlLight ? `<img src="${clubSettings.logoUrlLight}" class="w-20 h-20 object-contain mb-2" alt="Logo" />` : ''}
-                            <h1 class="text-xl font-bold text-gray-900">${clubSettings?.name || "النادي"}</h1>
+                            <h1 class="text-xl font-bold text-gray-900">${clubSettings?.name || t("members.clubFallback")}</h1>
                              <p class="text-xs text-gray-500 mt-1">${new Date(receiptData.date).toLocaleDateString('ar-BH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
                           </div>
 
                           <!-- Receipt Details -->
                           <div class="border-t-2 border-dashed border-gray-200 py-4 space-y-3">
                              <div class="flex justify-between items-center text-sm">
-                              <span class="text-gray-500">رقم الفاتورة:</span>
+                              <span class="text-gray-500">${t("sales.invoiceNumber")}:</span>
                               <span class="font-mono font-bold">#${receiptData.id.slice(0, 8)}</span>
                             </div>
                             <div class="flex justify-between items-center text-sm">
-                              <span class="text-gray-500">المشتري:</span>
-                              <span class="font-semibold text-gray-900">${receiptData.buyerName || "زبون"}</span>
+                              <span class="text-gray-500">${t("sales.buyer")}:</span>
+                              <span class="font-semibold text-gray-900">${receiptData.buyerName || t("sales.defaultBuyer")}</span>
                             </div>
                             <div class="flex justify-between items-center text-sm">
-                              <span class="text-gray-500">المنتج:</span>
+                              <span class="text-gray-500">${t("sales.product")}:</span>
                               <span class="font-semibold text-gray-900">${receiptData.productName}</span>
                             </div>
                              <div class="flex justify-between items-center text-sm">
-                              <span class="text-gray-500">الكمية:</span>
+                              <span class="text-gray-500">${t("sales.quantity")}:</span>
                               <span class="font-mono text-gray-900">${receiptData.quantity}</span>
                             </div>
                              <div class="flex justify-between items-center text-sm">
-                              <span class="text-gray-500">سعر الوحدة:</span>
-                              <span class="font-mono text-gray-900">${receiptData.unitPrice.toFixed(2)} د.ب</span>
+                              <span class="text-gray-500">${t("sales.unitPrice")}:</span>
+                              <span class="font-mono text-gray-900">${receiptData.unitPrice.toFixed(2)} ${t("common.currency")}</span>
                             </div>
                           </div>
 
                           <!-- Totals -->
                           <div class="border-t-2 border-dashed border-gray-200 pt-4 mt-2">
                             <div class="flex justify-between items-center mb-4">
-                              <span class="text-base font-bold text-gray-900">المبلغ الإجمالي</span>
-                              <span class="text-xl font-bold text-gray-900">${receiptData.totalPrice.toFixed(2)} د.ب</span>
+                              <span class="text-base font-bold text-gray-900">${t("sales.total")}</span>
+                              <span class="text-xl font-bold text-gray-900">${receiptData.totalPrice.toFixed(2)} ${t("common.currency")}</span>
                             </div>
                              <div class="flex justify-between items-center text-xs text-gray-500 bg-gray-50 p-2 rounded">
-                              <span>طريقة الدفع:</span>
+                              <span>${t("finance.paymentMethod")}:</span>
                               <span class="font-medium text-gray-900">
-                                ${receiptData.paymentMethod === 'card' ? 'بطاقة' : receiptData.paymentMethod === 'transfer' ? 'تحويل بنكي' : 'نقدًا'}
+                                ${getPaymentMethodLabel(receiptData.paymentMethod)}
                               </span>
                             </div>
                           </div>
 
                           <!-- Footer -->
                           <div class="mt-8 text-center space-y-1">
-                             <p class="text-xs text-gray-400">شكرًا لثقتكم بنا!</p>
-                             <p class="text-[10px] text-gray-300">تم إصدار هذا الإيصال إلكترونيًا</p>
+                             <p class="text-xs text-gray-400">${t("sales.receiptThanks")}</p>
+                             <p class="text-[10px] text-gray-300">${t("sales.receiptFooterNote")}</p>
                           </div>
                         </div>
                         <script>
@@ -449,7 +454,7 @@ export default function Sales() {
                   printWindow.document.close();
                 }
               }}>
-                <Printer className="w-4 h-4 ml-2" /> طباعة
+                <Printer className="w-4 h-4 ml-2" /> {t("common.print")}
               </Button>
             </div>
           )}

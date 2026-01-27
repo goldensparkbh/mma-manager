@@ -16,6 +16,7 @@ import {
   type QuerySnapshot,
   type Timestamp,
   limit,
+  writeBatch,
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { auth, db, storage } from "@/lib/firebase";
@@ -263,7 +264,7 @@ export async function createMember(data: InsertMember & { imageFile?: File | nul
   const payload = {
     ...memberData,
     memberId,
-    memberId,
+
     imageUrl: imageUrl || null,
     balance: memberData.balance ?? 0,
     documents: [] as any[], // Initialize documents array
@@ -278,6 +279,7 @@ export async function createMember(data: InsertMember & { imageFile?: File | nul
       const url = await getDownloadURL(storageRef);
       uploadedDocs.push({
         name: file.name,
+        label: file.name,
         url,
         type: file.type,
         size: file.size,
@@ -298,6 +300,54 @@ export async function createMember(data: InsertMember & { imageFile?: File | nul
   });
 
   return { id: docRef.id, ...payload } as Member;
+}
+
+export async function updateMemberDocuments(
+  memberId: string,
+  newFiles: { file: File; label?: string }[]
+) {
+  if (!newFiles || newFiles.length === 0) return;
+
+  const memberRef = doc(db, "members", memberId);
+  const memberSnap = await getDoc(memberRef);
+  if (!memberSnap.exists()) throw new Error("Member not found");
+
+  const currentDocs = memberSnap.data().documents || [];
+  const uploadedDocs = [];
+
+  for (const entry of newFiles) {
+    const file = entry.file;
+    const storageRef = ref(storage, `members/${memberId}/documents/${file.name}`);
+    await uploadBytes(storageRef, file);
+    const url = await getDownloadURL(storageRef);
+    uploadedDocs.push({
+      name: file.name,
+      label: entry.label?.trim() || file.name,
+      url,
+      type: file.type,
+      size: file.size,
+      uploadedAt: new Date().toISOString()
+    });
+  }
+
+  await updateDoc(memberRef, {
+    documents: [...currentDocs, ...uploadedDocs]
+  });
+
+  return uploadedDocs;
+}
+
+export async function deleteMemberDocument(memberId: string, docName: string) {
+  const memberRef = doc(db, "members", memberId);
+  const memberSnap = await getDoc(memberRef);
+  if (!memberSnap.exists()) throw new Error("Member not found");
+
+  const currentDocs = memberSnap.data().documents || [];
+  const updatedDocs = currentDocs.filter((d: any) => d.name !== docName);
+
+  await updateDoc(memberRef, {
+    documents: updatedDocs
+  });
 }
 
 export async function updateMember(id: string, updates: Partial<InsertMember> & { imageFile?: File | null, documentFiles?: File[] }) {
@@ -329,6 +379,7 @@ export async function updateMember(id: string, updates: Partial<InsertMember> & 
       const url = await getDownloadURL(storageRef);
       uploadedDocs.push({
         name: file.name,
+        label: file.name,
         url,
         type: file.type,
         size: file.size,
@@ -365,8 +416,30 @@ export async function getAttendanceByDate(date: string): Promise<Attendance[]> {
 }
 
 export async function getAllAttendance(): Promise<Attendance[]> {
-  const snapshots = await getDocs(query(collection(db, "attendance")));
+  const snapshots = await getDocs(collection(db, "attendance"));
   return mapDocs<Attendance>(snapshots);
+}
+
+export async function getAttendanceByMember(idOrIds: string | string[]): Promise<Attendance[]> {
+  try {
+    const ids = Array.isArray(idOrIds) ? idOrIds : [idOrIds];
+    // Filter out empty/null values and duplicates
+    const uniqueIds = [...new Set(ids)].filter(Boolean);
+
+    if (uniqueIds.length === 0) return [];
+
+    const q = query(
+      collection(db, "attendance"),
+      where("memberId", "in", uniqueIds)
+    );
+    const snapshots = await getDocs(q);
+    const attendance = mapDocs<Attendance>(snapshots);
+    // Sort in memory instead of using orderBy to avoid index requirements
+    return attendance.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  } catch (error) {
+    console.error('Error fetching attendance for member:', idOrIds, error);
+    return [];
+  }
 }
 
 export async function createAttendance(data: InsertAttendance): Promise<Attendance> {
@@ -402,25 +475,90 @@ export async function getSubscriptions(): Promise<Subscription[]> {
   return mapDocs<Subscription>(snapshots);
 }
 
+const normalizeDateOnly = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  date.setHours(0, 0, 0, 0);
+  return date;
+};
+
+const getSubscriptionStatusForRange = (startDate: string, endDate: string) => {
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const start = normalizeDateOnly(startDate);
+  const end = normalizeDateOnly(endDate);
+  if (!start || !end) return "inactive";
+  if (now < start) return "upcoming";
+  if (now > end) return "expired";
+  return "active";
+};
+
+async function syncMemberSubscriptionStatus(memberId: string) {
+  const q = query(collection(db, "subscriptions"), where("memberId", "==", memberId));
+  const snapshots = await getDocs(q);
+  const subs = mapDocs<Subscription>(snapshots);
+  if (!subs.length) {
+    await updateDoc(doc(db, "members", memberId), {
+      subscriptionStart: "",
+      subscriptionEnd: "",
+      status: "expired",
+    });
+    return;
+  }
+
+  const computed = subs.map((sub) => ({
+    ...sub,
+    computedStatus: getSubscriptionStatusForRange(sub.startDate, sub.endDate),
+  }));
+  const activeCandidates = computed
+    .filter((sub) => sub.computedStatus === "active")
+    .sort((a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime());
+  const activeSub = activeCandidates[0] ?? null;
+
+  const batch = writeBatch(db);
+  computed.forEach((sub) => {
+    let finalStatus = sub.computedStatus;
+    if (sub.computedStatus === "active" && activeSub && sub.id !== activeSub.id) {
+      finalStatus = "expired";
+    }
+    if (sub.status !== finalStatus) {
+      batch.update(doc(db, "subscriptions", sub.id), { status: finalStatus });
+    }
+  });
+  await batch.commit();
+
+  const memberRef = doc(db, "members", memberId);
+  if (activeSub) {
+    await updateDoc(memberRef, {
+      subscriptionStart: activeSub.startDate,
+      subscriptionEnd: activeSub.endDate,
+      status: "active",
+    });
+  } else {
+    await updateDoc(memberRef, {
+      subscriptionStart: "",
+      subscriptionEnd: "",
+      status: "inactive",
+    });
+  }
+}
+
 export async function getSubscriptionsByMember(memberId: string): Promise<Subscription[]> {
   const q = query(
     collection(db, "subscriptions"),
-    where("memberId", "==", memberId),
-    orderBy("startDate", "desc")
+    where("memberId", "==", memberId)
   );
   const snapshots = await getDocs(q);
-  return mapDocs<Subscription>(snapshots);
+  const subs = mapDocs<Subscription>(snapshots);
+
+  // Sort by startDate descending in memory to avoid index requirements
+  return subs.sort((a, b) => b.startDate.localeCompare(a.startDate));
 }
 
 export async function createSubscription(data: InsertSubscription): Promise<Subscription> {
   const docRef = await addDoc(collection(db, "subscriptions"), data);
   if (data.memberId) {
-    const memberRef = doc(db, "members", data.memberId);
-    await updateDoc(memberRef, {
-      subscriptionStart: data.startDate,
-      subscriptionEnd: data.endDate,
-      status: "active",
-    });
+    await syncMemberSubscriptionStatus(data.memberId);
   }
   await safeLogActivity({
     action: "subscription.create",
@@ -496,18 +634,49 @@ export async function updateProduct(
     description: "Product updated",
     metadata: JSON.stringify({ updatedFields: Object.keys(payload) }),
   });
+  await updateDoc(docRef, payload);
+  await safeLogActivity({
+    action: "product.update",
+    entityType: "product",
+    entityId: id,
+    description: "Product updated",
+    metadata: JSON.stringify({ updatedFields: Object.keys(payload) }),
+  });
 }
 
-export async function getSales(): Promise<Sale[]> {
-  const snapshots = await getDocs(collection(db, "sales"));
-  return snapshots.docs.map((snapshot) => {
+export async function getSalesByMember(memberId: string): Promise<Sale[]> {
+  const q = query(
+    collection(db, "sales"),
+    where("memberId", "==", memberId)
+  );
+
+  const snapshots = await getDocs(q);
+  const sales = snapshots.docs.map((snapshot) => {
     const data = snapshot.data();
     return {
       ...data,
       id: snapshot.id,
+      date: normalizeTimestamp(data.date),
       cancelledAt: normalizeTimestamp(data.cancelledAt),
     } as Sale;
   });
+
+  return sales.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+}
+
+export async function getSales(): Promise<Sale[]> {
+  const snapshots = await getDocs(collection(db, "sales"));
+  const sales = snapshots.docs.map((snapshot) => {
+    const data = snapshot.data();
+    return {
+      ...data,
+      id: snapshot.id,
+      date: normalizeTimestamp(data.date),
+      cancelledAt: normalizeTimestamp(data.cancelledAt),
+    } as Sale;
+  });
+
+  return sales.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
 }
 
 export async function createSale(data: InsertSale): Promise<Sale> {
@@ -520,14 +689,21 @@ export async function createSale(data: InsertSale): Promise<Sale> {
     }
     const product = productSnap.data() as Product;
     const currentStock = product.stock ?? 0;
+
+    // Only reduce stock if status is not pending (or if we want to reserve stock for pending orders)
+    // For now, let's assume we reserve stock even for unpaid orders if they are created.
+    // If strict "pending" quote logic is needed, we would skip this.
+    // Assuming "unpaid" sale still takes item off shelf.
     if (currentStock < data.quantity) {
       throw new Error("Insufficient stock");
     }
     transaction.update(productRef, {
       stock: currentStock - data.quantity,
     });
+
     transaction.set(saleRef, {
       ...data,
+      paymentStatus: data.paymentStatus || "paid",
       status: data.status ?? "completed",
     });
   });
@@ -536,11 +712,67 @@ export async function createSale(data: InsertSale): Promise<Sale> {
     action: "sale.create",
     entityType: "sale",
     entityId: saleRef.id,
-    description: `Sale recorded for ${data.productName}`,
-    metadata: JSON.stringify({ quantity: data.quantity, totalPrice: data.totalPrice }),
+    description: `Sale recorded for ${data.productName} (${data.paymentStatus || "paid"})`,
+    metadata: JSON.stringify({ quantity: data.quantity, totalPrice: data.totalPrice, memberId: data.memberId, paymentStatus: data.paymentStatus }),
   });
 
-  return { ...data, id: saleRef.id, status: data.status ?? "completed" };
+  return { ...data, id: saleRef.id, status: data.status ?? "completed", paymentStatus: data.paymentStatus || "paid" };
+}
+
+export async function payReceipt(receiptId: string, paymentMethod: string = 'cash') {
+  const q = query(collection(db, "sales"), where("receiptId", "==", receiptId));
+  const snapshots = await getDocs(q);
+
+  const batch = writeBatch(db);
+  snapshots.docs.forEach(docSnap => {
+    batch.update(docSnap.ref, {
+      paymentStatus: "paid",
+      paymentMethod: paymentMethod
+    });
+  });
+
+  await batch.commit();
+
+  await safeLogActivity({
+    action: "sale.pay_receipt",
+    entityType: "receipt",
+    entityId: receiptId,
+    description: `Receipt ${receiptId} paid via ${paymentMethod}`,
+  });
+}
+
+export async function deleteReceipt(receiptId: string) {
+  const q = query(collection(db, "sales"), where("receiptId", "==", receiptId));
+  const snapshots = await getDocs(q);
+
+  for (const docSnap of snapshots.docs) {
+    const sale = docSnap.data() as Sale;
+    if (sale.productId && sale.productId !== "subscription") {
+      const productRef = doc(db, "products", sale.productId);
+      await runTransaction(db, async (transaction) => {
+        const productSnap = await transaction.get(productRef);
+        if (!productSnap.exists()) return;
+        const product = productSnap.data() as Product;
+        transaction.update(productRef, {
+          stock: (product.stock ?? 0) + (sale.quantity ?? 0),
+        });
+      });
+    }
+  }
+
+  const batch = writeBatch(db);
+  snapshots.docs.forEach(docSnap => {
+    batch.delete(docSnap.ref);
+  });
+
+  await batch.commit();
+
+  await safeLogActivity({
+    action: "sale.delete_receipt",
+    entityType: "receipt",
+    entityId: receiptId,
+    description: `Receipt ${receiptId} deleted`,
+  });
 }
 
 export async function createServiceSale(data: InsertSale): Promise<Sale> {
@@ -768,6 +1000,46 @@ export async function createSubscriptionPackage(data: InsertSubscriptionPackage)
     metadata: JSON.stringify(data),
   });
   return { id: docRef.id, ...data };
+  return { id: docRef.id, ...data };
+}
+
+export async function updateSubscriptionPackage(
+  id: string,
+  updates: Partial<InsertSubscriptionPackage>
+): Promise<void> {
+  await updateDoc(doc(db, "packages", id), updates);
+  await safeLogActivity({
+    action: "package.update",
+    entityType: "package",
+    entityId: id,
+    description: "Package updated",
+    metadata: JSON.stringify(updates),
+  });
+}
+
+export async function getMemberBelts(memberId: string): Promise<MemberBelt[]> {
+  const q = query(collection(db, "memberBelts"), where("memberId", "==", memberId));
+  const snapshots = await getDocs(q);
+  return mapDocs<MemberBelt>(snapshots);
+}
+
+export async function assignBeltToMember(data: InsertMemberBelt) {
+  const docRef = await addDoc(collection(db, "memberBelts"), {
+    ...data,
+    awardedAt: data.awardedAt || new Date().toISOString()
+  });
+
+  // Update member's current belt display (optional, based on logic usually highest order)
+  // For now just logging
+  await safeLogActivity({
+    action: "member.belt_assign",
+    entityType: "member",
+    entityId: data.memberId,
+    description: "Belt assigned to member",
+    metadata: JSON.stringify({ beltId: data.beltId })
+  });
+
+  return { id: docRef.id, ...data };
 }
 
 export async function deleteSubscriptionPackage(id: string) {
@@ -799,6 +1071,17 @@ export async function createBelt(data: InsertBelt): Promise<Belt> {
   return { id: docRef.id, ...data };
 }
 
+export async function updateBelt(id: string, updates: Partial<InsertBelt>) {
+  await updateDoc(doc(db, "belts", id), updates);
+  await safeLogActivity({
+    action: "belt.update",
+    entityType: "belt",
+    entityId: id,
+    description: "Belt updated",
+    metadata: JSON.stringify(updates),
+  });
+}
+
 export async function deleteBelt(id: string) {
   // Check if any member has this belt
   const q = query(collection(db, "memberBelts"), where("beltId", "==", id), limit(1));
@@ -816,10 +1099,7 @@ export async function deleteBelt(id: string) {
   });
 }
 
-export async function getMemberBelts(): Promise<MemberBelt[]> {
-  const snapshots = await getDocs(collection(db, "memberBelts"));
-  return mapDocs<MemberBelt>(snapshots);
-}
+
 
 export async function awardBeltToMember(data: InsertMemberBelt): Promise<MemberBelt> {
   // Check if already awarded?
@@ -877,15 +1157,8 @@ export async function updateSubscription(id: string, updates: Partial<InsertSubs
   const docRef = doc(db, "subscriptions", id);
   await updateDoc(docRef, updates);
 
-  // If dates changed, we might need to update the member too... 
-  // This is complex if multiple subscriptions exist. 
-  // For now, we assume this is the active one if we are editing it.
-  if (updates.memberId && (updates.startDate || updates.endDate)) {
-    const memberRef = doc(db, "members", updates.memberId);
-    await updateDoc(memberRef, {
-      subscriptionStart: updates.startDate,
-      subscriptionEnd: updates.endDate
-    });
+  if (updates.memberId) {
+    await syncMemberSubscriptionStatus(updates.memberId);
   }
 
   await safeLogActivity({
@@ -908,45 +1181,18 @@ export async function deleteSubscription(id: string) {
     // Delete the subscription first
     await deleteDoc(subRef);
 
-    // Now check for remaining active subscriptions for this member
-    const q = query(
-      collection(db, "subscriptions"),
-      where("memberId", "==", memberId),
-      where("status", "==", "active")
+    const salesSnap = await getDocs(
+      query(collection(db, "sales"), where("subscriptionId", "==", id))
     );
-    const snapshot = await getDocs(q);
-    const remainingSubs = mapDocs<Subscription>(snapshot);
-
-    const memberRef = doc(db, "members", memberId);
-
-    if (remainingSubs.length > 0) {
-      // Find the subscription with the latest end date
-      // Sort by end date descending
-      remainingSubs.sort((a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime());
-      const latestSub = remainingSubs[0];
-
-      await updateDoc(memberRef, {
-        subscriptionStart: latestSub.startDate,
-        subscriptionEnd: latestSub.endDate,
-        status: "active"
+    if (!salesSnap.empty) {
+      const batch = writeBatch(db);
+      salesSnap.docs.forEach((docSnap) => {
+        batch.delete(docSnap.ref);
       });
-    } else {
-      // No active subscriptions left, reset member status
-      // We keep the member but mark as inactive/expired and clear dates? 
-      // Or maybe keep the dates of the LAST expired one?
-      // For safety, let's mark as expired and perhaps clear dates or keep them as null/empty if that's the pattern
-      // Looking at createSubscription, it sets data.startDate/endDate.
-      // If we want "expired", we usually imply past dates. 
-      // Safest is to set status to 'expired' and maybe clear dates to avoid confusion, 
-      // or set them to null/empty string if the schema allows.
-      // The schema likely expects strings. Let's set to empty strings or null if allowed.
-      // Based on previous code `subscriptionStart: data.startDate`, these are strings.
-      await updateDoc(memberRef, {
-        subscriptionStart: "",
-        subscriptionEnd: "",
-        status: "expired"
-      });
+      await batch.commit();
     }
+
+    await syncMemberSubscriptionStatus(memberId);
 
     await safeLogActivity({
       action: "subscription.delete",
@@ -983,10 +1229,23 @@ export async function updateSale(id: string, updates: Partial<InsertSale>) {
 }
 
 export async function deleteSale(id: string) {
-  // Note: Deleting a sale should probably revert stock?
-  // If it wasn't cancelled locally first.
-  // For simplicity, we just delete the record here.
-  await deleteDoc(doc(db, "sales", id));
+  const docRef = doc(db, "sales", id);
+  const saleSnap = await getDoc(docRef);
+  if (saleSnap.exists()) {
+    const sale = saleSnap.data() as Sale;
+    if (sale.productId && sale.productId !== "subscription") {
+      const productRef = doc(db, "products", sale.productId);
+      await runTransaction(db, async (transaction) => {
+        const productSnap = await transaction.get(productRef);
+        if (!productSnap.exists()) return;
+        const product = productSnap.data() as Product;
+        transaction.update(productRef, {
+          stock: (product.stock ?? 0) + (sale.quantity ?? 0),
+        });
+      });
+    }
+  }
+  await deleteDoc(docRef);
   await safeLogActivity({
     action: "sale.delete",
     entityType: "sale",
@@ -1041,6 +1300,26 @@ export async function getRoles(): Promise<Role[]> {
 }
 
 export async function createRole(name: string, permissions: string[] = []): Promise<Role> {
+  const normalized = name.trim().toLowerCase();
+  if (!normalized) {
+    throw new Error("Role name is required");
+  }
+
+  const defaults = [
+    { id: "admin", name: "Admin" },
+    { id: "staff", name: "Staff" },
+  ];
+
+  const snapshots = await getDocs(collection(db, "roles"));
+  const existingRoles = mapDocs<Role>(snapshots);
+  const allRoles = [...defaults, ...existingRoles];
+  const hasDuplicate = allRoles.some(
+    (role) => role.name.trim().toLowerCase() === normalized
+  );
+  if (hasDuplicate) {
+    throw new Error("Role name already exists");
+  }
+
   // Use name as ID (slugified) or auto-id? Auto-id is safer for renames.
   const docRef = await addDoc(collection(db, "roles"), { name, permissions });
   await safeLogActivity({
@@ -1053,6 +1332,25 @@ export async function createRole(name: string, permissions: string[] = []): Prom
 }
 
 export async function updateRole(id: string, name: string, permissions: string[] = []) {
+  const normalized = name.trim().toLowerCase();
+  if (!normalized) {
+    throw new Error("Role name is required");
+  }
+
+  const defaults = [
+    { id: "admin", name: "Admin" },
+    { id: "staff", name: "Staff" },
+  ];
+  const snapshots = await getDocs(collection(db, "roles"));
+  const existingRoles = mapDocs<Role>(snapshots);
+  const allRoles = [...defaults, ...existingRoles];
+  const duplicate = allRoles.find(
+    (role) => role.name.trim().toLowerCase() === normalized
+  );
+  if (duplicate && duplicate.id !== id) {
+    throw new Error("Role name already exists");
+  }
+
   const docRef = doc(db, "roles", id);
   await setDoc(docRef, { name, permissions }, { merge: true });
   await safeLogActivity({

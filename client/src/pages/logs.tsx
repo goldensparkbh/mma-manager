@@ -6,9 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Search } from "lucide-react";
 import type { ActivityLog } from "@shared/schema";
+import { useLanguage } from "@/context/language-context";
 
 export default function Logs() {
   const [searchQuery, setSearchQuery] = useState("");
+  const { t, language } = useLanguage();
 
   const { data: logs, isLoading } = useQuery<ActivityLog[]>({
     queryKey: ["/api/logs"],
@@ -28,7 +30,7 @@ export default function Logs() {
 
   const formatDate = (value: string | Date) => {
     const date = new Date(value);
-    return new Intl.DateTimeFormat("ar-BH", {
+    return new Intl.DateTimeFormat(language === 'ar' ? 'ar-BH' : 'en-US', {
       year: "numeric",
       month: "short",
       day: "numeric",
@@ -56,19 +58,19 @@ export default function Logs() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold" data-testid="text-page-title">سجل العمليات</h1>
-          <p className="text-sm text-muted-foreground">عرض جميع الأنشطة المسجلة في النظام</p>
+          <h1 className="text-2xl font-bold" data-testid="text-page-title">{t('logs.title')}</h1>
+          <p className="text-sm text-muted-foreground">{t('logs.subtitle')}</p>
         </div>
       </div>
 
       <Card>
         <CardHeader className="pb-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <CardTitle className="text-base">الأنشطة</CardTitle>
+            <CardTitle className="text-base">{t('logs.title')}</CardTitle>
             <div className="relative w-full sm:w-80">
               <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="بحث عن إجراء أو وصف..."
+                placeholder={t('common.search')}
                 className="pr-10"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -82,10 +84,10 @@ export default function Logs() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/50">
-                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">الإجراء</th>
-                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">الوصف</th>
-                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">الكيان</th>
-                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">التاريخ</th>
+                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">{t('logs.action')}</th>
+                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">{t('common.description')}</th>
+                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">{t('logs.details')}</th>
+                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">{t('common.date')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -110,7 +112,7 @@ export default function Logs() {
                 ) : (
                   <tr>
                     <td colSpan={4} className="py-12 text-center text-muted-foreground">
-                      {searchQuery ? "لا توجد نتائج للبحث" : "لا توجد أنشطة مسجلة حالياً"}
+                      {searchQuery ? t('common.noResults') : t('common.noLogs')}
                     </td>
                   </tr>
                 )}

@@ -22,9 +22,11 @@ import {
   updateProduct,
   getSubscriptionPackages,
   createSubscriptionPackage,
+  updateSubscriptionPackage,
   deleteSubscriptionPackage,
   getBelts,
   createBelt,
+  updateBelt,
   deleteBelt,
   getMemberBelts,
   awardBeltToMember,
@@ -144,7 +146,8 @@ export async function apiRequest(
         buyerName: subData.memberName,
         date: new Date().toISOString(),
         paymentMethod: subData.paymentMethod || "cash",
-        status: "completed"
+        status: "completed",
+        subscriptionId: result.id
       });
     }
 
@@ -160,6 +163,12 @@ export async function apiRequest(
     const id = route.split("/")[3];
     await deleteSubscriptionPackage(id);
     return jsonResponse(undefined, 204);
+  }
+
+  if (method === "PATCH" && route.startsWith("/api/packages/")) {
+    const id = route.split("/")[3];
+    await updateSubscriptionPackage(id, data as Partial<InsertSubscriptionPackage>);
+    return jsonResponse({ ok: true });
   }
 
   if (method === "POST" && route === "/api/belts") {

@@ -9,10 +9,12 @@ import { auth } from "@/lib/firebase";
 import { useLocation } from "wouter";
 
 import { useAuth } from "@/context/auth-context";
+import { useLanguage } from "@/context/language-context";
 
 export default function Login() {
   const { toast } = useToast();
   const { clubSettings } = useAuth();
+  const { t } = useLanguage();
   const [, setLocation] = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -21,8 +23,8 @@ export default function Login() {
   const handleEmailLogin = async () => {
     if (!email || !password) {
       toast({
-        title: "خطأ",
-        description: "يرجى إدخال البريد الإلكتروني وكلمة المرور",
+        title: t("common.error"),
+        description: t("login.errorMissing"),
         variant: "destructive",
       });
       return;
@@ -33,8 +35,8 @@ export default function Login() {
       setLocation("/");
     } catch (error) {
       toast({
-        title: "خطأ",
-        description: "تعذر تسجيل الدخول بالبريد الإلكتروني",
+        title: t("common.error"),
+        description: t("login.errorFailed"),
         variant: "destructive",
       });
     } finally {
@@ -54,21 +56,19 @@ export default function Login() {
       <div className="flex flex-col items-center justify-center p-8 bg-background">
         <img
           src={clubSettings?.logoUrlLight || clubSettings?.logoUrlDark || "/logo_light_full.svg"}
-          alt="Club Logo"
+          alt={t("login.logoAlt")}
           className="w-48 mb-6 object-contain max-h-32"
         />
         <Card className="w-full max-w-md border-none shadow-none lg:border lg:shadow-sm">
           <CardHeader>
-            <CardTitle className="text-center text-3xl font-bold tracking-tight">مرحباً بك</CardTitle>
-            <p className="text-center text-sm text-muted-foreground">
-              سجل الدخول للمتابعة إلى نظام إدارة النادي
-            </p>
+            <CardTitle className="text-center text-3xl font-bold tracking-tight">{t("login.title")}</CardTitle>
+            <p className="text-center text-sm text-muted-foreground">{t("login.subtitle")}</p>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-4">
               <Input
                 type="email"
-                placeholder="name@example.com"
+                placeholder={t("login.emailPlaceholder")}
                 className="h-11"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -76,7 +76,7 @@ export default function Login() {
               />
               <Input
                 type="password"
-                placeholder="••••••••"
+                placeholder={t("login.passwordPlaceholder")}
                 className="h-11"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -88,7 +88,7 @@ export default function Login() {
                 disabled={isSubmitting}
                 data-testid="button-login-email"
               >
-                {isSubmitting ? "جاري الدخول..." : "تسجيل الدخول"}
+                {isSubmitting ? t("login.loading") : t("login.button")}
               </Button>
             </div>
           </CardContent>

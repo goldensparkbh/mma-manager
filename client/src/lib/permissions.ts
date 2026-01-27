@@ -10,6 +10,10 @@ export const PERMISSIONS = {
     ATTENDANCE_CREATE: "attendance.create",
     ATTENDANCE_DELETE: "attendance.delete",
 
+    // Belts
+    BELTS_VIEW: "belts.view",
+    BELTS_UPDATE: "belts.update",
+
     // Subscriptions & Packages
     SUBSCRIPTIONS_VIEW: "subscriptions.view",
     SUBSCRIPTIONS_CREATE: "subscriptions.create",
@@ -44,66 +48,73 @@ export const PERMISSIONS = {
 
 export const PERMISSION_GROUPS = [
     {
-        label: "الأعضاء",
+        label: "permissions.groups.members",
         permissions: [
-            { id: PERMISSIONS.MEMBERS_VIEW, label: "عرض الأعضاء" },
-            { id: PERMISSIONS.MEMBERS_CREATE, label: "إضافة أعضاء" },
-            { id: PERMISSIONS.MEMBERS_UPDATE, label: "تعديل بيانات الأعضاء" },
-            { id: PERMISSIONS.MEMBERS_DELETE, label: "حذف الأعضاء" },
+            { id: PERMISSIONS.MEMBERS_VIEW, label: "permissions.items.membersView" },
+            { id: PERMISSIONS.MEMBERS_CREATE, label: "permissions.items.membersCreate" },
+            { id: PERMISSIONS.MEMBERS_UPDATE, label: "permissions.items.membersUpdate" },
+            { id: PERMISSIONS.MEMBERS_DELETE, label: "permissions.items.membersDelete" },
         ]
     },
     {
-        label: "الحضور",
+        label: "permissions.groups.attendance",
         permissions: [
-            { id: PERMISSIONS.ATTENDANCE_VIEW, label: "عرض سجل الحضور" },
-            { id: PERMISSIONS.ATTENDANCE_CREATE, label: "تسجيل حضور" },
-            { id: PERMISSIONS.ATTENDANCE_DELETE, label: "حذف سجل حضور" },
+            { id: PERMISSIONS.ATTENDANCE_VIEW, label: "permissions.items.attendanceView" },
+            { id: PERMISSIONS.ATTENDANCE_CREATE, label: "permissions.items.attendanceCreate" },
+            { id: PERMISSIONS.ATTENDANCE_DELETE, label: "permissions.items.attendanceDelete" },
         ]
     },
     {
-        label: "الاشتراكات",
+        label: "permissions.groups.belts",
         permissions: [
-            { id: PERMISSIONS.SUBSCRIPTIONS_VIEW, label: "عرض الاشتراكات" },
-            { id: PERMISSIONS.SUBSCRIPTIONS_CREATE, label: "إضافة اشتراك" },
-            { id: PERMISSIONS.SUBSCRIPTIONS_UPDATE, label: "تعديل اشتراك" },
-            { id: PERMISSIONS.SUBSCRIPTIONS_DELETE, label: "حذف اشتراك" },
-            { id: PERMISSIONS.PACKAGES_MANAGE, label: "إدارة الباقات" },
+            { id: PERMISSIONS.BELTS_VIEW, label: "permissions.items.beltsView" },
+            { id: PERMISSIONS.BELTS_UPDATE, label: "permissions.items.beltsUpdate" },
         ]
     },
     {
-        label: "المتجر والمنتجات",
+        label: "permissions.groups.subscriptions",
         permissions: [
-            { id: PERMISSIONS.STORE_VIEW, label: "عرض المنتجات" },
-            { id: PERMISSIONS.STORE_CREATE, label: "إضافة منتج" },
-            { id: PERMISSIONS.STORE_UPDATE, label: "تعديل منتج" },
-            { id: PERMISSIONS.STORE_DELETE, label: "حذف منتج" },
+            { id: PERMISSIONS.SUBSCRIPTIONS_VIEW, label: "permissions.items.subscriptionsView" },
+            { id: PERMISSIONS.SUBSCRIPTIONS_CREATE, label: "permissions.items.subscriptionsCreate" },
+            { id: PERMISSIONS.SUBSCRIPTIONS_UPDATE, label: "permissions.items.subscriptionsUpdate" },
+            { id: PERMISSIONS.SUBSCRIPTIONS_DELETE, label: "permissions.items.subscriptionsDelete" },
+            { id: PERMISSIONS.PACKAGES_MANAGE, label: "permissions.items.packagesManage" },
         ]
     },
     {
-        label: "المبيعات",
+        label: "permissions.groups.store",
         permissions: [
-            { id: PERMISSIONS.SALES_VIEW, label: "عرض المبيعات" },
-            { id: PERMISSIONS.SALES_CREATE, label: "تسجيل بيع" },
-            { id: PERMISSIONS.SALES_UPDATE, label: "إلغاء/تعديل بيع" },
-            { id: PERMISSIONS.SALES_DELETE, label: "حذف سجل بيع" },
+            { id: PERMISSIONS.STORE_VIEW, label: "permissions.items.storeView" },
+            { id: PERMISSIONS.STORE_CREATE, label: "permissions.items.storeCreate" },
+            { id: PERMISSIONS.STORE_UPDATE, label: "permissions.items.storeUpdate" },
+            { id: PERMISSIONS.STORE_DELETE, label: "permissions.items.storeDelete" },
         ]
     },
     {
-        label: "المالية",
+        label: "permissions.groups.sales",
         permissions: [
-            { id: PERMISSIONS.FINANCE_VIEW, label: "عرض لوحة المالية" },
-            { id: PERMISSIONS.EXPENSES_CREATE, label: "تسجيل مصروفات" },
-            { id: PERMISSIONS.EXPENSES_UPDATE, label: "تعديل مصروفات" },
-            { id: PERMISSIONS.EXPENSES_DELETE, label: "حذف مصروفات" },
+            { id: PERMISSIONS.SALES_VIEW, label: "permissions.items.salesView" },
+            { id: PERMISSIONS.SALES_CREATE, label: "permissions.items.salesCreate" },
+            { id: PERMISSIONS.SALES_UPDATE, label: "permissions.items.salesUpdate" },
+            { id: PERMISSIONS.SALES_DELETE, label: "permissions.items.salesDelete" },
         ]
     },
     {
-        label: "إدارة النظام",
+        label: "permissions.groups.finance",
         permissions: [
-            { id: PERMISSIONS.USERS_VIEW, label: "عرض المستخدمين" },
-            { id: PERMISSIONS.USERS_MANAGE, label: "إدارة المستخدمين" },
-            { id: PERMISSIONS.ROLES_MANAGE, label: "إدارة الأدوار" },
-            { id: PERMISSIONS.LOGS_VIEW, label: "عرض السجلات" },
+            { id: PERMISSIONS.FINANCE_VIEW, label: "permissions.items.financeView" },
+            { id: PERMISSIONS.EXPENSES_CREATE, label: "permissions.items.expensesCreate" },
+            { id: PERMISSIONS.EXPENSES_UPDATE, label: "permissions.items.expensesUpdate" },
+            { id: PERMISSIONS.EXPENSES_DELETE, label: "permissions.items.expensesDelete" },
+        ]
+    },
+    {
+        label: "permissions.groups.system",
+        permissions: [
+            { id: PERMISSIONS.USERS_VIEW, label: "permissions.items.usersView" },
+            { id: PERMISSIONS.USERS_MANAGE, label: "permissions.items.usersManage" },
+            { id: PERMISSIONS.ROLES_MANAGE, label: "permissions.items.rolesManage" },
+            { id: PERMISSIONS.LOGS_VIEW, label: "permissions.items.logsView" },
         ]
     }
 ];

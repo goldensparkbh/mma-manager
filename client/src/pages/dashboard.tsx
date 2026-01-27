@@ -12,14 +12,17 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { format } from "date-fns";
-import { arBH } from "date-fns/locale";
+import { arBH, enUS } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar"; // Assuming you have a Calendar component or use native date inputs
 import type { DashboardStats } from "@shared/schema";
 import { useState } from "react";
 import { useAuth } from "@/context/auth-context";
+import { useLanguage } from "@/context/language-context";
+import { applyWhatsAppTemplate } from "@/lib/whatsapp";
 
 export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
+  const { t, language } = useLanguage();
 
   const [dateRange, setDateRange] = useState({
     start: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split("T")[0],
@@ -54,20 +57,11 @@ export default function Dashboard() {
   const { clubSettings } = useAuth(); // Ensure this is imported
 
   const handleWhatsApp = (member: any) => {
-    let message = `مرحباً ${member.name}، نود تذكيرك بأن اشتراكك في النادي سينتهي بتاريخ ${member.subscriptionEnd}. يرجى التجديد للاستمرار في التدريب.`;
-
-    if (clubSettings?.whatsappTemplate) {
-      message = clubSettings.whatsappTemplate
-        .replace(/{name}/g, member.name)
-        .replace(/{firstName}/g, member.firstName || "")
-        .replace(/{lastName}/g, member.lastName || "")
-        .replace(/{memberId}/g, member.memberId)
-        .replace(/{phone}/g, member.phone)
-        .replace(/{startDate}/g, member.subscriptionStart || "")
-        .replace(/{endDate}/g, member.subscriptionEnd || "")
-        .replace(/{balance}/g, member.balance ? member.balance.toString() : "0")
-        .replace(/{status}/g, member.status === "active" ? "نشط" : "منتهي");
-    }
+    const templateBody =
+      clubSettings?.whatsappTemplates?.[0]?.body ||
+      clubSettings?.whatsappTemplate ||
+      t("dashboard.whatsappFallback");
+    const message = applyWhatsAppTemplate(templateBody, member, t);
 
     const phone = member.phone || "";
     window.open(`https://wa.me/${phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`, '_blank');
@@ -80,12 +74,18 @@ export default function Dashboard() {
 
   const formatDate = () => {
     const now = new Date();
-    return new Intl.DateTimeFormat("ar-BH", {
+    return new Intl.DateTimeFormat(language === 'ar' ? 'ar-BH' : 'en-US', {
       weekday: "long",
       year: "numeric",
       month: "long",
       day: "numeric",
     }).format(now);
+  };
+
+  const getExpenseCategoryLabel = (category: string) => {
+    const key = `finance.categories.${category}`;
+    const label = t(key);
+    return label === key ? category : label;
   };
 
   const getStatusBadge = (endDate: string | null) => {
@@ -97,13 +97,13 @@ export default function Dashboard() {
     if (diffDays <= 0) {
       return (
         <Badge variant="destructive" className="text-xs">
-          منتهي
+          {t('common.expired')}
         </Badge>
       );
     } else if (diffDays <= 7) {
       return (
         <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300 text-xs">
-          ينتهي خلال {diffDays} أيام
+          {t("dashboard.expiresInDays").replace("{count}", diffDays.toString())}
         </Badge>
       );
     }
@@ -132,18 +132,14 @@ export default function Dashboard() {
     <div className="space-y-6" >
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold" data-testid="text-page-title">لوحة التحكم</h1>
+          <h1 className="text-2xl font-bold" data-testid="text-page-title">{t('dashboard.title')}</h1>
           <p className="text-sm text-muted-foreground">{formatDate()}</p>
         </div>
         <div className="flex flex-col gap-4">
-          <div>
-            <h1 className="text-2xl font-bold" data-testid="text-page-title">لوحة التحكم</h1>
-            <p className="text-sm text-muted-foreground">{formatDate()}</p>
-          </div>
 
           <div className="flex flex-wrap gap-2 items-end bg-card p-3 rounded-lg border shadow-sm">
             <div className="space-y-1">
-              <Label className="text-xs">من</Label>
+              <Label className="text-xs">{t("common.from")}</Label>
               <Input
                 type="date"
                 value={dateRange.start}
@@ -152,7 +148,7 @@ export default function Dashboard() {
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">إلى</Label>
+              <Label className="text-xs">{t("common.to")}</Label>
               <Input
                 type="date"
                 value={dateRange.end}
@@ -161,14 +157,14 @@ export default function Dashboard() {
               />
             </div>
             <div className="flex gap-1">
-              <Button variant="outline" size="sm" onClick={setThisMonth} className="h-9">هذا الشهر</Button>
-              <Button variant="outline" size="sm" onClick={setLastMonth} className="h-9">الشهر السابق</Button>
+              <Button variant="outline" size="sm" onClick={setThisMonth} className="h-9">{t("common.thisMonth")}</Button>
+              <Button variant="outline" size="sm" onClick={setLastMonth} className="h-9">{t("common.lastMonth")}</Button>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
@@ -176,12 +172,12 @@ export default function Dashboard() {
                 <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">عدد الأعضاء</p>
+                <p className="text-sm text-muted-foreground">{t('dashboard.totalMembers')}</p>
                 <p className="text-2xl font-bold" data-testid="text-total-members">
                   {stats?.totalMembers ?? 0}
                 </p>
                 <p className="text-xs text-green-600 dark:text-green-400">
-                  +{stats?.newMembersThisMonth ?? 0} هذا الشهر
+                  +{stats?.newMembersThisMonth ?? 0} {t("dashboard.inPeriod")}
                 </p>
               </div>
             </div>
@@ -195,12 +191,12 @@ export default function Dashboard() {
                 <CreditCard className="h-5 w-5 text-green-600 dark:text-green-400" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">اشتراكات نشطة</p>
+                <p className="text-sm text-muted-foreground">{t('dashboard.activeSubscriptions')}</p>
                 <p className="text-2xl font-bold" data-testid="text-active-subs">
                   {stats?.activeSubscriptions ?? 0}
                 </p>
                 <p className="text-xs text-green-600 dark:text-green-400">
-                  {stats?.totalMembers ? Math.round((stats.activeSubscriptions / stats.totalMembers) * 100) : 0}٪ من الأعضاء
+                  {stats?.totalMembers ? Math.round((stats.activeSubscriptions / stats.totalMembers) * 100) : 0}% {t("dashboard.ofMembers")}
                 </p>
               </div>
             </div>
@@ -214,11 +210,11 @@ export default function Dashboard() {
                 <TrendingUp className="h-5 w-5 text-purple-600 dark:text-purple-400" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">دخل الاشتراكات</p>
+                <p className="text-sm text-muted-foreground">{t('dashboard.monthlyIncome')}</p>
                 <p className="text-2xl font-bold" data-testid="text-monthly-income">
-                  {stats?.monthlyIncome?.toLocaleString() ?? 0} د.ب
+                  {stats?.monthlyIncome?.toLocaleString() ?? 0} {t("common.currency")}
                 </p>
-                <p className="text-xs text-green-600 dark:text-green-400">هذا الشهر</p>
+                <p className="text-xs text-green-600 dark:text-green-400">{t("dashboard.inPeriod")}</p>
               </div>
             </div>
           </CardContent>
@@ -231,32 +227,16 @@ export default function Dashboard() {
                 <ShoppingCart className="h-5 w-5 text-pink-600 dark:text-pink-400" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">دخل المبيعات</p>
+                <p className="text-sm text-muted-foreground">{t('dashboard.salesIncome')}</p>
                 <p className="text-2xl font-bold" data-testid="text-sales-income">
-                  {stats?.salesIncome?.toLocaleString() ?? 0} د.ب
+                  {stats?.salesIncome?.toLocaleString() ?? 0} {t("common.currency")}
                 </p>
-                <p className="text-xs text-muted-foreground">في الفترة المحددة</p>
+                <p className="text-xs text-muted-foreground">{t("dashboard.inPeriod")}</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 rounded-lg bg-purple-100 dark:bg-purple-900/30">
-                <TrendingUp className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">دخل الاشتراكات</p>
-                <p className="text-2xl font-bold" data-testid="text-monthly-income">
-                  {stats?.monthlyIncome?.toLocaleString() ?? 0} د.ب
-                </p>
-                <p className="text-xs text-green-600 dark:text-green-400">في الفترة المحددة</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
         <Card>
           <CardContent className="p-6">
@@ -265,11 +245,11 @@ export default function Dashboard() {
                 <Wallet className="h-5 w-5 text-orange-600 dark:text-orange-400" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">صافي الربح</p>
+                <p className="text-sm text-muted-foreground">{t('dashboard.netProfit')}</p>
                 <p className="text-2xl font-bold" data-testid="text-net-profit">
-                  {stats?.netProfit?.toLocaleString() ?? 0} د.ب
+                  {stats?.netProfit?.toLocaleString() ?? 0} {t("common.currency")}
                 </p>
-                <p className="text-xs text-muted-foreground">تقديري</p>
+                <p className="text-xs text-muted-foreground">{t("common.estimated")}</p>
               </div>
             </div>
           </CardContent>
@@ -282,14 +262,14 @@ export default function Dashboard() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-4 pb-4">
               <div>
-                <CardTitle className="text-base">الأعضاء الذين تنتهي اشتراكاتهم قريباً</CardTitle>
-                <p className="text-xs text-muted-foreground mt-1">Expiring subscriptions</p>
+                <CardTitle className="text-base">{t("dashboard.expiringTitle")}</CardTitle>
+                <p className="text-xs text-muted-foreground mt-1">{t("dashboard.expiringSubtitle")}</p>
               </div>
             </CardHeader>
             <CardContent>
               <div className="mb-4">
                 <Input
-                  placeholder="بحث بالاسم أو رقم العضوية..."
+                  placeholder={t("dashboard.expiringSearchPlaceholder")}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="max-w-sm"
@@ -300,11 +280,11 @@ export default function Dashboard() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b">
-                      <th className="text-right py-3 px-2 font-medium text-muted-foreground">العضو</th>
-                      <th className="text-right py-3 px-2 font-medium text-muted-foreground">رقم العضوية</th>
-                      <th className="text-right py-3 px-2 font-medium text-muted-foreground">تاريخ الانتهاء</th>
-                      <th className="text-right py-3 px-2 font-medium text-muted-foreground">الحالة</th>
-                      <th className="text-right py-3 px-2 font-medium text-muted-foreground">التواصل</th>
+                      <th className="text-start py-3 px-2 font-medium text-muted-foreground">{t("members.name")}</th>
+                      <th className="text-start py-3 px-2 font-medium text-muted-foreground">{t("members.memberId")}</th>
+                      <th className="text-start py-3 px-2 font-medium text-muted-foreground">{t("subscriptions.endDate")}</th>
+                      <th className="text-start py-3 px-2 font-medium text-muted-foreground">{t("members.status")}</th>
+                      <th className="text-start py-3 px-2 font-medium text-muted-foreground">{t("common.contact")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -330,7 +310,7 @@ export default function Dashboard() {
                                 size="sm"
                                 className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
                                 onClick={() => handleWhatsApp(member)}
-                                title="إرسال تذكير واتساب"
+                                title={t("dashboard.sendWhatsAppReminder")}
                               >
                                 <Phone className="h-4 w-4" />
                               </Button>
@@ -342,7 +322,7 @@ export default function Dashboard() {
                     ) : (
                       <tr>
                         <td colSpan={5} className="py-8 text-center text-muted-foreground">
-                          لا توجد اشتراكات تنتهي قريباً
+                          {t("dashboard.noExpiring")}
                         </td>
                       </tr>
                     )}
@@ -356,34 +336,34 @@ export default function Dashboard() {
         <div className="space-y-6">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">اشتراكات الشهر</CardTitle>
-              <p className="text-xs text-muted-foreground">Monthly subscriptions</p>
+              <CardTitle className="text-base">{t("dashboard.monthlySubscriptions")}</CardTitle>
+              <p className="text-xs text-muted-foreground">{t("dashboard.monthlySubscriptionsSubtitle")}</p>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between py-2 border-b">
                 <div>
-                  <p className="text-sm">عدد الاشتراكات الجديدة</p>
-                  <p className="text-xs text-muted-foreground">New memberships</p>
+                  <p className="text-sm">{t("dashboard.newMemberships")}</p>
+                  <p className="text-xs text-muted-foreground">{t("dashboard.newMembershipsHint")}</p>
                 </div>
-                <Badge variant="secondary">{stats?.newMembersThisMonth ?? 0} لاعب</Badge>
+                <Badge variant="secondary">{stats?.newMembersThisMonth ?? 0} {t("dashboard.memberUnit")}</Badge>
               </div>
               <div className="flex items-center justify-between py-2 border-b">
                 <div>
-                  <p className="text-sm">إجمالي مبالغ الاشتراك</p>
-                  <p className="text-xs text-muted-foreground">Total fees</p>
+                  <p className="text-sm">{t("dashboard.totalFees")}</p>
+                  <p className="text-xs text-muted-foreground">{t("dashboard.totalFeesHint")}</p>
                 </div>
-                <Badge variant="secondary">{stats?.monthlyIncome?.toLocaleString() ?? 0} د.ب</Badge>
+                <Badge variant="secondary">{stats?.monthlyIncome?.toLocaleString() ?? 0} {t("common.currency")}</Badge>
               </div>
               <div className="flex items-center justify-between py-2">
                 <div>
-                  <p className="text-sm">متوسط اشتراك اللاعب</p>
-                  <p className="text-xs text-muted-foreground">Average per member</p>
+                  <p className="text-sm">{t("dashboard.averagePerMember")}</p>
+                  <p className="text-xs text-muted-foreground">{t("dashboard.averagePerMemberHint")}</p>
                 </div>
                 <Badge variant="secondary">
                   {stats?.activeSubscriptions && stats.monthlyIncome
                     ? Math.round(stats.monthlyIncome / stats.activeSubscriptions)
                     : 0}{" "}
-                  د.ب
+                  {t("common.currency")}
                 </Badge>
               </div>
             </CardContent>
@@ -391,40 +371,35 @@ export default function Dashboard() {
 
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">ملخص التكاليف</CardTitle>
-              <p className="text-xs text-muted-foreground">Monthly costs</p>
+              <CardTitle className="text-base">{t("dashboard.costSummary")}</CardTitle>
+              <p className="text-xs text-muted-foreground">{t("dashboard.monthlyCosts")}</p>
             </CardHeader>
             <CardContent className="space-y-3">
               {stats?.expensesByCategory && stats.expensesByCategory.length > 0 ? (
                 stats.expensesByCategory.map((exp) => (
                   <div key={exp.category} className="flex items-center justify-between py-2 border-b last:border-0">
                     <span className="text-sm">
-                      {exp.category === 'rent' ? 'إيجار' :
-                        exp.category === 'salaries' ? 'رواتب' :
-                          exp.category === 'utilities' ? 'فواتير' :
-                            exp.category === 'maintenance' ? 'صيانة' :
-                              exp.category === 'marketing' ? 'تسويق' :
-                                exp.category === 'other' ? 'أخرى' : exp.category}
+                      {getExpenseCategoryLabel(exp.category)}
                     </span>
-                    <Badge variant="secondary">{exp.total.toLocaleString()} د.ب</Badge>
+                    <Badge variant="secondary">{exp.total.toLocaleString()} {t("common.currency")}</Badge>
                   </div>
                 ))
               ) : (
                 <div className="text-center text-muted-foreground py-4 text-sm">
-                  لا توجد مصروفات مسجلة
+                  {t("dashboard.noExpenses")}
                 </div>
               )}
 
               <div className="flex items-center justify-between py-2 mt-4 pt-4 border-t">
-                <span className="text-sm font-medium">صافي الربح التقديري</span>
+                <span className="text-sm font-medium">{t("dashboard.estimatedNetProfit")}</span>
                 <Badge variant={stats?.netProfit && stats.netProfit >= 0 ? "default" : "destructive"}>
-                  {stats?.netProfit?.toLocaleString() ?? 0} د.ب
+                  {stats?.netProfit?.toLocaleString() ?? 0} {t("common.currency")}
                 </Badge>
               </div>
             </CardContent>
           </Card>
         </div>
       </div>
-    </div>
+    </div >
   );
 }

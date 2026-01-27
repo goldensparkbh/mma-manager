@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { onAuthStateChanged, signOut, type User } from "firebase/auth";
 import { doc, getDoc, setDoc, getDocs, collection, query, where, deleteDoc, limit } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
+import { normalizeWhatsAppTemplates, type WhatsAppTemplate } from "@/lib/whatsapp";
 import type { UserRole } from "@shared/schema";
 
 type AuthContextValue = {
@@ -17,6 +18,7 @@ type AuthContextValue = {
     logoUrlDark?: string;
     managerEmail: string;
     whatsappTemplate?: string; // Add this
+    whatsappTemplates?: WhatsAppTemplate[];
     phone: string;
     location: string;
     socials: {
@@ -73,6 +75,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const snap = await getDoc(docRef);
       if (snap.exists()) {
         const data = snap.data();
+        const templates = normalizeWhatsAppTemplates(
+          data.whatsappTemplates,
+          data.whatsappTemplate,
+        );
         setClubSettings({
           name: data.name || "Club Manager",
           logoUrl: data.logoUrl || "/logo_dark_icon.svg",
@@ -80,6 +86,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           logoUrlDark: data.logoUrlDark || "",
           managerEmail: data.managerEmail || "",
           whatsappTemplate: data.whatsappTemplate || "", // Add this
+          whatsappTemplates: templates,
           phone: data.phone || "",
           location: data.location || "",
           socials: {
@@ -94,6 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           logoUrl: "/logo_dark_icon.svg",
           managerEmail: "",
           whatsappTemplate: "", // Add this
+          whatsappTemplates: [],
           phone: "",
           location: "",
           socials: { facebook: "", instagram: "", twitter: "" }
@@ -145,6 +153,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               userRole = inviteData.role;
               userDisplayName = inviteData.name;
               await deleteDoc(doc(db, "user_invites", inviteDoc.id));
+            }
+          }
+
+          if (!userRole) {
+            const localAdminEmail =
+              typeof window !== "undefined"
+                ? localStorage.getItem("system_setup_admin_email")
+                : null;
+            if (localAdminEmail && authUser.email && localAdminEmail === authUser.email) {
+              userRole = "admin";
+              if (!userDisplayName) userDisplayName = "Admin";
+              if (typeof window !== "undefined") {
+                localStorage.removeItem("system_setup_admin_email");
+              }
+            }
+          }
+
+          if (!userRole) {
+            const managerEmail = await (async () => {
+              try {
+                const settingsSnap = await getDoc(doc(db, "settings", "general"));
+                if (!settingsSnap.exists()) return null;
+                return settingsSnap.data().managerEmail || null;
+              } catch {
+                return null;
+              }
+            })();
+
+            if (managerEmail && authUser.email && managerEmail === authUser.email) {
+              userRole = "admin";
+              if (!userDisplayName) userDisplayName = "Admin";
+            } else {
+              try {
+                const adminSnap = await getDocs(
+                  query(collection(db, "users"), where("role", "==", "admin"), limit(1))
+                );
+                if (adminSnap.empty) {
+                  userRole = "admin";
+                  if (!userDisplayName) userDisplayName = "Admin";
+                }
+              } catch {
+                // Ignore bootstrap role errors
+              }
             }
           }
 

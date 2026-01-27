@@ -22,10 +22,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Package, Search, ShoppingCart, Minus, Trash2, ImagePlus } from "lucide-react";
+import { Plus, Package, Search, ShoppingCart, Minus, Trash2, ImagePlus, LayoutGrid, LayoutList, X } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Product, InsertProduct, CartItem, InsertSale } from "@shared/schema";
 import { useAuth } from "@/context/auth-context";
+import { useLanguage } from "@/context/language-context";
+import { db } from "@/lib/firebase";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const defaultProductForm: Partial<InsertProduct> = {
@@ -37,23 +40,31 @@ const defaultProductForm: Partial<InsertProduct> = {
   imageUrl: "",
 };
 
-const categories = [
-  { value: "supplements", label: "مكملات غذائية" },
-  { value: "equipment", label: "معدات رياضية" },
-  { value: "clothing", label: "ملابس رياضية" },
-  { value: "accessories", label: "إكسسوارات" },
-  { value: "drinks", label: "مشروبات" },
-  { value: "general", label: "عام" },
+const defaultCategoryValues = [
+  "supplements",
+  "equipment",
+  "clothing",
+  "accessories",
+  "drinks",
+  "general",
 ];
+
+
 
 export default function Store() {
   const { role } = useAuth();
+  const { t } = useLanguage();
   const isAdmin = role === "admin";
   const { toast } = useToast();
+
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [categories, setCategories] = useState<string[]>(defaultCategoryValues);
+  const [categoryInput, setCategoryInput] = useState("");
+  const [isSavingCategories, setIsSavingCategories] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [customerName, setCustomerName] = useState("");
@@ -71,11 +82,38 @@ export default function Store() {
     };
   }, [imagePreview]);
 
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const snap = await getDoc(doc(db, "settings", "general"));
+        const stored = snap.exists() ? snap.data().productCategories : null;
+        if (Array.isArray(stored) && stored.length > 0) {
+          setCategories(stored);
+          return;
+        }
+      } catch {
+        // Fallback to defaults on fetch errors.
+      }
+      setCategories(defaultCategoryValues);
+    };
+    loadCategories();
+  }, []);
+
+  useEffect(() => {
+    if (selectedCategory && !categories.includes(selectedCategory)) {
+      setSelectedCategory("");
+    }
+  }, [categories, selectedCategory]);
+
   const { data: products, isLoading } = useQuery<Product[]>({
     queryKey: ["/api/products"],
   });
 
   const isEditing = Boolean(editingProduct);
+  const categoryOptions = Array.from(new Set([
+    ...categories,
+    ...((products ?? []).map((product) => product.category).filter(Boolean) as string[]),
+  ]));
   const getLatestProduct = (productId: string) =>
     products?.find((product) => product.id === productId);
 
@@ -86,6 +124,53 @@ export default function Store() {
     }
     setImagePreview(null);
     setImageFile(null);
+  };
+
+  const saveCategories = async (nextCategories: string[]) => {
+    setIsSavingCategories(true);
+    try {
+      await setDoc(doc(db, "settings", "general"), { productCategories: nextCategories }, { merge: true });
+      setCategories(nextCategories);
+      toast({ title: t('common.success'), description: t('common.save') });
+    } catch {
+      toast({ variant: "destructive", title: t('common.error'), description: t("store.categorySaveError") });
+    } finally {
+      setIsSavingCategories(false);
+    }
+  };
+
+  const handleAddCategory = async () => {
+    const trimmed = categoryInput.trim();
+    if (!trimmed) return;
+    const exists = categories.some((cat) => cat.toLowerCase() === trimmed.toLowerCase());
+    if (exists) {
+      toast({ variant: "destructive", title: t('common.error'), description: t("store.categoryExists") });
+      return;
+    }
+    await saveCategories([...categories, trimmed]);
+    setCategoryInput("");
+  };
+
+  const handleDeleteCategory = async (value: string) => {
+    if (value === "general") {
+      toast({ variant: "destructive", title: t('common.error'), description: t("store.categoryDefaultRemoveError") });
+      return;
+    }
+    const inUse = products?.some((product) => product.category === value);
+    if (inUse) {
+      toast({ variant: "destructive", title: t('common.error'), description: t("store.categoryInUse") });
+      return;
+    }
+    if (!confirm(t('common.deleteConfirm'))) return;
+    const next = categories.filter((cat) => cat !== value);
+    await saveCategories(next);
+  };
+
+  const getCategoryLabel = (value: string) => {
+    if (defaultCategoryValues.includes(value)) {
+      return t(`store.categories.${value}`);
+    }
+    return value;
   };
 
   const openCreateDialog = () => {
@@ -126,8 +211,8 @@ export default function Store() {
 
     if (file.size > MAX_FILE_SIZE) {
       toast({
-        title: "خطأ",
-        description: "حجم الصورة يجب أن لا يتجاوز 5 ميجابايت",
+        title: t("common.error"),
+        description: t("store.imageTooLarge"),
         variant: "destructive",
       });
       return;
@@ -154,14 +239,14 @@ export default function Store() {
       setEditingProduct(null);
       resetProductForm();
       toast({
-        title: "تم بنجاح",
-        description: "تم إضافة المنتج بنجاح",
+        title: t("common.success"),
+        description: t("store.productCreateSuccess"),
       });
     },
     onError: () => {
       toast({
-        title: "خطأ",
-        description: "حدث خطأ أثناء إضافة المنتج",
+        title: t("common.error"),
+        description: t("store.productCreateError"),
         variant: "destructive",
       });
     },
@@ -184,14 +269,14 @@ export default function Store() {
       setEditingProduct(null);
       resetProductForm();
       toast({
-        title: "تم بنجاح",
-        description: "تم تحديث المنتج بنجاح",
+        title: t("common.success"),
+        description: t("store.productUpdateSuccess"),
       });
     },
     onError: () => {
       toast({
-        title: "خطأ",
-        description: "فشل تحديث المنتج",
+        title: t("common.error"),
+        description: t("store.productUpdateError"),
         variant: "destructive",
       });
     },
@@ -205,10 +290,10 @@ export default function Store() {
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
       setIsDialogOpen(false); // Close dialog if open (e.g. if we add delete button in dialog)
       setEditingProduct(null);
-      toast({ title: "تم الحذف", description: "تم حذف المنتج بنجاح" });
+      toast({ title: t("common.success"), description: t("store.productDeleteSuccess") });
     },
     onError: () => {
-      toast({ variant: "destructive", title: "خطأ", description: "فشل حذف المنتج" });
+      toast({ variant: "destructive", title: t("common.error"), description: t("store.productDeleteError") });
     }
   });
 
@@ -238,14 +323,14 @@ export default function Store() {
       setCustomerName("");
       setIsCartOpen(false);
       toast({
-        title: "تم بنجاح",
-        description: "تمت عملية البيع بنجاح",
+        title: t("common.success"),
+        description: t("store.saleSuccess"),
       });
     },
     onError: () => {
       toast({
-        title: "خطأ",
-        description: "حدث خطأ أثناء إتمام عملية البيع",
+        title: t("common.error"),
+        description: t("store.saleError"),
         variant: "destructive",
       });
     },
@@ -255,8 +340,8 @@ export default function Store() {
     e.preventDefault();
     if (!formData.name || !formData.price) {
       toast({
-        title: "خطأ",
-        description: "يرجى ملء جميع الحقول المطلوبة",
+        title: t("common.error"),
+        description: t("common.requiredFields"),
         variant: "destructive",
       });
       return;
@@ -276,8 +361,8 @@ export default function Store() {
     const availableStock = latestProduct?.stock ?? product.stock;
     if (availableStock <= 0) {
       toast({
-        title: "غير متوفر",
-        description: "المنتج غير متوفر حالياً",
+        title: t("common.warning"),
+        description: t("store.productUnavailable"),
         variant: "destructive",
       });
       return;
@@ -288,8 +373,8 @@ export default function Store() {
       if (existingItem) {
         if (existingItem.quantity >= availableStock) {
           toast({
-            title: "تنبيه",
-            description: "لا يمكن إضافة المزيد - الكمية المتوفرة محدودة",
+            title: t("common.warning"),
+            description: t("store.stockLimited"),
             variant: "destructive",
           });
           return prevCart;
@@ -304,15 +389,15 @@ export default function Store() {
             : item
         );
         toast({
-          title: "تمت الإضافة",
-          description: `تمت إضافة ${product.name} إلى السلة`,
+          title: t("common.success"),
+          description: t("store.addedToCart").replace("{name}", product.name),
         });
         return updatedCart;
       }
       const updatedCart = [...prevCart, { product: latestProduct ?? product, quantity: 1 }];
       toast({
-        title: "تمت الإضافة",
-        description: `تمت إضافة ${product.name} إلى السلة`,
+        title: t("common.success"),
+        description: t("store.addedToCart").replace("{name}", product.name),
       });
       return updatedCart;
     });
@@ -331,8 +416,8 @@ export default function Store() {
       }
       if (newQuantity > availableStock) {
         toast({
-          title: "تنبيه",
-          description: "لا يمكن إضافة المزيد - الكمية المتوفرة محدودة",
+          title: t("common.warning"),
+          description: t("store.stockLimited"),
           variant: "destructive",
         });
         return prevCart;
@@ -365,10 +450,6 @@ export default function Store() {
     return matchesSearch && matchesCategory;
   });
 
-  const getCategoryLabel = (value: string) => {
-    return categories.find((c) => c.value === value)?.label ?? value;
-  };
-
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -386,29 +467,29 @@ export default function Store() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold" data-testid="text-page-title">المنتجات والمتجر</h1>
-          <p className="text-sm text-muted-foreground">إدارة منتجات النادي وعمليات البيع</p>
+          <h1 className="text-2xl font-bold" data-testid="text-page-title">{t('store.title')}</h1>
+          <p className="text-sm text-muted-foreground">{t('store.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
           <Dialog open={isDialogOpen} onOpenChange={handleProductDialogChange}>
             <DialogTrigger asChild>
               <Button data-testid="button-add-product" onClick={openCreateDialog}>
                 <Plus className="h-4 w-4 ml-2" />
-                إضافة منتج
+                {t('store.addProduct')}
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Package className="h-5 w-5" />
-                  {isEditing ? "تعديل منتج" : "إضافة منتج جديد"}
+                  {isEditing ? t('common.edit') : t('store.addProduct')}
                 </DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
-                  <Label>اسم المنتج *</Label>
+                  <Label>{t("store.productName")} *</Label>
                   <Input
-                    placeholder="مثال: بروتين واي"
+                    placeholder={t("store.productNamePlaceholder")}
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     data-testid="input-product-name"
@@ -416,9 +497,9 @@ export default function Store() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>الوصف</Label>
+                  <Label>{t("common.description")}</Label>
                   <Textarea
-                    placeholder="وصف المنتج..."
+                    placeholder={t("store.descriptionPlaceholder")}
                     rows={2}
                     value={formData.description ?? ""}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -428,7 +509,7 @@ export default function Store() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>السعر (د.ب) *</Label>
+                    <Label>{t("store.price")} ({t("common.currency")}) *</Label>
                     <Input
                       type="number"
                       step="0.01"
@@ -441,7 +522,7 @@ export default function Store() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>الكمية *</Label>
+                    <Label>{t("store.quantity")} *</Label>
                     <Input
                       type="number"
                       placeholder="0"
@@ -455,7 +536,7 @@ export default function Store() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>الفئة</Label>
+                  <Label>{t("store.category")}</Label>
                   <Select
                     value={formData.category}
                     onValueChange={(v) => setFormData({ ...formData, category: v })}
@@ -464,9 +545,9 @@ export default function Store() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {categories.map((cat) => (
-                        <SelectItem key={cat.value} value={cat.value}>
-                          {cat.label}
+                      {categoryOptions.map((cat) => (
+                        <SelectItem key={cat} value={cat}>
+                          {getCategoryLabel(cat)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -474,12 +555,12 @@ export default function Store() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>صورة المنتج</Label>
+                  <Label>{t("store.productImage")}</Label>
                   <div className="flex items-center gap-4">
                     <label className="cursor-pointer flex-1">
                       <div className="flex items-center justify-center gap-2 border-2 border-dashed rounded-lg p-4 hover:border-primary/50 transition-colors">
                         <ImagePlus className="h-5 w-5 text-muted-foreground" />
-                        <span className="text-sm text-muted-foreground">اختر صورة</span>
+                        <span className="text-sm text-muted-foreground">{t("store.selectImage")}</span>
                       </div>
                       <input
                         type="file"
@@ -493,7 +574,7 @@ export default function Store() {
                       <div className="relative w-16 h-16 rounded-lg overflow-hidden border">
                         <img
                           src={imagePreview}
-                          alt="معاينة"
+                          alt={t("common.preview")}
                           className="w-full h-full object-cover"
                         />
                         <button
@@ -523,10 +604,10 @@ export default function Store() {
                     data-testid="button-submit-product"
                   >
                     {createProduct.isPending || updateProduct.isPending
-                      ? "جاري الحفظ..."
+                      ? t('common.loading')
                       : isEditing
-                        ? "تحديث المنتج"
-                        : "إضافة المنتج"}
+                        ? t('common.save')
+                        : t('common.save')}
                   </Button>
 
                   {isEditing && editingProduct && isAdmin && (
@@ -534,7 +615,7 @@ export default function Store() {
                       type="button"
                       variant="destructive"
                       onClick={() => {
-                        if (confirm('حذف المنتج نهائياً؟')) {
+                        if (confirm(t('store.deleteConfirm'))) {
                           deleteProduct.mutate(editingProduct.id);
                         }
                       }}
@@ -551,7 +632,7 @@ export default function Store() {
             <DialogTrigger asChild>
               <Button variant="outline" className="relative" data-testid="button-open-cart">
                 <ShoppingCart className="h-4 w-4 ml-2" />
-                السلة
+                {t('store.cart')}
                 {cartItemCount > 0 && (
                   <Badge className="absolute -top-2 -left-2 h-5 w-5 p-0 flex items-center justify-center text-xs">
                     {cartItemCount}
@@ -563,12 +644,12 @@ export default function Store() {
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <ShoppingCart className="h-5 w-5" />
-                  سلة المشتريات
+                  {t("store.cart")}
                 </DialogTitle>
               </DialogHeader>
               {cart.length === 0 ? (
                 <div className="py-8 text-center text-muted-foreground">
-                  السلة فارغة
+                  {t("store.cartEmpty")}
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -586,7 +667,7 @@ export default function Store() {
                           <div className="flex-1">
                             <p className="font-medium">{item.product.name}</p>
                             <p className="text-sm text-muted-foreground">
-                              {item.product.price} د.ب × {item.quantity}
+                              {item.product.price} {t("common.currency")} x {item.quantity}
                             </p>
                           </div>
                           <div className="flex items-center gap-2">
@@ -623,17 +704,17 @@ export default function Store() {
                   </div>
                   <div className="border-t pt-4 space-y-4">
                     <div className="space-y-2">
-                      <Label>اسم العميل / المشتري</Label>
+                      <Label>{t("store.buyerName")}</Label>
                       <Input
-                        placeholder="أدخل اسم المشتري..."
+                        placeholder={t("store.buyerPlaceholder")}
                         value={customerName}
                         onChange={(e) => setCustomerName(e.target.value)}
                         data-testid="input-customer-name"
                       />
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="font-bold">الإجمالي:</span>
-                      <span className="text-xl font-bold">{cartTotal.toFixed(2)} د.ب</span>
+                      <span className="font-bold">{t("store.total")}:</span>
+                      <span className="text-xl font-bold">{cartTotal.toFixed(2)} {t("common.currency")}</span>
                     </div>
                     <Button
                       className="w-full"
@@ -641,7 +722,7 @@ export default function Store() {
                       disabled={createSale.isPending}
                       data-testid="button-checkout"
                     >
-                      {createSale.isPending ? "جاري الإتمام..." : "إتمام عملية البيع"}
+                      {createSale.isPending ? t("store.checkoutLoading") : t("store.checkout")}
                     </Button>
                   </div>
                 </div>
@@ -655,103 +736,277 @@ export default function Store() {
         <div className="relative flex-1">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="بحث عن منتج..."
+            placeholder={t("store.searchPlaceholder")}
             className="pr-10"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             data-testid="input-search-products"
           />
         </div>
-        <Select value={selectedCategory || "all"} onValueChange={(v) => setSelectedCategory(v === "all" ? "" : v)}>
-          <SelectTrigger className="w-full sm:w-48" data-testid="select-filter-category">
-            <SelectValue placeholder="جميع الفئات" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">جميع الفئات</SelectItem>
-            {categories.map((cat) => (
-              <SelectItem key={cat.value} value={cat.value}>
-                {cat.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+          <Select value={selectedCategory || "all"} onValueChange={(v) => setSelectedCategory(v === "all" ? "" : v)}>
+            <SelectTrigger className="w-full sm:w-48" data-testid="select-filter-category">
+              <SelectValue placeholder={t("store.categoryPlaceholder")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("store.allCategories")}</SelectItem>
+              {categoryOptions.map((cat) => (
+                <SelectItem key={cat} value={cat}>
+                  {getCategoryLabel(cat)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="flex bg-muted rounded-lg p-1 gap-1 w-fit">
+            <Button
+              variant={viewMode === "grid" ? "secondary" : "ghost"}
+              size="sm"
+              className="h-8 px-2"
+              onClick={() => setViewMode("grid")}
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === "list" ? "secondary" : "ghost"}
+              size="sm"
+              className="h-8 px-2"
+              onClick={() => setViewMode("list")}
+            >
+              <LayoutList className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredProducts && filteredProducts.length > 0 ? (
-          filteredProducts.map((product) => {
-            const cartQuantity =
-              cart.find((item) => item.product.id === product.id)?.quantity ?? 0;
-            const atStockLimit = cartQuantity >= product.stock;
-            const isOutOfStock = product.stock <= 0 || atStockLimit;
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("store.categoriesTitle")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <form
+              className="flex flex-col sm:flex-row gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void handleAddCategory();
+              }}
+            >
+              <Input
+                placeholder={t("store.addCategoryPlaceholder")}
+                value={categoryInput}
+                onChange={(e) => setCategoryInput(e.target.value)}
+                disabled={isSavingCategories}
+              />
+              <Button type="submit" disabled={isSavingCategories || !categoryInput.trim()}>
+                <Plus className="h-4 w-4 me-2" />
+                {t("store.addCategory")}
+              </Button>
+            </form>
+            <div className="flex flex-wrap gap-2">
+              {categories.length > 0 ? (
+                categories.map((cat) => (
+                  <Badge key={cat} variant="secondary" className="flex items-center gap-1">
+                    <span>{getCategoryLabel(cat)}</span>
+                    {cat !== "general" && (
+                      <button
+                        type="button"
+                        className="text-muted-foreground hover:text-destructive"
+                        onClick={() => handleDeleteCategory(cat)}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </Badge>
+                ))
+              ) : (
+                <span className="text-xs text-muted-foreground">{t("store.noCategories")}</span>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-            return (
-              <Card
-                key={product.id}
-                className="overflow-hidden cursor-pointer"
-                onClick={() => openEditDialog(product)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    openEditDialog(product);
-                  }
-                }}
-                role="button"
-                tabIndex={0}
-                data-testid={`card-product-${product.id}`}
-              >
-                <div className="aspect-video bg-gradient-to-br from-blue-100 to-blue-50 dark:from-blue-900/30 dark:to-blue-800/20 flex items-center justify-center overflow-hidden">
-                  {product.imageUrl ? (
-                    <img
-                      src={product.imageUrl}
-                      alt={product.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <Package className="h-12 w-12 text-blue-600/50 dark:text-blue-400/50" />
-                  )}
-                </div>
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <h3 className="font-semibold">{product.name}</h3>
-                    <Badge variant="secondary" className="text-xs shrink-0">
-                      {getCategoryLabel(product.category)}
-                    </Badge>
-                  </div>
-                  {product.description && (
-                    <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                      {product.description}
-                    </p>
-                  )}
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xl font-bold">{product.price} د.ب</p>
-                      <p className="text-xs text-muted-foreground">
-                        المتوفر: {product.stock} قطعة
-                      </p>
-                    </div>
+      {viewMode === "grid" ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredProducts && filteredProducts.length > 0 ? (
+            filteredProducts.map((product) => {
+              const cartQuantity =
+                cart.find((item) => item.product.id === product.id)?.quantity ?? 0;
+              const atStockLimit = cartQuantity >= product.stock;
+              const isOutOfStock = product.stock <= 0 || atStockLimit;
+
+              return (
+                <Card
+                  key={product.id}
+                  className="overflow-hidden cursor-pointer relative"
+                  onClick={() => openEditDialog(product)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      openEditDialog(product);
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  data-testid={`card-product-${product.id}`}
+                >
+                  {isAdmin && (
                     <Button
-                      size="sm"
+                      size="icon"
+                      variant="ghost"
+                      className="absolute top-2 right-2 h-8 w-8 bg-background/80 hover:bg-background text-destructive"
                       onClick={(e) => {
                         e.stopPropagation();
-                        addToCart(product);
+                        if (confirm(t('common.deleteConfirm'))) {
+                          deleteProduct.mutate(product.id);
+                        }
                       }}
-                      disabled={isOutOfStock}
-                      data-testid={`button-add-to-cart-${product.id}`}
                     >
-                      {isOutOfStock ? "غير متوفر" : "إضافة للسلة"}
+                      <Trash2 className="h-4 w-4" />
                     </Button>
+                  )}
+                  <div className="aspect-video bg-gradient-to-br from-blue-100 to-blue-50 dark:from-blue-900/30 dark:to-blue-800/20 flex items-center justify-center overflow-hidden">
+                    {product.imageUrl ? (
+                      <img
+                        src={product.imageUrl}
+                        alt={product.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <Package className="h-12 w-12 text-blue-600/50 dark:text-blue-400/50" />
+                    )}
                   </div>
-                </CardContent>
-              </Card>
-            );
-          })
-        ) : (
-          <div className="col-span-full py-12 text-center text-muted-foreground">
-            {searchQuery || selectedCategory ? "لا توجد نتائج للبحث" : "لا توجد منتجات حالياً"}
-          </div>
-        )}
-      </div>
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <h3 className="font-semibold">{product.name}</h3>
+                      <Badge variant="secondary" className="text-xs shrink-0">
+                        {getCategoryLabel(product.category)}
+                      </Badge>
+                    </div>
+                    {product.description && (
+                      <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+                        {product.description}
+                      </p>
+                    )}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xl font-bold">{product.price} {t("common.currency")}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {t("store.stock")}: {product.stock}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          addToCart(product);
+                        }}
+                        disabled={isOutOfStock}
+                        data-testid={`button-add-to-cart-${product.id}`}
+                      >
+                        {isOutOfStock ? t("store.outOfStock") : t("store.addToCart")}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })
+          ) : (
+            <div className="col-span-full py-12 text-center text-muted-foreground">
+              {t('common.noResults')}
+            </div>
+          )}
+        </div>
+      ) : filteredProducts && filteredProducts.length > 0 ? (
+        <Card>
+          <CardContent className="p-0">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 border-b">
+                <tr>
+                  <th className="p-4 text-start">{t('store.productName')}</th>
+                  <th className="p-4 text-start">{t("store.category")}</th>
+                  <th className="p-4 text-start">{t('subscriptions.price')}</th>
+                  <th className="p-4 text-start">{t('store.stock')}</th>
+                  <th className="p-4 text-start">{t('common.actions')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredProducts.map((product) => {
+                  const cartQuantity =
+                    cart.find((item) => item.product.id === product.id)?.quantity ?? 0;
+                  const atStockLimit = cartQuantity >= product.stock;
+                  const isOutOfStock = product.stock <= 0 || atStockLimit;
+
+                  return (
+                    <tr
+                      key={product.id}
+                      className="border-b hover:bg-muted/50 cursor-pointer"
+                      onClick={() => openEditDialog(product)}
+                    >
+                      <td className="p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="h-12 w-12 rounded border bg-muted overflow-hidden flex items-center justify-center">
+                            {product.imageUrl ? (
+                              <img
+                                src={product.imageUrl}
+                                alt={product.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <Package className="h-6 w-6 text-muted-foreground" />
+                            )}
+                          </div>
+                          <div>
+                            <div className="font-medium">{product.name}</div>
+                            <div className="text-xs text-muted-foreground line-clamp-1">
+                              {product.description || "-"}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-4">{getCategoryLabel(product.category)}</td>
+                      <td className="p-4 font-mono">{product.price} {t("common.currency")}</td>
+                      <td className="p-4">{product.stock}</td>
+                      <td className="p-4 flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            addToCart(product);
+                          }}
+                          disabled={isOutOfStock}
+                        >
+                          {isOutOfStock ? t('store.outOfStock') : t('store.addToCart')}
+                        </Button>
+                        {isAdmin && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm(t('common.deleteConfirm'))) {
+                                deleteProduct.mutate(product.id);
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="col-span-full py-12 text-center text-muted-foreground">
+          {t('common.noResults')}
+        </div>
+      )}
     </div>
   );
 }

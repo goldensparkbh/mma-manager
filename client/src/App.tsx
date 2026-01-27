@@ -1,5 +1,5 @@
 import { Switch, Route } from "wouter";
-import { ShieldAlert } from "lucide-react";
+import { ShieldAlert, Loader2 } from "lucide-react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
@@ -9,6 +9,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { AuthProvider, useAuth } from "@/context/auth-context";
+import { LanguageProvider, useLanguage } from "@/context/language-context";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import Members from "@/pages/members";
@@ -29,11 +30,12 @@ import { useEffect } from "react";
 import { PERMISSIONS } from "@/lib/permissions";
 
 function AccessDenied() {
+  const { t } = useLanguage();
   return (
     <div className="flex flex-col gap-4 h-[60vh] items-center justify-center text-muted-foreground">
       <ShieldAlert className="w-16 h-16 text-destructive" />
-      <h2 className="text-xl font-bold">لا تملك صلاحية الوصول</h2>
-      <p>ليس لديك الصلاحية المطلوبة لعرض هذه الصفحة</p>
+      <h2 className="text-xl font-bold">{t("common.accessDeniedTitle")}</h2>
+      <p>{t("common.accessDeniedMessage")}</p>
     </div>
   );
 }
@@ -124,6 +126,7 @@ function Router() {
 
 function AppShell() {
   const { user, loading, clubSettings, setupRequired } = useAuth();
+  const { t, language } = useLanguage();
   const style = {
     "--sidebar-width": "17rem",
     "--sidebar-width-icon": "4rem",
@@ -133,8 +136,9 @@ function AppShell() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center text-muted-foreground">
-        جاري التحميل...
+      <div className="flex flex-col gap-4 h-screen items-center justify-center text-muted-foreground">
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+        <p>{t("common.loading")}</p>
       </div>
     );
   }
@@ -163,9 +167,9 @@ function AppShell() {
                 <div className="flex items-center gap-3">
                   <SidebarTrigger data-testid="button-sidebar-toggle" />
                   <div className="hidden sm:block">
-                    <p className="text-xs text-muted-foreground">تاريخ اليوم</p>
+                    <p className="text-xs text-muted-foreground">{t("common.todayDate")}</p>
                     <p className="text-sm font-medium">
-                      {new Intl.DateTimeFormat("ar-BH", {
+                      {new Intl.DateTimeFormat(language === "ar" ? "ar-BH" : "en-US", {
                         weekday: "long",
                         year: "numeric",
                         month: "long",
@@ -175,12 +179,12 @@ function AppShell() {
                   </div>
                   {/* Mobile Club Name */}
                   <div className="sm:hidden font-bold truncate max-w-[150px]">
-                    {clubSettings?.name || "Club Manager"}
+                    {clubSettings?.name || t("common.appName")}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="hidden xs:flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted text-xs font-mono">
-                    <span className="text-muted-foreground uppercase opacity-70">BH</span>
+                    <span className="text-muted-foreground uppercase opacity-70">{t("common.currency")}</span>
                   </div>
                   <ThemeToggle />
                 </div>
@@ -201,7 +205,9 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <AppShell />
+        <LanguageProvider>
+          <AppShell />
+        </LanguageProvider>
       </AuthProvider>
     </QueryClientProvider>
   );
