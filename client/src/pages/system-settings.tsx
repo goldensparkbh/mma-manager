@@ -433,7 +433,7 @@ export default function SystemSettings() {
     const checkUpdates = async () => {
         setCheckingUpdate(true);
         try {
-            const response = await fetch(`https://github.com/${APP_VERSION.repo}/releases/latest`);
+            const response = await fetch(`https://api.github.com/repos/${APP_VERSION.repo}/releases/latest`);
             if (response.ok) {
                 const data = await response.json();
                 setLatestVersion({
