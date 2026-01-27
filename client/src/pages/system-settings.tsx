@@ -57,6 +57,7 @@ type ClubProfile = {
         website?: string;
     };
     whatsappTemplates: WhatsAppTemplate[];
+    githubToken: string;
 };
 
 export default function SystemSettings() {
@@ -96,6 +97,7 @@ export default function SystemSettings() {
             website: "",
         },
         whatsappTemplates: [],
+        githubToken: "",
     });
 
     const [credForm, setCredForm] = useState({
@@ -146,6 +148,7 @@ export default function SystemSettings() {
                         website: data.socialLinks?.website || "",
                     },
                     whatsappTemplates: templates,
+                    githubToken: data.githubToken || "",
                 });
                 setSelectedTemplateId(templates[0]?.id || null);
             }
@@ -190,6 +193,7 @@ export default function SystemSettings() {
                 },
                 whatsappTemplate: clubProfile.whatsappTemplates[0]?.body || "",
                 whatsappTemplates: clubProfile.whatsappTemplates,
+                githubToken: clubProfile.githubToken || "",
             }, { merge: true });
 
             await refreshClubSettings();
@@ -433,7 +437,14 @@ export default function SystemSettings() {
     const checkUpdates = async () => {
         setCheckingUpdate(true);
         try {
-            const response = await fetch(`https://api.github.com/repos/${APP_VERSION.repo}/releases/latest`);
+            const headers: Record<string, string> = {};
+            if (clubProfile.githubToken) {
+                headers['Authorization'] = `token ${clubProfile.githubToken}`;
+            }
+
+            const response = await fetch(`https://api.github.com/repos/${APP_VERSION.repo}/releases/latest`, {
+                headers: headers
+            });
             if (response.ok) {
                 const data = await response.json();
                 setLatestVersion({
@@ -980,6 +991,22 @@ export default function SystemSettings() {
                                             {t("settings.update.checkUpdates")}
                                         </div>
                                     )}
+                                </div>
+                            </div>
+
+                            <div className="space-y-4 p-4 border rounded-lg bg-muted/5">
+                                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">{t("settings.update.githubToken")}</h3>
+                                <div className="space-y-2">
+                                    <Input
+                                        type="password"
+                                        value={clubProfile.githubToken}
+                                        onChange={(e) => setClubProfile({ ...clubProfile, githubToken: e.target.value })}
+                                        placeholder={t("settings.update.githubTokenPlaceholder")}
+                                        className="font-mono"
+                                    />
+                                    <p className="text-[10px] text-muted-foreground">
+                                        {t("settings.update.githubTokenPlaceholder")}
+                                    </p>
                                 </div>
                             </div>
 

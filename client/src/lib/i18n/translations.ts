@@ -560,7 +560,9 @@ export const translations = {
                 checking: "جاري التحقق...",
                 version: "إصدار",
                 date: "تاريخ",
-                releaseNotes: "ملاحظات الإصدار"
+                releaseNotes: "ملاحظات الإصدار",
+                githubToken: "رمز الوصول لـ GitHub (Classic)",
+                githubTokenPlaceholder: "أدخل الرمز للوصول للمستودعات الخاصة"
             },
             identityTitle: "هوية النادي",
             identityDescription: "البيانات الأساسية والهوية البصرية للنادي",
@@ -1293,7 +1295,9 @@ export const translations = {
                 checking: "Checking...",
                 version: "Version",
                 date: "Date",
-                releaseNotes: "Release Notes"
+                releaseNotes: "Release Notes",
+                githubToken: "GitHub Access Token (Classic)",
+                githubTokenPlaceholder: "Enter token for private repository access"
             },
             identityTitle: "Club Identity",
             identityDescription: "Basic information and branding",
