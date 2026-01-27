@@ -3,4 +3,4 @@ export const APP_VERSION = {
     date: "2026-01-28",
     name: "New Release",
     repo: "sparkflow0/clubmanager" // Default repository
-};
+}
