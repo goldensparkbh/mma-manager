@@ -479,7 +479,8 @@ export default function SystemSettings() {
             toast({ title: t("common.success"), description: t("settings.update.updateSuccess") });
 
             setTimeout(() => {
-                window.location.reload();
+                // Force a hard reload by appending a timestamp to bypass browser cache
+                window.location.href = window.location.origin + window.location.pathname + '?update=' + Date.now();
             }, 1500);
         } catch (error) {
             toast({ variant: "destructive", title: t("settings.update.updateError") });
