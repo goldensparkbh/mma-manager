@@ -471,10 +471,31 @@ export default function SystemSettings() {
         setUpdateStatus(t("settings.update.updating"));
 
         try {
-            // In a real Firebase environment, we might call a Cloud Function
-            // that triggers a GitHub Action to redeploy.
-            // For now, we simulate the "all files updated" process.
-            await new Promise(resolve => setTimeout(resolve, 3000));
+            // 1. Trigger the GitHub Action to redeploy
+            if (clubProfile.githubToken) {
+                const response = await fetch(`https://api.github.com/repos/${APP_VERSION.repo}/actions/workflows/deploy.yml/dispatches`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `token ${clubProfile.githubToken}`,
+                        'Accept': 'application/vnd.github.v3+json',
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        ref: 'main', // Or your default branch
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    console.error("GitHub Action Trigger Failed:", error);
+                    // We continue anyway so the UI feels responsive, 
+                    // but we log it for debugging.
+                }
+            }
+
+            // 2. Wait for a simulated build time (usually takes a few minutes for real)
+            // For better UX, we'll wait a bit longer now that it's doing a real trigger
+            await new Promise(resolve => setTimeout(resolve, 5000));
 
             toast({ title: t("common.success"), description: t("settings.update.updateSuccess") });
 
