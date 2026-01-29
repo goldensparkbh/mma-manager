@@ -24,6 +24,7 @@ import Belts from "@/pages/belts";
 import Users from "@/pages/users";
 import SystemSettings from "@/pages/system-settings";
 import SetupWizard from "@/pages/setup-wizard";
+import { ScreenSaver } from "@/components/screen-saver";
 
 import { useLocation } from "wouter";
 import { useEffect } from "react";
@@ -114,7 +115,7 @@ function Router() {
       </Route>
 
       <Route path="/system-settings">
-        <RequirePermission permission={PERMISSIONS.USERS_MANAGE}>
+        <RequirePermission permission={PERMISSIONS.SETTINGS_VIEW}>
           <SystemSettings />
         </RequirePermission>
       </Route>
@@ -158,6 +159,7 @@ function AppShell() {
 
   return (
     <ThemeProvider defaultTheme="light" storageKey="club-theme">
+      <ScreenSaver />
       <TooltipProvider>
         <SidebarProvider style={style as React.CSSProperties}>
           <div className="flex h-screen w-full">
@@ -203,12 +205,12 @@ function AppShell() {
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <LanguageProvider>
+    <LanguageProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
           <AppShell />
-        </LanguageProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </LanguageProvider>
   );
 }

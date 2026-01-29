@@ -34,13 +34,16 @@ import { WhatsAppTemplateDialog } from "@/components/whatsapp-template-dialog";
 
 import { useAuth } from "@/context/auth-context";
 import { useLanguage } from "@/context/language-context";
+import { PERMISSIONS } from "@/lib/permissions";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
 export default function Members() {
-  const { role, clubSettings } = useAuth();
+  const { role, clubSettings, hasPermission } = useAuth();
   const { t, language } = useLanguage();
-  const isAdmin = role === "admin";
+  const isAdmin = role === 'admin';
+  const canModify = hasPermission(PERMISSIONS.MEMBERS_CREATE); // Mapping to modify now
+  const canDelete = hasPermission(PERMISSIONS.MEMBERS_DELETE);
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
@@ -342,50 +345,58 @@ export default function Members() {
                 {t("common.export")} ({selectedMembers.size})
               </Button>
             )}
-            {selectedMembers.size > 0 && isAdmin && (
-              <Button
-                variant="destructive"
-                className="gap-2"
-                disabled={deleteSelectedMembers.isPending}
-                onClick={() => {
-                  if (confirm(t('common.deleteConfirm'))) {
-                    deleteSelectedMembers.mutate(Array.from(selectedMembers));
-                  }
-                }}
-              >
-                {deleteSelectedMembers.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                {t('common.delete')} ({selectedMembers.size})
-              </Button>
-            )}
-            <div className="flex bg-muted rounded-lg p-1 gap-1">
-              <Button
-                variant={viewMode === "list" ? "secondary" : "ghost"}
-                size="sm"
-                className="h-8 px-2"
-                onClick={() => setViewMode("list")}
-                title={t("members.listView")}
-              >
-                <LayoutList className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={viewMode === "grid" ? "secondary" : "ghost"}
-                size="sm"
-                className="h-8 px-2"
-                onClick={() => setViewMode("grid")}
-                title={t("members.gridView")}
-              >
-                <LayoutGrid className="h-4 w-4" />
-              </Button>
+            <div className="flex items-center gap-2">
+              {canDelete && selectedMembers.size > 0 && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => {
+                    if (confirm(t('common.deleteConfirm'))) {
+                      deleteSelectedMembers.mutate(Array.from(selectedMembers));
+                    }
+                  }}
+                  disabled={deleteSelectedMembers.isPending}
+                >
+                  <Trash2 className="w-4 h-4 me-2" />
+                  {t('common.delete')} ({selectedMembers.size})
+                </Button>
+              )}
+              <div className="flex bg-muted rounded-lg p-1 gap-1">
+                <Button
+                  variant={viewMode === "list" ? "secondary" : "ghost"}
+                  size="sm"
+                  className="h-8 px-2"
+                  onClick={() => setViewMode("list")}
+                  title={t("members.listView")}
+                >
+                  <LayoutList className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={viewMode === "grid" ? "secondary" : "ghost"}
+                  size="sm"
+                  className="h-8 px-2"
+                  onClick={() => setViewMode("grid")}
+                  title={t("members.gridView")}
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </Button>
+              </div>
+              {canModify && (
+                <Button
+                  data-testid="button-add-member"
+                  onClick={() => {
+                    setDetailsMember(null);
+                    setIsDetailsDialogOpen(true);
+                  }}
+                >
+                  <UserPlus className="w-4 h-4 me-2" />
+                  {t('members.addMember')}
+                </Button>
+              )}
             </div>
-            <Button onClick={() => { setDetailsMember(null); setIsDetailsDialogOpen(true); }} data-testid="button-add-member">
-              <UserPlus className="h-4 w-4 ml-2" />
-              {t('members.addMember')}
-            </Button>
           </div>
         </div>
-
-
-      </div >
+      </div>
 
       {viewMode === "list" ? (
         <Card>
@@ -589,7 +600,17 @@ export default function Members() {
 
                 {/* Logo / Brand */}
                 <div className="mt-8 mb-4 flex flex-col items-center">
-                  <img src={clubSettings?.logoUrlDark || clubSettings?.logoUrlLight || "/logo_dark_icon.svg"} alt={t("members.logoAlt")} className="w-20 h-20 object-contain opacity-90 mb-2" />
+                  {(clubSettings?.logoUrlDark || clubSettings?.logoUrlLight) ? (
+                    <img
+                      src={clubSettings?.logoUrlDark || clubSettings?.logoUrlLight}
+                      alt={t("members.logoAlt")}
+                      className="w-20 h-20 object-contain opacity-90 mb-2"
+                    />
+                  ) : (
+                    <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center text-3xl font-bold mb-2">
+                      {clubSettings?.name?.[0] || "C"}
+                    </div>
+                  )}
                   <h2 className="text-xl font-black tracking-widest uppercase text-center leading-tight">
                     {clubSettings?.name || t("members.clubFallback")}
                   </h2>

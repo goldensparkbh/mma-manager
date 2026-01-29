@@ -16,13 +16,16 @@ import { useToast } from "@/hooks/use-toast";
 import { Search, ShoppingBag, TrendingUp, Package, Printer, Trash2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Sale } from "@shared/schema";
+import { printReceipt as fireReceipt } from "@/lib/receipt-printer";
 import { useAuth } from "@/context/auth-context";
 import { useLanguage } from "@/context/language-context";
+import { PERMISSIONS } from "@/lib/permissions";
 
 export default function Sales() {
-  const { role, clubSettings } = useAuth();
+  const { hasPermission, clubSettings, role } = useAuth();
   const { t, language } = useLanguage();
-  const isAdmin = role === "admin";
+  const canModify = hasPermission(PERMISSIONS.SALES_CREATE);
+  const isAdmin = role === 'admin';
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
@@ -318,7 +321,13 @@ export default function Sales() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => setReceiptData(sale)}
+                          onClick={() => fireReceipt({
+                            type: 'sale',
+                            data: sale,
+                            settings: clubSettings,
+                            language: language as any,
+                            t
+                          })}
                           title={t("sales.printReceipt")}
                         >
                           <Printer className="w-4 h-4" />
@@ -359,107 +368,7 @@ export default function Sales() {
         </CardContent>
       </Card>
 
-      {/* Receipt Dialog */}
-      <Dialog open={!!receiptData} onOpenChange={(open) => !open && setReceiptData(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>{t("sales.receiptTitle")}</DialogTitle></DialogHeader>
-          {receiptData && (
-            <div className="space-y-6" id="sale-receipt-area">
-              <div className="text-center border-b pb-4">
-                <h2 className="text-xl font-bold">{clubSettings?.name || "Kumite Combat"}</h2>
-                <p className="text-muted-foreground text-sm">{t("sales.receiptSubtitle")}</p>
-                <p className="text-xs text-muted-foreground mt-1">{t("common.date")}: {new Date(receiptData.date).toLocaleDateString(language === 'ar' ? 'ar-BH' : 'en-US')}</p>
-              </div>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between"><span>{t("sales.product")}:</span> <span className="font-medium">{receiptData.productName}</span></div>
-                <div className="flex justify-between"><span>{t("sales.buyer")}:</span> <span>{receiptData.buyerName || '-'}</span></div>
-                <div className="flex justify-between"><span>{t("sales.quantity")}:</span> <span>{receiptData.quantity}</span></div>
-                <div className="flex justify-between border-t pt-2 mt-2"><span>{t("sales.total")}:</span> <span className="font-bold text-lg">{receiptData.totalPrice.toFixed(2)} {t("common.currency")}</span></div>
-                <div className="flex justify-between"><span>${t("finance.paymentMethod")}:</span> <span>{getPaymentMethodLabel(receiptData.paymentMethod)}</span></div>
-              </div>
-              <Button className="w-full" onClick={() => {
-                const content = document.getElementById('sale-receipt-area')?.innerHTML;
-                const printWindow = window.open('', '', 'height=600,width=800');
-                if (printWindow) {
-                  printWindow.document.write(`
-                    <html>
-                      <head>
-                        <title>${t("sales.receiptTitle")} - ${receiptData.productName}</title>
-                        <script src="https://cdn.tailwindcss.com"></script>
-                        <style>
-                          @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
-                          body { font-family: 'Cairo', sans-serif; }
-                          @page { size: 80mm 150mm; margin: 0; }
-                        </style>
-                      </head>
-                      <body class="bg-white p-4" dir="${language === 'ar' ? 'rtl' : 'ltr'}">
-                        <div class="max-w-[80mm] mx-auto">
-                          <!-- Header -->
-                          <div class="flex flex-col items-center mb-6 text-center">
-                            ${clubSettings?.logoUrlLight ? `<img src="${clubSettings.logoUrlLight}" class="w-20 h-20 object-contain mb-2" alt="Logo" />` : ''}
-                            <h1 class="text-xl font-bold text-gray-900">${clubSettings?.name || t("members.clubFallback")}</h1>
-                             <p class="text-xs text-gray-500 mt-1">${new Date(receiptData.date).toLocaleDateString('ar-BH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                          </div>
-
-                          <!-- Receipt Details -->
-                          <div class="border-t-2 border-dashed border-gray-200 py-4 space-y-3">
-                             <div class="flex justify-between items-center text-sm">
-                              <span class="text-gray-500">${t("sales.invoiceNumber")}:</span>
-                              <span class="font-mono font-bold">#${receiptData.id.slice(0, 8)}</span>
-                            </div>
-                            <div class="flex justify-between items-center text-sm">
-                              <span class="text-gray-500">${t("sales.buyer")}:</span>
-                              <span class="font-semibold text-gray-900">${receiptData.buyerName || t("sales.defaultBuyer")}</span>
-                            </div>
-                            <div class="flex justify-between items-center text-sm">
-                              <span class="text-gray-500">${t("sales.product")}:</span>
-                              <span class="font-semibold text-gray-900">${receiptData.productName}</span>
-                            </div>
-                             <div class="flex justify-between items-center text-sm">
-                              <span class="text-gray-500">${t("sales.quantity")}:</span>
-                              <span class="font-mono text-gray-900">${receiptData.quantity}</span>
-                            </div>
-                             <div class="flex justify-between items-center text-sm">
-                              <span class="text-gray-500">${t("sales.unitPrice")}:</span>
-                              <span class="font-mono text-gray-900">${receiptData.unitPrice.toFixed(2)} ${t("common.currency")}</span>
-                            </div>
-                          </div>
-
-                          <!-- Totals -->
-                          <div class="border-t-2 border-dashed border-gray-200 pt-4 mt-2">
-                            <div class="flex justify-between items-center mb-4">
-                              <span class="text-base font-bold text-gray-900">${t("sales.total")}</span>
-                              <span class="text-xl font-bold text-gray-900">${receiptData.totalPrice.toFixed(2)} ${t("common.currency")}</span>
-                            </div>
-                             <div class="flex justify-between items-center text-xs text-gray-500 bg-gray-50 p-2 rounded">
-                              <span>${t("finance.paymentMethod")}:</span>
-                              <span class="font-medium text-gray-900">
-                                ${getPaymentMethodLabel(receiptData.paymentMethod)}
-                              </span>
-                            </div>
-                          </div>
-
-                          <!-- Footer -->
-                          <div class="mt-8 text-center space-y-1">
-                             <p class="text-xs text-gray-400">${t("sales.receiptThanks")}</p>
-                             <p class="text-[10px] text-gray-300">${t("sales.receiptFooterNote")}</p>
-                          </div>
-                        </div>
-                        <script>
-                          window.onload = () => { setTimeout(() => window.print(), 500); };
-                        </script>
-                      </body>
-                    </html>
-                  `);
-                  printWindow.document.close();
-                }
-              }}>
-                <Printer className="w-4 h-4 ml-2" /> {t("common.print")}
-              </Button>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* Receipt dialog is no longer needed as we print directly */}
     </div>
   );
 }

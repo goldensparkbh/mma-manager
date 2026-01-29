@@ -17,10 +17,15 @@ type AuthContextValue = {
     logoUrlLight?: string;
     logoUrlDark?: string;
     managerEmail: string;
-    whatsappTemplate?: string; // Add this
+    whatsappTemplate?: string;
     whatsappTemplates?: WhatsAppTemplate[];
     phone: string;
     location: string;
+    receiptType?: 'thermal' | 'a4';
+    receiptLogoThermal?: string;
+    receiptA4Design?: string;
+    screensaverEnabled?: boolean;
+    screensaverTimeout?: number;
     socials: {
       facebook: string;
       instagram: string;
@@ -85,10 +90,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           logoUrlLight: data.logoUrlLight || "",
           logoUrlDark: data.logoUrlDark || "",
           managerEmail: data.managerEmail || "",
-          whatsappTemplate: data.whatsappTemplate || "", // Add this
+          whatsappTemplate: data.whatsappTemplate || "",
           whatsappTemplates: templates,
           phone: data.phone || "",
           location: data.location || "",
+          receiptType: data.receiptType || 'thermal',
+          receiptLogoThermal: data.receiptLogoThermal || "",
+          receiptA4Design: data.receiptA4Design || "",
+          screensaverEnabled: data.screensaverEnabled ?? false,
+          screensaverTimeout: data.screensaverTimeout ?? 60,
           socials: {
             facebook: data.socials?.facebook || "",
             instagram: data.socials?.instagram || "",

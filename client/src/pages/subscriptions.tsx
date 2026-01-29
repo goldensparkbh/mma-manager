@@ -27,12 +27,15 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Subscription, Member, InsertSubscription, SubscriptionPackage, InsertSubscriptionPackage } from "@shared/schema";
 import { useAuth } from "@/context/auth-context";
 import { useLanguage } from "@/context/language-context";
+import { PERMISSIONS } from "@/lib/permissions";
 import { endOfDay, isAfter, isBefore, parseISO, startOfDay } from "date-fns";
+import { printReceipt as fireReceipt } from "@/lib/receipt-printer";
 
 export default function Subscriptions() {
-  const { role, clubSettings } = useAuth();
-  const { t, language } = useLanguage();
+  const { hasPermission, clubSettings, role } = useAuth();
   const isAdmin = role === "admin";
+  const { t, language } = useLanguage();
+  const canModify = hasPermission(PERMISSIONS.SUBSCRIPTIONS_CREATE);
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("subscriptions");
   const [searchQuery, setSearchQuery] = useState("");
@@ -284,7 +287,13 @@ export default function Subscriptions() {
   };
 
   const printReceipt = (sub: Subscription) => {
-    setReceiptData(sub);
+    fireReceipt({
+      type: 'subscription',
+      data: sub,
+      settings: clubSettings,
+      language: language as any,
+      t
+    });
   };
 
   const filteredSubscriptions = subscriptions?.filter(
@@ -326,13 +335,22 @@ export default function Subscriptions() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" dir={language === 'ar' ? 'rtl' : 'ltr'}>
       {/* Header ... */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        {/* Tabs List */}
-        <TabsList className="mb-8">
-          <TabsTrigger value="subscriptions">{t('subscriptions.tabs.history')}</TabsTrigger>
-          <TabsTrigger value="packages">{t('subscriptions.tabs.packages')}</TabsTrigger>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full" dir={language === 'ar' ? 'rtl' : 'ltr'}>
+        <TabsList className="mb-8 w-full justify-start bg-transparent border-b rounded-none h-auto p-0 gap-8">
+          <TabsTrigger
+            value="subscriptions"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-0 pb-2 text-lg font-bold transition-all"
+          >
+            {t('subscriptions.tabs.history')}
+          </TabsTrigger>
+          <TabsTrigger
+            value="packages"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-0 pb-2 text-lg font-bold transition-all"
+          >
+            {t('subscriptions.tabs.packages')}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="subscriptions" className="space-y-6">
@@ -414,26 +432,31 @@ export default function Subscriptions() {
 
           <Card>
             <CardContent className="p-0">
-              <table className="w-full text-sm" dir="${language === 'ar' ? 'rtl' : 'ltr'}">
-                <thead className="bg-muted/50 border-b">
+              <table className="w-full text-sm" dir={language === 'ar' ? 'rtl' : 'ltr'}>
+                <thead className="bg-muted/50 border-b text-muted-foreground">
                   <tr>
-                    <th className="p-4 text-right">{t('subscriptions.member')}</th>
-                    <th className="p-4 text-right">{t('subscriptions.package')}</th>
-                    <th className="p-4 text-right">{t('common.amount')}</th>
-                    <th className="p-4 text-right">{t('common.date')}</th>
-                    <th className="p-4 text-right">{t('members.status')}</th>
-                    <th className="p-4 text-right">{t('subscriptions.paymentStatus')}</th>
-                    <th className="p-4 text-right">{t('common.actions')}</th>
+                    <th className="p-4 text-start">{t('subscriptions.member')}</th>
+                    <th className="p-4 text-start">{t('subscriptions.package')}</th>
+                    <th className="p-4 text-start">{t('common.amount')}</th>
+                    <th className="p-4 text-start">{t('common.date')}</th>
+                    <th className="p-4 text-start">{t('members.status')}</th>
+                    <th className="p-4 text-start">{t('subscriptions.paymentStatus')}</th>
+                    <th className="p-4 text-start">{t('common.actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredSubscriptions?.map(sub => (
-                    <tr key={sub.id} className="border-b">
-                      <td className="p-4 text-right">{sub.memberName}</td>
-                      <td className="p-4 text-right">{sub.planName}</td>
-                      <td className="p-4 font-bold text-right">{sub.amount} {t("common.currency")}</td>
-                      <td className="p-4 text-xs text-muted-foreground text-right">{sub.startDate} <br /> {sub.endDate}</td>
-                      <td className="p-4 text-right">
+                    <tr key={sub.id} className="border-b hover:bg-muted/5">
+                      <td className="p-4 text-start font-medium text-gray-900">{sub.memberName}</td>
+                      <td className="p-4 text-start">{sub.planName}</td>
+                      <td className="p-4 font-bold text-start">{sub.amount} {t("common.currency")}</td>
+                      <td className="p-4 text-xs text-muted-foreground text-start">
+                        <div className="flex flex-col">
+                          <span>{sub.startDate}</span>
+                          <span className="opacity-50 tracking-tighter">&rarr; {sub.endDate}</span>
+                        </div>
+                      </td>
+                      <td className="p-4 text-start">
                         {(() => {
                           const status = getSubscriptionDisplayStatus(sub);
                           if (status === "active") {
@@ -445,25 +468,27 @@ export default function Subscriptions() {
                           return <Badge variant="secondary">{t('common.expired')}</Badge>;
                         })()}
                       </td>
-                      <td className="p-4 text-right">
+                      <td className="p-4 text-start">
                         {sub.paymentStatus === 'paid' && <Badge variant="outline" className="border-green-500 text-green-600 gap-1"><CheckCircle className="w-3 h-3" /> {t('subscriptions.paid')}</Badge>}
                         {sub.paymentStatus === 'pending' && <Badge variant="outline" className="border-yellow-500 text-yellow-600 gap-1"><Clock className="w-3 h-3" /> {t('subscriptions.pending')}</Badge>}
                         {sub.paymentStatus === 'unpaid' && <Badge variant="outline" className="border-red-500 text-red-600 gap-1"><XCircle className="w-3 h-3" /> {t('subscriptions.unpaid')}</Badge>}
                       </td>
-                      <td className="p-4 text-right flex items-center gap-2">
-                        <Button size="sm" variant="ghost" className="h-8 w-8" onClick={() => printReceipt(sub)} title={t('common.print')}>
-                          <Printer className="w-4 h-4" />
-                        </Button>
-                        <Button size="sm" variant="ghost" className="h-8 w-8" onClick={() => openEditDialog(sub)} title={t('common.edit')}>
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        {isAdmin && (
-                          <Button size="sm" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => {
-                            if (confirm(t("subscriptions.confirmDelete"))) deleteSubscription.mutate(sub.id);
-                          }} title={t("common.delete")}>
-                            <Trash2 className="w-4 h-4" />
+                      <td className="p-4 text-start">
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" variant="ghost" className="h-8 w-8" onClick={() => printReceipt(sub)} title={t('common.print')}>
+                            <Printer className="w-4 h-4" />
                           </Button>
-                        )}
+                          <Button size="sm" variant="ghost" className="h-8 w-8" onClick={() => openEditDialog(sub)} title={t('common.edit')}>
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          {isAdmin && (
+                            <Button size="sm" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => {
+                              if (confirm(t("subscriptions.confirmDelete"))) deleteSubscription.mutate(sub.id);
+                            }} title={t("common.delete")}>
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -474,10 +499,14 @@ export default function Subscriptions() {
         </TabsContent>
 
         <TabsContent value="packages">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="font-semibold">{t("subscriptions.packagesTitle")}</h3>
+          <div className="flex justify-between items-center mb-6" dir={language === 'ar' ? 'rtl' : 'ltr'}>
+            <h3 className="font-semibold text-lg">{t("subscriptions.packagesTitle")}</h3>
             <Dialog open={isPackageDialogOpen} onOpenChange={handlePackageDialogChange}>
-              <DialogTrigger asChild><Button variant="outline" onClick={openCreatePackageDialog}>{t('subscriptions.addPackage')}</Button></DialogTrigger>
+              <DialogTrigger asChild>
+                {canModify && (
+                  <Button variant="outline" onClick={openCreatePackageDialog}>{t('subscriptions.addPackage')}</Button>
+                )}
+              </DialogTrigger>
               <DialogContent><DialogHeader><DialogTitle>{editingPackageId ? t('common.edit') : t('subscriptions.addPackage')}</DialogTitle></DialogHeader>
                 <form onSubmit={handleSubmitPackage} className="space-y-4">
                   <Input placeholder={t("subscriptions.packageNamePlaceholder")} value={packageFormData.name} onChange={e => setPackageFormData({ ...packageFormData, name: e.target.value })} />
@@ -513,108 +542,6 @@ export default function Subscriptions() {
           </div>
         </TabsContent>
       </Tabs>
-
-      {/* Receipt Modal */}
-      <Dialog open={!!receiptData} onOpenChange={(open) => !open && setReceiptData(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>{t("subscriptions.receipt")}</DialogTitle></DialogHeader>
-          {receiptData && (
-            <div className="space-y-6" id="receipt-area">
-              <div className="text-center border-b pb-4">
-                <h2 className="text-xl font-bold">{clubSettings?.name || t("members.clubFallback")}</h2>
-                <p className="text-muted-foreground text-sm">{t("subscriptions.receiptSubtitle")}</p>
-                <p className="text-xs text-muted-foreground mt-1">{t("common.date")}: {new Date().toLocaleDateString(language === 'ar' ? 'ar-BH' : 'en-US')}</p>
-              </div>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between"><span>{t("subscriptions.member")}:</span> <span className="font-medium">{receiptData.memberName}</span></div>
-                <div className="flex justify-between"><span>{t("subscriptions.package")}:</span> <span>{receiptData.planName}</span></div>
-                <div className="flex justify-between"><span>{t("subscriptions.period")}:</span> <span>{receiptData.startDate} - {receiptData.endDate}</span></div>
-                <div className="flex justify-between border-t pt-2 mt-2"><span>{t("common.amount")}:</span> <span className="font-bold text-lg">{receiptData.amount} {t("common.currency")}</span></div>
-                <div className="flex justify-between"><span>{t("subscriptions.paymentStatus")}:</span> <span>{receiptData.paymentStatus === 'paid' ? t('subscriptions.paid') : t('subscriptions.unpaid')}</span></div>
-              </div>
-              <Button className="w-full" onClick={() => {
-                const content = document.getElementById('receipt-area')?.innerHTML;
-                const printWindow = window.open('', '', 'height=600,width=800');
-                if (printWindow) {
-                  printWindow.document.write(`
-                    <html>
-                      <head>
-                        <title>${t("subscriptions.receiptTitle")} - ${receiptData.memberName}</title>
-                        <script src="https://cdn.tailwindcss.com"></script>
-                        <style>
-                          @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
-                          body { font-family: 'Cairo', sans-serif; }
-                          @page { size: 80mm 150mm; margin: 0; }
-                        </style>
-                      </head>
-                      <body class="bg-white p-4" dir="${language === 'ar' ? 'rtl' : 'ltr'}">
-                        <div class="max-w-[80mm] mx-auto">
-                          <!-- Header -->
-                          <div class="flex flex-col items-center mb-6 text-center">
-                            ${clubSettings?.logoUrlLight ? `<img src="${clubSettings.logoUrlLight}" class="w-20 h-20 object-contain mb-2" alt="${t("members.logoAlt")}" />` : ''}
-                            <h1 class="text-xl font-bold text-gray-900">${clubSettings?.name || t("members.clubFallback")}</h1>
-                            <p class="text-xs text-gray-500 mt-1">${new Date().toLocaleDateString(language === 'ar' ? 'ar-BH' : 'en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                          </div>
-
-                          <!-- Receipt Details -->
-                          <div class="border-t-2 border-dashed border-gray-200 py-4 space-y-3">
-                             <div class="flex justify-between items-center text-sm">
-                              <span class="text-gray-500">${t("subscriptions.receiptNumber")}:</span>
-                              <span class="font-mono font-bold">#${receiptData.id.slice(0, 8)}</span>
-                            </div>
-                            <div class="flex justify-between items-center text-sm">
-                              <span class="text-gray-500">${t("subscriptions.member")}:</span>
-                              <span class="font-semibold text-gray-900">${receiptData.memberName}</span>
-                            </div>
-                            <div class="flex justify-between items-center text-sm">
-                              <span class="text-gray-500">${t("subscriptions.package")}:</span>
-                              <span class="font-semibold text-gray-900">${receiptData.planName}</span>
-                            </div>
-                             <div class="flex justify-between items-center text-sm">
-                              <span class="text-gray-500">${t("common.from")}:</span>
-                              <span class="font-mono text-gray-900">${receiptData.startDate}</span>
-                            </div>
-                             <div class="flex justify-between items-center text-sm">
-                              <span class="text-gray-500">${t("common.to")}:</span>
-                              <span class="font-mono text-gray-900">${receiptData.endDate}</span>
-                            </div>
-                          </div>
-
-                          <!-- Totals -->
-                          <div class="border-t-2 border-dashed border-gray-200 pt-4 mt-2">
-                            <div class="flex justify-between items-center mb-4">
-                              <span class="text-base font-bold text-gray-900">${t("subscriptions.totalAmount")}</span>
-                              <span class="text-xl font-bold text-gray-900">${receiptData.amount} {t("common.currency")}</span>
-                            </div>
-                             <div class="flex justify-between items-center text-xs text-gray-500 bg-gray-50 p-2 rounded">
-                              <span>{t("subscriptions.paymentStatus")}:</span>
-                              <span class="font-medium ${receiptData.paymentStatus === 'paid' ? 'text-green-600' : 'text-red-600'}">
-                                ${receiptData.paymentStatus === 'paid' ? t('subscriptions.paid') : t('subscriptions.unpaid')}
-                              </span>
-                            </div>
-                          </div>
-
-                          <!-- Footer -->
-                          <div class="mt-8 text-center space-y-1">
-                             <p class="text-xs text-gray-400">${t("subscriptions.receiptThanks")}</p>
-                             <p class="text-[10px] text-gray-300">${t("subscriptions.receiptFooterNote")}</p>
-                          </div>
-                        </div>
-                        <script>
-                          window.onload = () => { setTimeout(() => window.print(), 500); };
-                        </script>
-                      </body>
-                    </html>
-                  `);
-                  printWindow.document.close();
-                }
-              }}>
-                <Printer className="w-4 h-4 ml-2" /> {t("common.print")}
-              </Button>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

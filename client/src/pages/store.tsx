@@ -27,6 +27,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Product, InsertProduct, CartItem, InsertSale } from "@shared/schema";
 import { useAuth } from "@/context/auth-context";
 import { useLanguage } from "@/context/language-context";
+import { PERMISSIONS } from "@/lib/permissions";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 
@@ -49,12 +50,11 @@ const defaultCategoryValues = [
   "general",
 ];
 
-
-
 export default function Store() {
-  const { role } = useAuth();
+  const { hasPermission } = useAuth();
   const { t } = useLanguage();
-  const isAdmin = role === "admin";
+  const canModify = hasPermission(PERMISSIONS.STORE_CREATE);
+  const canSell = hasPermission(PERMISSIONS.SALES_CREATE);
   const { toast } = useToast();
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -443,8 +443,8 @@ export default function Store() {
 
   const filteredProducts = products?.filter((product) => {
     const matchesSearch =
-      product.name.includes(searchQuery) ||
-      product.description?.includes(searchQuery) ||
+      product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      product.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       false;
     const matchesCategory = !selectedCategory || product.category === selectedCategory;
     return matchesSearch && matchesCategory;
@@ -471,162 +471,164 @@ export default function Store() {
           <p className="text-sm text-muted-foreground">{t('store.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Dialog open={isDialogOpen} onOpenChange={handleProductDialogChange}>
-            <DialogTrigger asChild>
-              <Button data-testid="button-add-product" onClick={openCreateDialog}>
-                <Plus className="h-4 w-4 ml-2" />
-                {t('store.addProduct')}
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <Package className="h-5 w-5" />
-                  {isEditing ? t('common.edit') : t('store.addProduct')}
-                </DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label>{t("store.productName")} *</Label>
-                  <Input
-                    placeholder={t("store.productNamePlaceholder")}
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    data-testid="input-product-name"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>{t("common.description")}</Label>
-                  <Textarea
-                    placeholder={t("store.descriptionPlaceholder")}
-                    rows={2}
-                    value={formData.description ?? ""}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    data-testid="input-product-description"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {canModify && (
+            <Dialog open={isDialogOpen} onOpenChange={handleProductDialogChange}>
+              <DialogTrigger asChild>
+                <Button data-testid="button-add-product" onClick={openCreateDialog}>
+                  <Plus className="h-4 w-4 ml-2" />
+                  {t('store.addProduct')}
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Package className="h-5 w-5" />
+                    {isEditing ? t('common.edit') : t('store.addProduct')}
+                  </DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="space-y-2">
-                    <Label>{t("store.price")} ({t("common.currency")}) *</Label>
+                    <Label>{t("store.productName")} *</Label>
                     <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="0.00"
-                      value={formData.price || ""}
-                      onChange={(e) =>
-                        setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })
-                      }
-                      data-testid="input-product-price"
+                      placeholder={t("store.productNamePlaceholder")}
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      data-testid="input-product-name"
                     />
                   </div>
+
                   <div className="space-y-2">
-                    <Label>{t("store.quantity")} *</Label>
-                    <Input
-                      type="number"
-                      placeholder="0"
-                      value={formData.stock || ""}
-                      onChange={(e) =>
-                        setFormData({ ...formData, stock: parseInt(e.target.value) || 0 })
-                      }
-                      data-testid="input-product-stock"
+                    <Label>{t("common.description")}</Label>
+                    <Textarea
+                      placeholder={t("store.descriptionPlaceholder")}
+                      rows={2}
+                      value={formData.description ?? ""}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      data-testid="input-product-description"
                     />
                   </div>
-                </div>
 
-                <div className="space-y-2">
-                  <Label>{t("store.category")}</Label>
-                  <Select
-                    value={formData.category}
-                    onValueChange={(v) => setFormData({ ...formData, category: v })}
-                  >
-                    <SelectTrigger data-testid="select-product-category">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categoryOptions.map((cat) => (
-                        <SelectItem key={cat} value={cat}>
-                          {getCategoryLabel(cat)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>{t("store.productImage")}</Label>
-                  <div className="flex items-center gap-4">
-                    <label className="cursor-pointer flex-1">
-                      <div className="flex items-center justify-center gap-2 border-2 border-dashed rounded-lg p-4 hover:border-primary/50 transition-colors">
-                        <ImagePlus className="h-5 w-5 text-muted-foreground" />
-                        <span className="text-sm text-muted-foreground">{t("store.selectImage")}</span>
-                      </div>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleImageUpload}
-                        data-testid="input-product-image"
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>{t("store.price")} ({t("common.currency")}) *</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={formData.price || ""}
+                        onChange={(e) =>
+                          setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })
+                        }
+                        data-testid="input-product-price"
                       />
-                    </label>
-                    {imagePreview && (
-                      <div className="relative w-16 h-16 rounded-lg overflow-hidden border">
-                        <img
-                          src={imagePreview}
-                          alt={t("common.preview")}
-                          className="w-full h-full object-cover"
+                    </div>
+                    <div className="space-y-2">
+                      <Label>{t("store.quantity")} *</Label>
+                      <Input
+                        type="number"
+                        placeholder="0"
+                        value={formData.stock || ""}
+                        onChange={(e) =>
+                          setFormData({ ...formData, stock: parseInt(e.target.value) || 0 })
+                        }
+                        data-testid="input-product-stock"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>{t("store.category")}</Label>
+                    <Select
+                      value={formData.category}
+                      onValueChange={(v) => setFormData({ ...formData, category: v })}
+                    >
+                      <SelectTrigger data-testid="select-product-category">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categoryOptions.map((cat) => (
+                          <SelectItem key={cat} value={cat}>
+                            {getCategoryLabel(cat)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>{t("store.productImage")}</Label>
+                    <div className="flex items-center gap-4">
+                      <label className="cursor-pointer flex-1">
+                        <div className="flex items-center justify-center gap-2 border-2 border-dashed rounded-lg p-4 hover:border-primary/50 transition-colors">
+                          <ImagePlus className="h-5 w-5 text-muted-foreground" />
+                          <span className="text-sm text-muted-foreground">{t("store.selectImage")}</span>
+                        </div>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleImageUpload}
+                          data-testid="input-product-image"
                         />
-                        <button
-                          type="button"
-                          className="absolute top-0 right-0 bg-destructive text-destructive-foreground rounded-full p-0.5"
-                          onClick={() => {
-                            if (imagePreview?.startsWith("blob:")) {
-                              URL.revokeObjectURL(imagePreview);
-                            }
-                            setImagePreview(null);
-                            setImageFile(null);
-                            setFormData((prev) => ({ ...prev, imageUrl: "" }));
-                          }}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                      </div>
+                      </label>
+                      {imagePreview && (
+                        <div className="relative w-16 h-16 rounded-lg overflow-hidden border">
+                          <img
+                            src={imagePreview}
+                            alt={t("common.preview")}
+                            className="w-full h-full object-cover"
+                          />
+                          <button
+                            type="button"
+                            className="absolute top-0 right-0 bg-destructive text-destructive-foreground rounded-full p-0.5"
+                            onClick={() => {
+                              if (imagePreview?.startsWith("blob:")) {
+                                URL.revokeObjectURL(imagePreview);
+                              }
+                              setImagePreview(null);
+                              setImageFile(null);
+                              setFormData((prev) => ({ ...prev, imageUrl: "" }));
+                            }}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button
+                      type="submit"
+                      className="flex-1"
+                      disabled={createProduct.isPending || updateProduct.isPending}
+                      data-testid="button-submit-product"
+                    >
+                      {createProduct.isPending || updateProduct.isPending
+                        ? t('common.loading')
+                        : isEditing
+                          ? t('common.save')
+                          : t('common.save')}
+                    </Button>
+
+                    {isEditing && editingProduct && canModify && (
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        onClick={() => {
+                          if (confirm(t('store.deleteConfirm'))) {
+                            deleteProduct.mutate(editingProduct.id);
+                          }
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     )}
                   </div>
-                </div>
-
-                <div className="flex gap-2">
-                  <Button
-                    type="submit"
-                    className="flex-1"
-                    disabled={createProduct.isPending || updateProduct.isPending}
-                    data-testid="button-submit-product"
-                  >
-                    {createProduct.isPending || updateProduct.isPending
-                      ? t('common.loading')
-                      : isEditing
-                        ? t('common.save')
-                        : t('common.save')}
-                  </Button>
-
-                  {isEditing && editingProduct && isAdmin && (
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      onClick={() => {
-                        if (confirm(t('store.deleteConfirm'))) {
-                          deleteProduct.mutate(editingProduct.id);
-                        }
-                      }}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  )}
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
+                </form>
+              </DialogContent>
+            </Dialog>
+          )}
 
           <Dialog open={isCartOpen} onOpenChange={setIsCartOpen}>
             <DialogTrigger asChild>
@@ -675,7 +677,7 @@ export default function Store() {
                               size="icon"
                               variant="outline"
                               className="h-8 w-8"
-                              onClick={() => updateCartQuantity(item.product.id, -1)}
+                              onClick={() => canSell && updateCartQuantity(item.product.id, -1)}
                             >
                               <Minus className="h-3 w-3" />
                             </Button>
@@ -684,8 +686,8 @@ export default function Store() {
                               size="icon"
                               variant="outline"
                               className="h-8 w-8"
-                              onClick={() => updateCartQuantity(item.product.id, 1)}
-                              disabled={atStockLimit}
+                              onClick={() => canSell && updateCartQuantity(item.product.id, 1)}
+                              disabled={atStockLimit || !canSell}
                             >
                               <Plus className="h-3 w-3" />
                             </Button>
@@ -693,7 +695,7 @@ export default function Store() {
                               size="icon"
                               variant="ghost"
                               className="h-8 w-8 text-destructive"
-                              onClick={() => removeFromCart(item.product.id)}
+                              onClick={() => canSell && removeFromCart(item.product.id)}
                             >
                               <Trash2 className="h-3 w-3" />
                             </Button>
@@ -716,14 +718,16 @@ export default function Store() {
                       <span className="font-bold">{t("store.total")}:</span>
                       <span className="text-xl font-bold">{cartTotal.toFixed(2)} {t("common.currency")}</span>
                     </div>
-                    <Button
-                      className="w-full"
-                      onClick={() => createSale.mutate({ items: cart, buyerName: customerName })}
-                      disabled={createSale.isPending}
-                      data-testid="button-checkout"
-                    >
-                      {createSale.isPending ? t("store.checkoutLoading") : t("store.checkout")}
-                    </Button>
+                    {canSell && (
+                      <Button
+                        className="w-full"
+                        onClick={() => createSale.mutate({ items: cart, buyerName: customerName })}
+                        disabled={createSale.isPending}
+                        data-testid="button-checkout"
+                      >
+                        {createSale.isPending ? t("store.checkoutLoading") : t("store.checkout")}
+                      </Button>
+                    )}
                   </div>
                 </div>
               )}
@@ -778,7 +782,7 @@ export default function Store() {
         </div>
       </div>
 
-      {isAdmin && (
+      {canModify && (
         <Card>
           <CardHeader>
             <CardTitle>{t("store.categoriesTitle")}</CardTitle>
@@ -839,18 +843,18 @@ export default function Store() {
                 <Card
                   key={product.id}
                   className="overflow-hidden cursor-pointer relative"
-                  onClick={() => openEditDialog(product)}
+                  onClick={() => canModify && openEditDialog(product)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
-                      openEditDialog(product);
+                      canModify && openEditDialog(product);
                     }
                   }}
                   role="button"
                   tabIndex={0}
                   data-testid={`card-product-${product.id}`}
                 >
-                  {isAdmin && (
+                  {canModify && (
                     <Button
                       size="icon"
                       variant="ghost"
@@ -901,7 +905,7 @@ export default function Store() {
                           e.stopPropagation();
                           addToCart(product);
                         }}
-                        disabled={isOutOfStock}
+                        disabled={isOutOfStock || !canSell}
                         data-testid={`button-add-to-cart-${product.id}`}
                       >
                         {isOutOfStock ? t("store.outOfStock") : t("store.addToCart")}
@@ -940,8 +944,8 @@ export default function Store() {
                   return (
                     <tr
                       key={product.id}
-                      className="border-b hover:bg-muted/50 cursor-pointer"
-                      onClick={() => openEditDialog(product)}
+                      className={`border-b hover:bg-muted/50 ${canModify ? 'cursor-pointer' : 'cursor-default'}`}
+                      onClick={() => canModify && openEditDialog(product)}
                     >
                       <td className="p-4">
                         <div className="flex items-center gap-3">
@@ -975,11 +979,11 @@ export default function Store() {
                             e.stopPropagation();
                             addToCart(product);
                           }}
-                          disabled={isOutOfStock}
+                          disabled={isOutOfStock || !canSell}
                         >
                           {isOutOfStock ? t('store.outOfStock') : t('store.addToCart')}
                         </Button>
-                        {isAdmin && (
+                        {canModify && (
                           <Button
                             size="icon"
                             variant="ghost"

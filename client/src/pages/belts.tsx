@@ -16,11 +16,15 @@ import { queryClient } from "@/lib/queryClient";
 import type { Belt, InsertBelt } from "@shared/schema";
 import { getBelts, createBelt, updateBelt, deleteBelt as deleteBeltData } from "@/lib/firebaseData";
 import { useLanguage } from "@/context/language-context";
+import { useAuth } from "@/context/auth-context";
+import { PERMISSIONS } from "@/lib/permissions";
 import { Plus, Trash2, Loader2, Pencil } from "lucide-react";
 
 export default function Belts() {
+    const { hasPermission } = useAuth();
     const { toast } = useToast();
     const { t } = useLanguage();
+    const canModify = hasPermission(PERMISSIONS.BELTS_CREATE);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingBelt, setEditingBelt] = useState<Belt | null>(null);
     const [formData, setFormData] = useState<Partial<InsertBelt>>({
@@ -125,56 +129,58 @@ export default function Belts() {
                     <h1 className="text-2xl font-bold">{t('belts.title')}</h1>
                     <p className="text-sm text-muted-foreground">{t('belts.subtitle')}</p>
                 </div>
-                <Dialog open={isDialogOpen} onOpenChange={handleDialogChange}>
-                    <DialogTrigger asChild>
-                        <Button onClick={openCreateDialog}>
-                            <Plus className="h-4 w-4 ml-2" />
-                            {t('belts.addBelt')}
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-md">
-                        <DialogHeader><DialogTitle>{editingBelt ? t('common.edit') : t('belts.addBelt')}</DialogTitle></DialogHeader>
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <div className="space-y-2">
-                                <Label>{t('belts.beltName')}</Label>
-                                <Input
-                                    placeholder={t("belts.namePlaceholder")}
-                                    value={formData.name}
-                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
+                {canModify && (
+                    <Dialog open={isDialogOpen} onOpenChange={handleDialogChange}>
+                        <DialogTrigger asChild>
+                            <Button onClick={openCreateDialog}>
+                                <Plus className="h-4 w-4 ml-2" />
+                                {t('belts.addBelt')}
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-md">
+                            <DialogHeader><DialogTitle>{editingBelt ? t('common.edit') : t('belts.addBelt')}</DialogTitle></DialogHeader>
+                            <form onSubmit={handleSubmit} className="space-y-4">
                                 <div className="space-y-2">
-                                    <Label>{t('belts.order')}</Label>
+                                    <Label>{t('belts.beltName')}</Label>
                                     <Input
-                                        type="number"
-                                        value={formData.order}
-                                        onChange={(e) => setFormData({ ...formData, order: parseInt(e.target.value) })}
+                                        placeholder={t("belts.namePlaceholder")}
+                                        value={formData.name}
+                                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                     />
                                 </div>
-                                <div className="space-y-2">
-                                    <Label>{t('belts.color')}</Label>
-                                    <div className="flex gap-2">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label>{t('belts.order')}</Label>
                                         <Input
-                                            type="color"
-                                            value={formData.color}
-                                            className="w-12 p-1"
-                                            onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                                        />
-                                        <Input
-                                            value={formData.color}
-                                            onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                                            className="flex-1 font-mono uppercase"
+                                            type="number"
+                                            value={formData.order}
+                                            onChange={(e) => setFormData({ ...formData, order: parseInt(e.target.value) })}
                                         />
                                     </div>
+                                    <div className="space-y-2">
+                                        <Label>{t('belts.color')}</Label>
+                                        <div className="flex gap-2">
+                                            <Input
+                                                type="color"
+                                                value={formData.color}
+                                                className="w-12 p-1"
+                                                onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                                            />
+                                            <Input
+                                                value={formData.color}
+                                                onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                                                className="flex-1 font-mono uppercase"
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                            <Button type="submit" className="w-full" disabled={createBeltMutation.isPending || updateBeltMutation.isPending}>
-                                {createBeltMutation.isPending || updateBeltMutation.isPending ? t('common.loading') : t('common.save')}
-                            </Button>
-                        </form>
-                    </DialogContent>
-                </Dialog>
+                                <Button type="submit" className="w-full" disabled={createBeltMutation.isPending || updateBeltMutation.isPending}>
+                                    {createBeltMutation.isPending || updateBeltMutation.isPending ? t('common.loading') : t('common.save')}
+                                </Button>
+                            </form>
+                        </DialogContent>
+                    </Dialog>
+                )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -184,29 +190,33 @@ export default function Belts() {
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-lg font-medium">{belt.name}</CardTitle>
                             <div className="flex items-center gap-1">
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                                    onClick={() => openEditDialog(belt)}
-                                >
-                                    <Pencil className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                    onClick={() => {
-                                        if (confirm(`${t('common.deleteConfirm')} ${belt.name}?`)) {
-                                            deleteBeltMutation.mutate(belt.id);
-                                        }
-                                    }}
-                                >
-                                    {deleteBeltMutation.isPending && deleteBeltMutation.variables === belt.id ?
-                                        <Loader2 className="h-4 w-4 animate-spin" /> :
-                                        <Trash2 className="h-4 w-4" />
-                                    }
-                                </Button>
+                                {canModify && (
+                                    <>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                                            onClick={() => openEditDialog(belt)}
+                                        >
+                                            <Pencil className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                            onClick={() => {
+                                                if (confirm(`${t('common.deleteConfirm')} ${belt.name}?`)) {
+                                                    deleteBeltMutation.mutate(belt.id);
+                                                }
+                                            }}
+                                        >
+                                            {deleteBeltMutation.isPending && deleteBeltMutation.variables === belt.id ?
+                                                <Loader2 className="h-4 w-4 animate-spin" /> :
+                                                <Trash2 className="h-4 w-4" />
+                                            }
+                                        </Button>
+                                    </>
+                                )}
                             </div>
                         </CardHeader>
                         <CardContent>

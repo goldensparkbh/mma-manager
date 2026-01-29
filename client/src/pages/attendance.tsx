@@ -13,7 +13,12 @@ import { cn } from "@/lib/utils";
 import type { Attendance, Member, InsertAttendance } from "@shared/schema";
 import { useLanguage } from "@/context/language-context";
 
+import { useAuth } from "@/context/auth-context";
+import { PERMISSIONS } from "@/lib/permissions";
+
 export default function AttendancePage() {
+  const { hasPermission } = useAuth();
+  const canModify = hasPermission(PERMISSIONS.ATTENDANCE_CREATE);
   const { toast } = useToast();
   const { t, language } = useLanguage();
   const [searchQuery, setSearchQuery] = useState("");
@@ -200,12 +205,13 @@ export default function AttendancePage() {
               <Card
                 key={member.id}
                 className={cn(
-                  "cursor-pointer transition border hover:shadow-sm",
+                  "transition border hover:shadow-sm",
+                  canModify ? "cursor-pointer" : "cursor-default opacity-80",
                   isPresent
                     ? "border-green-500/70 bg-green-50/60 dark:bg-green-900/10"
                     : "hover:border-primary/40"
                 )}
-                onClick={() => handleToggleAttendance(member)}
+                onClick={() => canModify && handleToggleAttendance(member)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();

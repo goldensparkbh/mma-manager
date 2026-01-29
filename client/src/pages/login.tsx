@@ -54,11 +54,17 @@ export default function Login() {
 
       {/* Login Form Column */}
       <div className="flex flex-col items-center justify-center p-8 bg-background">
-        <img
-          src={clubSettings?.logoUrlLight || clubSettings?.logoUrlDark || "/logo_light_full.svg"}
-          alt={t("login.logoAlt")}
-          className="w-48 mb-6 object-contain max-h-32"
-        />
+        {(clubSettings?.logoUrlLight || clubSettings?.logoUrlDark) ? (
+          <img
+            src={clubSettings?.logoUrlLight || clubSettings?.logoUrlDark}
+            alt={clubSettings?.name || t("login.logoAlt")}
+            className="w-48 mb-6 object-contain max-h-32"
+          />
+        ) : (
+          <h1 className="text-4xl font-black mb-8 text-primary uppercase tracking-tighter">
+            {clubSettings?.name || t("common.appName")}
+          </h1>
+        )}
         <Card className="w-full max-w-md border-none shadow-none lg:border lg:shadow-sm">
           <CardHeader>
             <CardTitle className="text-center text-3xl font-bold tracking-tight">{t("login.title")}</CardTitle>

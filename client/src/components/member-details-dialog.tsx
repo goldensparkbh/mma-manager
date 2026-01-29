@@ -932,7 +932,7 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                 `),
         };
 
-        const defaultLogoUrl = "/logo_light_icon.svg";
+        const defaultLogoUrl = ""; // No local fallback
         const legacyLogoUrl = clubSettings?.logoUrl && clubSettings.logoUrl !== "/logo_dark_icon.svg"
             ? clubSettings.logoUrl
             : "";

@@ -1,119 +1,127 @@
 export const PERMISSIONS = {
     // Members
     MEMBERS_VIEW: "members.view",
-    MEMBERS_CREATE: "members.create",
-    MEMBERS_UPDATE: "members.update",
-    MEMBERS_DELETE: "members.delete",
+    MEMBERS_CREATE: "members.modify",
+    MEMBERS_UPDATE: "members.modify",
+    MEMBERS_DELETE: "members.modify",
 
     // Attendance
     ATTENDANCE_VIEW: "attendance.view",
-    ATTENDANCE_CREATE: "attendance.create",
-    ATTENDANCE_DELETE: "attendance.delete",
+    ATTENDANCE_CREATE: "attendance.modify",
+    ATTENDANCE_DELETE: "attendance.modify",
 
     // Belts
     BELTS_VIEW: "belts.view",
-    BELTS_UPDATE: "belts.update",
+    BELTS_CREATE: "belts.modify",
+    BELTS_UPDATE: "belts.modify",
+    BELTS_DELETE: "belts.modify",
 
     // Subscriptions & Packages
     SUBSCRIPTIONS_VIEW: "subscriptions.view",
-    SUBSCRIPTIONS_CREATE: "subscriptions.create",
-    SUBSCRIPTIONS_UPDATE: "subscriptions.update",
-    SUBSCRIPTIONS_DELETE: "subscriptions.delete",
-    PACKAGES_MANAGE: "packages.manage", // Create/Delete packages
+    SUBSCRIPTIONS_CREATE: "subscriptions.modify",
+    SUBSCRIPTIONS_UPDATE: "subscriptions.modify",
+    SUBSCRIPTIONS_DELETE: "subscriptions.modify",
+    PACKAGES_MANAGE: "subscriptions.modify",
 
     // Store & Products
     STORE_VIEW: "store.view",
-    STORE_CREATE: "store.create",
-    STORE_UPDATE: "store.update",
-    STORE_DELETE: "store.delete",
+    STORE_CREATE: "store.modify",
+    STORE_UPDATE: "store.modify",
+    STORE_DELETE: "store.modify",
 
     // Sales
     SALES_VIEW: "sales.view",
-    SALES_CREATE: "sales.create",
-    SALES_UPDATE: "sales.update", // e.g. cancel
-    SALES_DELETE: "sales.delete",
+    SALES_CREATE: "sales.modify",
+    SALES_UPDATE: "sales.modify",
+    SALES_DELETE: "sales.modify",
 
-    // Finance
+    // Finance (Includes Expenses)
     FINANCE_VIEW: "finance.view",
-    EXPENSES_CREATE: "expenses.create",
-    EXPENSES_UPDATE: "expenses.update",
-    EXPENSES_DELETE: "expenses.delete",
+    FINANCE_CREATE: "finance.modify",
+    EXPENSES_CREATE: "finance.modify",
+    EXPENSES_UPDATE: "finance.modify",
+    EXPENSES_DELETE: "finance.modify",
 
-    // System
+    // System (Users, Roles)
     USERS_VIEW: "users.view",
-    USERS_MANAGE: "users.manage", // Create/Delete/Role assign
-    ROLES_MANAGE: "roles.manage",
+    USERS_MANAGE: "users.modify",
+    ROLES_MANAGE: "users.modify",
+
+    // Logs
     LOGS_VIEW: "logs.view",
+
+    // Settings
+    SETTINGS_VIEW: "settings.view",
+    SETTINGS_MODIFY: "settings.modify",
 } as const;
 
 export const PERMISSION_GROUPS = [
     {
         label: "permissions.groups.members",
         permissions: [
-            { id: PERMISSIONS.MEMBERS_VIEW, label: "permissions.items.membersView" },
-            { id: PERMISSIONS.MEMBERS_CREATE, label: "permissions.items.membersCreate" },
-            { id: PERMISSIONS.MEMBERS_UPDATE, label: "permissions.items.membersUpdate" },
-            { id: PERMISSIONS.MEMBERS_DELETE, label: "permissions.items.membersDelete" },
+            { id: PERMISSIONS.MEMBERS_VIEW, label: "permissions.items.view" },
+            { id: "members.modify", label: "permissions.items.modify" },
         ]
     },
     {
         label: "permissions.groups.attendance",
         permissions: [
-            { id: PERMISSIONS.ATTENDANCE_VIEW, label: "permissions.items.attendanceView" },
-            { id: PERMISSIONS.ATTENDANCE_CREATE, label: "permissions.items.attendanceCreate" },
-            { id: PERMISSIONS.ATTENDANCE_DELETE, label: "permissions.items.attendanceDelete" },
+            { id: PERMISSIONS.ATTENDANCE_VIEW, label: "permissions.items.view" },
+            { id: "attendance.modify", label: "permissions.items.modify" },
         ]
     },
     {
         label: "permissions.groups.belts",
         permissions: [
-            { id: PERMISSIONS.BELTS_VIEW, label: "permissions.items.beltsView" },
-            { id: PERMISSIONS.BELTS_UPDATE, label: "permissions.items.beltsUpdate" },
+            { id: PERMISSIONS.BELTS_VIEW, label: "permissions.items.view" },
+            { id: "belts.modify", label: "permissions.items.modify" },
         ]
     },
     {
         label: "permissions.groups.subscriptions",
         permissions: [
-            { id: PERMISSIONS.SUBSCRIPTIONS_VIEW, label: "permissions.items.subscriptionsView" },
-            { id: PERMISSIONS.SUBSCRIPTIONS_CREATE, label: "permissions.items.subscriptionsCreate" },
-            { id: PERMISSIONS.SUBSCRIPTIONS_UPDATE, label: "permissions.items.subscriptionsUpdate" },
-            { id: PERMISSIONS.SUBSCRIPTIONS_DELETE, label: "permissions.items.subscriptionsDelete" },
-            { id: PERMISSIONS.PACKAGES_MANAGE, label: "permissions.items.packagesManage" },
+            { id: PERMISSIONS.SUBSCRIPTIONS_VIEW, label: "permissions.items.view" },
+            { id: "subscriptions.modify", label: "permissions.items.modify" },
         ]
     },
     {
         label: "permissions.groups.store",
         permissions: [
-            { id: PERMISSIONS.STORE_VIEW, label: "permissions.items.storeView" },
-            { id: PERMISSIONS.STORE_CREATE, label: "permissions.items.storeCreate" },
-            { id: PERMISSIONS.STORE_UPDATE, label: "permissions.items.storeUpdate" },
-            { id: PERMISSIONS.STORE_DELETE, label: "permissions.items.storeDelete" },
+            { id: PERMISSIONS.STORE_VIEW, label: "permissions.items.view" },
+            { id: "store.modify", label: "permissions.items.modify" },
         ]
     },
     {
         label: "permissions.groups.sales",
         permissions: [
-            { id: PERMISSIONS.SALES_VIEW, label: "permissions.items.salesView" },
-            { id: PERMISSIONS.SALES_CREATE, label: "permissions.items.salesCreate" },
-            { id: PERMISSIONS.SALES_UPDATE, label: "permissions.items.salesUpdate" },
-            { id: PERMISSIONS.SALES_DELETE, label: "permissions.items.salesDelete" },
+            { id: PERMISSIONS.SALES_VIEW, label: "permissions.items.view" },
+            { id: "sales.modify", label: "permissions.items.modify" },
         ]
     },
     {
         label: "permissions.groups.finance",
         permissions: [
-            { id: PERMISSIONS.FINANCE_VIEW, label: "permissions.items.financeView" },
-            { id: PERMISSIONS.EXPENSES_CREATE, label: "permissions.items.expensesCreate" },
-            { id: PERMISSIONS.EXPENSES_UPDATE, label: "permissions.items.expensesUpdate" },
-            { id: PERMISSIONS.EXPENSES_DELETE, label: "permissions.items.expensesDelete" },
+            { id: PERMISSIONS.FINANCE_VIEW, label: "permissions.items.view" },
+            { id: "finance.modify", label: "permissions.items.modify" },
+        ]
+    },
+    {
+        label: "permissions.groups.users",
+        permissions: [
+            { id: PERMISSIONS.USERS_VIEW, label: "permissions.items.view" },
+            { id: "users.modify", label: "permissions.items.modify" },
+        ]
+    },
+    {
+        label: "permissions.groups.settings",
+        permissions: [
+            { id: "settings.view", label: "permissions.items.view" },
+            { id: "settings.modify", label: "permissions.items.modify" },
         ]
     },
     {
         label: "permissions.groups.system",
         permissions: [
-            { id: PERMISSIONS.USERS_VIEW, label: "permissions.items.usersView" },
-            { id: PERMISSIONS.USERS_MANAGE, label: "permissions.items.usersManage" },
-            { id: PERMISSIONS.ROLES_MANAGE, label: "permissions.items.rolesManage" },
             { id: PERMISSIONS.LOGS_VIEW, label: "permissions.items.logsView" },
         ]
     }

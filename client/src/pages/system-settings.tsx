@@ -11,7 +11,12 @@ import { db, storage } from "@/lib/firebase";
 import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { updatePassword, updateEmail } from "firebase/auth";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { Settings, UserCog, Building2, Save, ImageIcon, Loader2, Package, Plus, Trash2 } from "lucide-react";
+import {
+    Settings, UserCog, Building2, Save, ImageIcon, Loader2,
+    Package, Plus, Trash2, Download, Upload, Database,
+    AlertTriangle, Languages, RefreshCcw, Github, Info,
+    CheckCircle, Zap, ShieldCheck, Key, Sparkles
+} from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { getSubscriptionPackages } from "@/lib/firebaseData";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -19,7 +24,6 @@ import type { SubscriptionPackage } from "@shared/schema";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { collection, getDocs, writeBatch } from "firebase/firestore";
-import { Download, Upload, Database, AlertTriangle, Languages } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useLanguage } from "@/context/language-context";
 import { clearDatabase, exportFullDatabase, importFullDatabase } from "@/lib/backup-utils";
@@ -35,12 +39,12 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { RefreshCcw, Github, Info, CheckCircle } from "lucide-react";
 import { APP_VERSION } from "@/lib/app-version";
 import { compareVersions } from "@/lib/utils"; // I'll need to create or verify this. Actually I'll use a simple string compare if needed or add it.
 
 
 import { Badge } from "@/components/ui/badge";
+import { PERMISSIONS } from "@/lib/permissions";
 
 type ClubProfile = {
     name: string;
@@ -58,16 +62,24 @@ type ClubProfile = {
     };
     whatsappTemplates: WhatsAppTemplate[];
     githubToken: string;
+    receiptType: 'thermal' | 'a4';
+    receiptLogoThermal: string;
+    receiptA4Design: string;
+    screensaverEnabled: boolean;
+    screensaverTimeout: number;
 };
 
 export default function SystemSettings() {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const { user, refreshClubSettings } = useAuth();
+    const { user, refreshClubSettings, hasPermission } = useAuth();
+    const canModify = hasPermission(PERMISSIONS.SETTINGS_MODIFY);
     const { toast } = useToast();
     const [loading, setLoading] = useState(false);
     const [progressStatus, setProgressStatus] = useState("");
     const [logoFileLight, setLogoFileLight] = useState<File | null>(null);
     const [logoFileDark, setLogoFileDark] = useState<File | null>(null);
+    const [thermalLogoFile, setThermalLogoFile] = useState<File | null>(null);
+    const [a4DesignFile, setA4DesignFile] = useState<File | null>(null);
 
     // Backup Import States
     const [importJsonFile, setImportJsonFile] = useState<File | null>(null);
@@ -98,6 +110,11 @@ export default function SystemSettings() {
         },
         whatsappTemplates: [],
         githubToken: "",
+        receiptType: 'thermal',
+        receiptLogoThermal: "",
+        receiptA4Design: "",
+        screensaverEnabled: false,
+        screensaverTimeout: 60,
     });
 
     const [credForm, setCredForm] = useState({
@@ -149,6 +166,11 @@ export default function SystemSettings() {
                     },
                     whatsappTemplates: templates,
                     githubToken: data.githubToken || "",
+                    receiptType: data.receiptType || 'thermal',
+                    receiptLogoThermal: data.receiptLogoThermal || "",
+                    receiptA4Design: data.receiptA4Design || "",
+                    screensaverEnabled: data.screensaverEnabled ?? false,
+                    screensaverTimeout: data.screensaverTimeout ?? 60,
                 });
                 setSelectedTemplateId(templates[0]?.id || null);
             }
@@ -175,6 +197,21 @@ export default function SystemSettings() {
                 finalLogoUrlDark = await getDownloadURL(logoRef);
             }
 
+            let finalThermalLogoUrl = clubProfile.receiptLogoThermal;
+            let finalA4DesignUrl = clubProfile.receiptA4Design;
+
+            if (thermalLogoFile) {
+                const logoRef = ref(storage, "club/receipt_thermal_logo");
+                await uploadBytes(logoRef, thermalLogoFile);
+                finalThermalLogoUrl = await getDownloadURL(logoRef);
+            }
+
+            if (a4DesignFile) {
+                const designRef = ref(storage, "club/receipt_a4_design");
+                await uploadBytes(designRef, a4DesignFile);
+                finalA4DesignUrl = await getDownloadURL(designRef);
+            }
+
             const socialLinks = clubProfile.socialLinks ?? {};
             await setDoc(doc(db, "settings", "general"), {
                 name: clubProfile.name,
@@ -194,6 +231,11 @@ export default function SystemSettings() {
                 whatsappTemplate: clubProfile.whatsappTemplates[0]?.body || "",
                 whatsappTemplates: clubProfile.whatsappTemplates,
                 githubToken: clubProfile.githubToken || "",
+                receiptType: clubProfile.receiptType,
+                receiptLogoThermal: finalThermalLogoUrl,
+                receiptA4Design: finalA4DesignUrl,
+                screensaverEnabled: clubProfile.screensaverEnabled,
+                screensaverTimeout: clubProfile.screensaverTimeout,
             }, { merge: true });
 
             await refreshClubSettings();
@@ -513,7 +555,7 @@ export default function SystemSettings() {
 
     return (
         <div className="space-y-6 max-w-5xl mx-auto" dir={dir}>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 text-start justify-start">
                 <Settings className="w-8 h-8 text-primary" />
                 <div>
                     <h1 className="text-2xl font-bold">{t("settings.title")}</h1>
@@ -521,13 +563,16 @@ export default function SystemSettings() {
                 </div>
             </div>
 
-            <Tabs defaultValue="profile" className="w-full">
-                <TabsList className="grid w-full grid-cols-4 max-w-[800px]">
-                    <TabsTrigger value="profile">{t("settings.tabs.profile")}</TabsTrigger>
-                    <TabsTrigger value="admin">{t("settings.tabs.admin")}</TabsTrigger>
-                    <TabsTrigger value="backup">{t("settings.tabs.backup")}</TabsTrigger>
-                    <TabsTrigger value="update">{t("settings.tabs.update")}</TabsTrigger>
-                </TabsList>
+            <Tabs defaultValue="profile" className="w-full" dir={dir}>
+                <div className="flex justify-start mb-6">
+                    <TabsList className="w-auto inline-flex items-center justify-start bg-muted/50 p-1">
+                        <TabsTrigger value="profile" className="px-6">{t("settings.tabs.profile")}</TabsTrigger>
+                        <TabsTrigger value="receipts" className="px-6">{t("settings.tabs.receipts")}</TabsTrigger>
+                        <TabsTrigger value="admin" className="px-6">{t("settings.tabs.admin")}</TabsTrigger>
+                        <TabsTrigger value="backup" className="px-6">{t("settings.tabs.backup")}</TabsTrigger>
+                        <TabsTrigger value="update" className="px-6">{t("settings.tabs.update")}</TabsTrigger>
+                    </TabsList>
+                </div>
 
 
 
@@ -535,7 +580,7 @@ export default function SystemSettings() {
                 <TabsContent value="profile" className="space-y-6">
                     {/* Identity Card */}
                     <Card>
-                        <CardHeader>
+                        <CardHeader className="text-start">
                             <CardTitle>{t("settings.identityTitle")}</CardTitle>
                             <CardDescription>{t("settings.identityDescription")}</CardDescription>
                         </CardHeader>
@@ -622,7 +667,7 @@ export default function SystemSettings() {
 
                     {/* Contact Info Card */}
                     <Card>
-                        <CardHeader>
+                        <CardHeader className="text-start">
                             <CardTitle>{t("settings.contactTitle")}</CardTitle>
                             <CardDescription>{t("settings.contactDescription")}</CardDescription>
                         </CardHeader>
@@ -638,7 +683,7 @@ export default function SystemSettings() {
                                 </div>
                             </div>
                             <div className="space-y-3 pt-4 border-t">
-                                <h3 className="font-medium text-sm">{t("settings.socialLinksTitle")}</h3>
+                                <h3 className="font-medium text-sm text-start">{t("settings.socialLinksTitle")}</h3>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div className="space-y-2">
                                         <Label>{t("settings.instagramLabel")}</Label>
@@ -657,9 +702,48 @@ export default function SystemSettings() {
                         </CardContent>
                     </Card>
 
+                    {/* Screensaver Settings Card */}
+                    <Card>
+                        <CardHeader className="text-start">
+                            <CardTitle>{t("settings.screensaver.title")}</CardTitle>
+                            <CardDescription>{t("settings.screensaver.description")}</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div
+                                className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
+                                onClick={() => setClubProfile({ ...clubProfile, screensaverEnabled: !clubProfile.screensaverEnabled })}
+                            >
+                                <div className="space-y-0.5">
+                                    <Label className="text-base cursor-pointer">{t("settings.screensaver.enableLabel")}</Label>
+                                    <p className="text-sm text-muted-foreground">{clubProfile.screensaverEnabled ? t("common.active") : t("common.inactive")}</p>
+                                </div>
+                                <div className={`w-12 h-6 rounded-full p-1 transition-colors ${clubProfile.screensaverEnabled ? 'bg-primary' : 'bg-muted'}`}>
+                                    <div className={`w-4 h-4 rounded-full bg-white transition-transform ${clubProfile.screensaverEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                                </div>
+                            </div>
+
+                            {clubProfile.screensaverEnabled && (
+                                <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                                    <Label>{t("settings.screensaver.timeoutLabel")}</Label>
+                                    <div className="flex items-center gap-4">
+                                        <Input
+                                            type="number"
+                                            min="10"
+                                            value={clubProfile.screensaverTimeout}
+                                            onChange={e => setClubProfile({ ...clubProfile, screensaverTimeout: parseInt(e.target.value) || 60 })}
+                                        />
+                                        <span className="text-sm text-muted-foreground whitespace-nowrap">
+                                            {language === 'ar' ? 'ثانية' : 'seconds'}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+
                     {/* Automation Card */}
                     <Card>
-                        <CardHeader>
+                        <CardHeader className="text-start">
                             <CardTitle>{t("settings.whatsappTitle")}</CardTitle>
                             <CardDescription>{t("settings.whatsappDescription")}</CardDescription>
                         </CardHeader>
@@ -729,7 +813,7 @@ export default function SystemSettings() {
                                         </div>
 
                                         <div className="space-y-3 p-4 bg-muted/20 rounded-lg border">
-                                            <Label className="text-xs font-medium text-muted-foreground">{t("settings.whatsappVariablesLabel")}</Label>
+                                            <Label className="text-xs font-medium text-muted-foreground text-start">{t("settings.whatsappVariablesLabel")}</Label>
                                             <div className="flex flex-wrap gap-2">
                                                 {variables.map(v => (
                                                     <Badge
@@ -757,16 +841,118 @@ export default function SystemSettings() {
                             )}
                         </CardContent>
                     </Card>
-                    <Button onClick={handleSaveProfile} disabled={loading} className="w-full md:w-auto mt-4">
-                        {loading ? <Loader2 className="w-4 h-4 animate-spin me-2" /> : <Save className="w-4 h-4 me-2" />}
-                        {t("common.saveChanges")}
-                    </Button>
+                    {canModify && (
+                        <Button onClick={handleSaveProfile} disabled={loading} className="w-full md:w-auto mt-4">
+                            {loading ? <Loader2 className="w-4 h-4 animate-spin me-2" /> : <Save className="w-4 h-4 me-2" />}
+                            {t("common.saveChanges")}
+                        </Button>
+                    )}
+                </TabsContent>
+
+                {/* Receipt Settings Tab */}
+                <TabsContent value="receipts" className="space-y-6">
+                    <Card>
+                        <CardHeader className="text-start">
+                            <CardTitle>{t("settings.receipts.title")}</CardTitle>
+                            <CardDescription>{t("settings.receipts.description")}</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            <div className="space-y-3">
+                                <Label>{t("settings.receipts.formatLabel")}</Label>
+                                <RadioGroup
+                                    value={clubProfile.receiptType}
+                                    onValueChange={(v: 'thermal' | 'a4') => setClubProfile({ ...clubProfile, receiptType: v })}
+                                    className="grid grid-cols-1 md:grid-cols-2 gap-4"
+                                >
+                                    <div className="flex items-center space-x-2 rtl:space-x-reverse border p-4 rounded-lg hover:bg-muted/50 transition-all cursor-pointer has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                                        <RadioGroupItem value="thermal" id="thermal" />
+                                        <Label htmlFor="thermal" className="flex-1 cursor-pointer">
+                                            <div className="font-bold">{t("settings.receipts.thermalTitle")}</div>
+                                            <div className="text-xs text-muted-foreground">{t("settings.receipts.thermalDesc")}</div>
+                                        </Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2 rtl:space-x-reverse border p-4 rounded-lg hover:bg-muted/50 transition-all cursor-pointer has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                                        <RadioGroupItem value="a4" id="a4" />
+                                        <Label htmlFor="a4" className="flex-1 cursor-pointer">
+                                            <div className="font-bold">{t("settings.receipts.a4Title")}</div>
+                                            <div className="text-xs text-muted-foreground">{t("settings.receipts.a4Desc")}</div>
+                                        </Label>
+                                    </div>
+                                </RadioGroup>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t">
+                                <div className={`space-y-4 transition-opacity ${clubProfile.receiptType !== 'a4' ? 'opacity-50 grayscale pointer-events-none' : ''}`}>
+                                    <div className="flex items-center gap-2">
+                                        <div className="p-2 rounded bg-primary/10 text-primary">
+                                            <Package className="w-4 h-4" />
+                                        </div>
+                                        <Label className="font-bold">{t("settings.receipts.a4DesignLabel")}</Label>
+                                    </div>
+                                    <div className="flex items-center gap-4 border p-3 rounded-lg bg-muted/5">
+                                        <div className="w-20 h-20 rounded border bg-white flex items-center justify-center overflow-hidden flex-shrink-0">
+                                            {a4DesignFile ? (
+                                                <div className="text-[10px] p-1 text-center font-mono break-all">{a4DesignFile.name}</div>
+                                            ) : clubProfile.receiptA4Design ? (
+                                                <img src={clubProfile.receiptA4Design} className="w-full h-full object-cover" />
+                                            ) : (
+                                                <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                                            )}
+                                        </div>
+                                        <div className="flex-1">
+                                            <Input
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={e => setA4DesignFile(e.target.files?.[0] || null)}
+                                            />
+                                            <p className="text-[10px] text-muted-foreground mt-1">{t("settings.receipts.a4DesignHint")}</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className={`space-y-4 transition-opacity ${clubProfile.receiptType !== 'thermal' ? 'opacity-50 grayscale pointer-events-none' : ''}`}>
+                                    <div className="flex items-center gap-2">
+                                        <div className="p-2 rounded bg-primary/10 text-primary">
+                                            <ImageIcon className="w-4 h-4" />
+                                        </div>
+                                        <Label className="font-bold">{t("settings.receipts.thermalLogoLabel")}</Label>
+                                    </div>
+                                    <div className="flex items-center gap-4 border p-3 rounded-lg bg-muted/5">
+                                        <div className="w-20 h-20 rounded border bg-white flex items-center justify-center overflow-hidden flex-shrink-0">
+                                            {thermalLogoFile ? (
+                                                <img src={URL.createObjectURL(thermalLogoFile)} className="w-full h-full object-contain p-1" />
+                                            ) : clubProfile.receiptLogoThermal ? (
+                                                <img src={clubProfile.receiptLogoThermal} className="w-full h-full object-contain p-1" />
+                                            ) : (
+                                                <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                                            )}
+                                        </div>
+                                        <div className="flex-1">
+                                            <Input
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={e => setThermalLogoFile(e.target.files?.[0] || null)}
+                                            />
+                                            <p className="text-[10px] text-muted-foreground mt-1">{t("settings.receipts.thermalLogoHint")}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {canModify && (
+                        <Button onClick={handleSaveProfile} disabled={loading} className="w-full md:w-auto mt-4">
+                            {loading ? <Loader2 className="w-4 h-4 animate-spin me-2" /> : <Save className="w-4 h-4 me-2" />}
+                            {t("common.saveChanges")}
+                        </Button>
+                    )}
                 </TabsContent>
 
                 {/* Admin Credentials Tab */}
                 <TabsContent value="admin">
                     <Card>
-                        <CardHeader>
+                        <CardHeader className="text-start">
                             <CardTitle>{t("settings.adminTitle")}</CardTitle>
                             <CardDescription>{t("settings.adminDescription")}</CardDescription>
                         </CardHeader>
@@ -785,10 +971,12 @@ export default function SystemSettings() {
                                     <Input type="password" value={credForm.confirmPassword} onChange={e => setCredForm({ ...credForm, confirmPassword: e.target.value })} />
                                 </div>
                             </div>
-                            <Button onClick={handleUpdateCredentials} disabled={loading}>
-                                {loading ? <Loader2 className="w-4 h-4 animate-spin me-2" /> : null}
-                                {t("settings.updateCredentials")}
-                            </Button>
+                            {canModify && (
+                                <Button onClick={handleUpdateCredentials} disabled={loading}>
+                                    {loading ? <Loader2 className="w-4 h-4 animate-spin me-2" /> : null}
+                                    {t("settings.updateCredentials")}
+                                </Button>
+                            )}
                         </CardContent>
                     </Card>
                 </TabsContent>
@@ -796,8 +984,8 @@ export default function SystemSettings() {
                 <TabsContent value="backup">
                     <div className="space-y-6">
                         <Card>
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
+                            <CardHeader className="text-start">
+                                <CardTitle className="flex items-center gap-2 text-start">
                                     <Download className="w-5 h-5 text-primary" />
                                     {t("settings.exportTitle")}
                                 </CardTitle>
@@ -823,7 +1011,7 @@ export default function SystemSettings() {
                         </Card>
 
                         <Card className="border-destructive/20">
-                            <CardHeader>
+                            <CardHeader className="text-start">
                                 <CardTitle className="flex items-center gap-2 text-destructive">
                                     <Upload className="w-5 h-5" />
                                     {t("settings.restoreTitle")}
@@ -895,7 +1083,7 @@ export default function SystemSettings() {
                         </Card>
 
                         <Card className="border-destructive/30">
-                            <CardHeader>
+                            <CardHeader className="text-start">
                                 <CardTitle className="flex items-center gap-2 text-destructive">
                                     <Trash2 className="w-5 h-5" />
                                     {t("settings.clearTitle")}
@@ -967,123 +1155,157 @@ export default function SystemSettings() {
                 </TabsContent>
                 {/* Update Tab */}
                 <TabsContent value="update">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <RefreshCcw className="w-5 h-5 text-primary" />
-                                {t("settings.update.title")}
-                            </CardTitle>
-                            <CardDescription>
-                                {t("settings.update.description")}
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="space-y-4 p-4 border rounded-lg bg-muted/5 relative overflow-hidden">
-                                    <div className="absolute top-0 right-0 p-2 opacity-5">
-                                        <Info className="w-16 h-16" />
+                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                        {/* Hero Status Section */}
+                        <div className={`relative overflow-hidden rounded-3xl border p-8 transition-all duration-500 ${isNearerVersion ? 'bg-gradient-to-br from-primary via-primary/90 to-primary/80 border-primary text-white shadow-2xl shadow-primary/30' : 'bg-white border-gray-100 shadow-sm'}`}>
+                            {/* Decorative Background Icon */}
+                            <div className="absolute top-[-20px] right-[-20px] opacity-10 rotate-12">
+                                {isNearerVersion ? <Download className="w-64 h-64" /> : <ShieldCheck className="w-64 h-64 text-green-500" />}
+                            </div>
+
+                            <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
+                                <div className="space-y-4 text-center md:text-start flex-1">
+                                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20">
+                                        <div className={`w-2 h-2 rounded-full animate-pulse ${isNearerVersion ? 'bg-white' : 'bg-green-400'}`}></div>
+                                        <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${isNearerVersion ? 'text-white' : 'text-gray-500'}`}>
+                                            {isNearerVersion ? t("settings.update.newVersionAvailable") : t("settings.update.upToDate")}
+                                        </span>
                                     </div>
-                                    <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">{t("settings.update.currentVersion")}</h3>
-                                    <div className="flex items-baseline gap-2">
-                                        <span className="text-3xl font-bold">{APP_VERSION.number}</span>
-                                        <Badge variant="secondary" className="px-2 py-0 h-5 text-[10px]">{APP_VERSION.date}</Badge>
-                                    </div>
-                                    <p className="text-xs text-muted-foreground">{APP_VERSION.name}</p>
+
+                                    <h2 className={`text-4xl md:text-5xl font-black tracking-tighter ${isNearerVersion ? 'text-white' : 'text-gray-900'}`}>
+                                        {isNearerVersion ? `Version ${latestVersion?.number} is ready.` : "You're all set."}
+                                    </h2>
+
+                                    <p className={`text-sm md:text-lg font-medium max-w-xl leading-relaxed ${isNearerVersion ? 'text-white/80' : 'text-gray-500'}`}>
+                                        {isNearerVersion
+                                            ? `Our latest release ${latestVersion?.name} brings significant improvements and new features to your platform.`
+                                            : "Your Club Management System is running the latest version with all security patches and features enabled."}
+                                    </p>
                                 </div>
 
-                                <div className={`space-y-4 p-4 border rounded-lg relative overflow-hidden transition-all ${isNearerVersion ? 'border-primary/30 bg-primary/5 shadow-sm' : 'bg-muted/5'}`}>
-                                    {isNearerVersion && (
-                                        <div className="absolute top-2 right-2">
-                                            <Badge className="bg-primary hover:bg-primary text-primary-foreground animate-pulse">
-                                                {t("settings.update.newVersionAvailable")}
-                                            </Badge>
-                                        </div>
-                                    )}
-                                    <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">{t("settings.update.latestVersion")}</h3>
-                                    {latestVersion ? (
-                                        <>
-                                            <div className="flex items-baseline gap-2">
-                                                <span className="text-3xl font-bold">{latestVersion.number}</span>
-                                                <Badge variant="outline" className="px-2 py-0 h-5 text-[10px]">{latestVersion.date}</Badge>
-                                            </div>
-                                            <p className="text-xs text-primary font-medium">{latestVersion.name}</p>
-                                        </>
+                                <div className="flex flex-col gap-4 w-full md:w-auto shrink-0">
+                                    {isNearerVersion ? (
+                                        <Button
+                                            onClick={handleUpdate}
+                                            disabled={isUpdating}
+                                            size="lg"
+                                            className="h-16 px-10 bg-white text-primary hover:bg-gray-50 font-black text-sm uppercase tracking-widest shadow-xl transition-all hover:scale-105 active:scale-95"
+                                        >
+                                            {isUpdating ? <Loader2 className="w-5 h-5 animate-spin me-2" /> : <Zap className="w-5 h-5 me-2" />}
+                                            {t("settings.update.updateNow")}
+                                        </Button>
                                     ) : (
-                                        <div className="flex items-center h-[54px] text-muted-foreground italic text-sm">
+                                        <Button
+                                            onClick={checkUpdates}
+                                            disabled={checkingUpdate || isUpdating}
+                                            variant="outline"
+                                            size="lg"
+                                            className="h-16 px-10 border-gray-200 hover:border-primary hover:text-primary font-bold text-sm uppercase tracking-widest transition-all"
+                                        >
+                                            {checkingUpdate ? <Loader2 className="w-5 h-5 animate-spin me-2" /> : <RefreshCcw className="w-5 h-5 me-2" />}
                                             {t("settings.update.checkUpdates")}
-                                        </div>
+                                        </Button>
                                     )}
                                 </div>
                             </div>
 
-                            <div className="space-y-4 p-4 border rounded-lg bg-muted/5">
-                                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">{t("settings.update.githubToken")}</h3>
-                                <div className="space-y-2">
-                                    <Input
-                                        type="password"
-                                        value={clubProfile.githubToken}
-                                        onChange={(e) => setClubProfile({ ...clubProfile, githubToken: e.target.value })}
-                                        placeholder={t("settings.update.githubTokenPlaceholder")}
-                                        className="font-mono"
-                                    />
-                                    <p className="text-[10px] text-muted-foreground">
-                                        {t("settings.update.githubTokenPlaceholder")}
+                            {/* Progress Overlay when Updating */}
+                            {isUpdating && (
+                                <div className="absolute inset-0 z-20 bg-primary flex flex-col items-center justify-center p-8 animate-in fade-in duration-300">
+                                    <div className="w-full max-w-md space-y-6">
+                                        <div className="flex justify-between items-end mb-2">
+                                            <div className="space-y-1">
+                                                <h3 className="text-2xl font-black text-white uppercase tracking-tight">Updating System</h3>
+                                                <p className="text-xs text-white/60 font-medium uppercase tracking-widest animate-pulse">{updateStatus}</p>
+                                            </div>
+                                            <span className="text-4xl font-black text-white/20">65%</span>
+                                        </div>
+                                        <div className="h-4 w-full bg-white/10 rounded-full overflow-hidden border border-white/10 p-0.5">
+                                            <div className="h-full bg-white animate-progress-flow w-[65%] rounded-full shadow-[0_0_20px_rgba(255,255,255,0.5)]"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Details & Config Grid */}
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            {/* Version Info Cards */}
+                            <div className="lg:col-span-2 space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="p-6 rounded-2xl border bg-white shadow-sm hover:border-primary/20 transition-colors group">
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center group-hover:bg-primary/5 transition-colors">
+                                                <Info className="w-5 h-5 text-gray-400 group-hover:text-primary transition-colors" />
+                                            </div>
+                                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t("settings.update.currentVersion")}</span>
+                                        </div>
+                                        <div className="flex items-end gap-2">
+                                            <span className="text-3xl font-black text-gray-900">{APP_VERSION.number}</span>
+                                            <span className="text-[10px] font-bold text-gray-400 pb-1.5">{APP_VERSION.date}</span>
+                                        </div>
+                                        <div className="mt-2 text-xs font-semibold text-gray-500 px-2 py-1 bg-gray-50 rounded-md inline-block">
+                                            {APP_VERSION.name}
+                                        </div>
+                                    </div>
+
+                                    <div className="p-6 rounded-2xl border bg-white shadow-sm hover:border-primary/20 transition-colors group">
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center group-hover:bg-primary/5 transition-colors">
+                                                <Github className="w-5 h-5 text-gray-400 group-hover:text-primary transition-colors" />
+                                            </div>
+                                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t("settings.update.releaseNotes")}</span>
+                                        </div>
+                                        <div className="h-[100px] overflow-y-auto text-[11px] leading-relaxed text-gray-600 font-medium custom-scrollbar pr-2 whitespace-pre-wrap">
+                                            {latestVersion?.notes || "No release notes available. Check for updates to fetch the latest changelog."}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Feature Highlight (Mock) */}
+                                <div className="p-6 rounded-2xl border border-dashed border-gray-200 bg-gray-50/30">
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <Sparkles className="w-4 h-4 text-yellow-500" />
+                                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Platform Integrity</span>
+                                    </div>
+                                    <p className="text-xs text-gray-500 leading-relaxed font-medium">
+                                        Every update goes through rigorous automated testing to ensure the stability of your membership records, financial data, and attendance tracking systems.
+                                        We recommend keeping the system up to date to benefit from the latest security improvements.
                                     </p>
                                 </div>
                             </div>
 
-                            {latestVersion && (
-                                <div className="space-y-3 p-4 rounded-lg border bg-muted/5 hover:bg-muted/10 transition-colors">
-                                    <div className="flex items-center gap-2 text-sm font-semibold">
-                                        <Github className="w-4 h-4" />
-                                        {t("settings.update.releaseNotes")}
-                                    </div>
-                                    <div className="text-xs text-muted-foreground max-h-[150px] overflow-y-auto font-mono whitespace-pre-wrap leading-relaxed custom-scrollbar">
-                                        {latestVersion.notes || "No notes available for this release."}
-                                    </div>
-                                </div>
-                            )}
-
-                            <div className="flex flex-col md:flex-row gap-4 pt-2">
-                                <Button
-                                    onClick={checkUpdates}
-                                    disabled={checkingUpdate || isUpdating}
-                                    variant="outline"
-                                    className="flex-1 md:flex-none"
-                                >
-                                    {checkingUpdate ? <Loader2 className="w-4 h-4 animate-spin me-2" /> : <RefreshCcw className="w-4 h-4 me-2" />}
-                                    {t("settings.update.checkUpdates")}
-                                </Button>
-
-                                {isNearerVersion && (
-                                    <Button
-                                        onClick={handleUpdate}
-                                        disabled={isUpdating}
-                                        className="flex-1 md:flex-none animate-in fade-in slide-in-from-bottom-2 duration-500"
-                                    >
-                                        {isUpdating ? <Loader2 className="w-4 h-4 animate-spin me-2" /> : <Download className="w-4 h-4 me-2" />}
-                                        {t("settings.update.updateNow")}
-                                    </Button>
-                                )}
-
-                                {!isNearerVersion && latestVersion && (
-                                    <div className="flex items-center gap-2 text-green-600 font-medium text-sm animate-in fade-in duration-500">
-                                        <CheckCircle className="w-5 h-5" />
-                                        {t("settings.update.upToDate")}
-                                    </div>
-                                )}
+                            {/* Configuration Sidebar */}
+                            <div className="space-y-6">
+                                <Card className="rounded-2xl border shadow-sm h-full overflow-hidden">
+                                    <CardHeader className="bg-gray-50/50 border-b pb-4">
+                                        <CardTitle className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">{t("settings.update.githubToken")}</CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="p-6 space-y-4">
+                                        <div className="space-y-2">
+                                            <Label className="text-[10px] font-bold text-gray-500 uppercase">Personal Access Token</Label>
+                                            <div className="relative group">
+                                                <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-primary transition-colors" />
+                                                <Input
+                                                    type="password"
+                                                    value={clubProfile.githubToken}
+                                                    onChange={(e) => setClubProfile({ ...clubProfile, githubToken: e.target.value })}
+                                                    placeholder="ghp_xxxxxxxxxxxx"
+                                                    className="pl-10 h-11 border-gray-200 focus:ring-primary focus:border-primary font-mono text-xs rounded-xl"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="p-4 rounded-xl bg-blue-50 border border-blue-100 flex gap-3">
+                                            <Info className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+                                            <p className="text-[10px] leading-tight text-blue-700 font-medium">
+                                                The Github token is required to securely fetch system updates and release notes directly from our repository.
+                                            </p>
+                                        </div>
+                                    </CardContent>
+                                </Card>
                             </div>
-
-                            {isUpdating && (
-                                <div className="space-y-2 mt-4">
-                                    <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-                                        <div className="h-full bg-primary animate-progress-flow w-[60%] rounded-full shadow-[0_0_10px_rgba(var(--primary),0.5)]"></div>
-                                    </div>
-                                    <p className="text-[10px] text-center text-muted-foreground animate-pulse">{updateStatus}</p>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
+                        </div>
+                    </div>
                 </TabsContent>
             </Tabs>
 
