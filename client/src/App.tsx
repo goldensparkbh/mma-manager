@@ -18,6 +18,7 @@ import Subscriptions from "@/pages/subscriptions";
 import Store from "@/pages/store";
 import Sales from "@/pages/sales";
 import Finance from "@/pages/finance";
+import Expenses from "@/pages/expenses";
 import Logs from "@/pages/logs";
 import Login from "@/pages/login";
 import Belts from "@/pages/belts";
@@ -99,6 +100,12 @@ function Router() {
       <Route path="/finance">
         <RequirePermission permission={PERMISSIONS.FINANCE_VIEW}>
           <Finance />
+        </RequirePermission>
+      </Route>
+
+      <Route path="/expenses">
+        <RequirePermission permission={PERMISSIONS.FINANCE_VIEW}>
+          <Expenses />
         </RequirePermission>
       </Route>
 

@@ -16,6 +16,7 @@ import {
   UserCog,
   Settings,
   BookOpen,
+  TrendingDown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserGuideDialog } from "./user-guide-dialog";
@@ -68,6 +69,12 @@ export function AppSidebar() {
       url: "/sales",
       icon: ShoppingCart,
       permission: PERMISSIONS.SALES_VIEW
+    },
+    {
+      key: "nav.expenses",
+      url: "/expenses",
+      icon: TrendingDown,
+      permission: PERMISSIONS.FINANCE_VIEW
     },
     {
       key: "nav.finance",

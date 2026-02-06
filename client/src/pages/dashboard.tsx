@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users, CreditCard, TrendingUp, Wallet, Phone, ShoppingCart, Calendar as CalendarIcon, Filter } from "lucide-react";
+import { Users, CreditCard, TrendingUp, Wallet, Phone, ShoppingCart, Calendar as CalendarIcon, Filter, FileText, User, CreditCard as CardIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -11,18 +11,21 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Link } from "wouter";
 import { format } from "date-fns";
 import { arBH, enUS } from "date-fns/locale";
-import { Calendar } from "@/components/ui/calendar"; // Assuming you have a Calendar component or use native date inputs
-import type { DashboardStats } from "@shared/schema";
+import type { DashboardStats, Sale, Subscription } from "@shared/schema";
 import { useState } from "react";
 import { useAuth } from "@/context/auth-context";
 import { useLanguage } from "@/context/language-context";
 import { applyWhatsAppTemplate } from "@/lib/whatsapp";
+import { TransactionDetailsDialog } from "@/components/transaction-details-dialog";
 
 export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const { t, language } = useLanguage();
+  const [selectedTransaction, setSelectedTransaction] = useState<(Sale | Subscription & { type: 'sale' | 'subscription' }) | null>(null);
+  const [isTransactionDocsOpen, setIsTransactionDocsOpen] = useState(false);
 
   const [dateRange, setDateRange] = useState({
     start: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split("T")[0],
@@ -54,7 +57,7 @@ export default function Dashboard() {
   };
 
   // Get settings from AuthContext
-  const { clubSettings } = useAuth(); // Ensure this is imported
+  const { clubSettings } = useAuth();
 
   const handleWhatsApp = (member: any) => {
     const templateBody =
@@ -136,7 +139,6 @@ export default function Dashboard() {
           <p className="text-sm text-muted-foreground">{formatDate()}</p>
         </div>
         <div className="flex flex-col gap-4">
-
           <div className="flex flex-wrap gap-2 items-end bg-card p-3 rounded-lg border shadow-sm">
             <div className="space-y-1">
               <Label className="text-xs">{t("common.from")}</Label>
@@ -165,100 +167,108 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 rounded-lg bg-blue-100 dark:bg-blue-900/30">
-                <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+        <Link href="/members">
+          <Card className="cursor-pointer hover:shadow-md transition-shadow">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-lg bg-blue-100 dark:bg-blue-900/30">
+                  <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">{t('dashboard.totalMembers')}</p>
+                  <p className="text-2xl font-bold" data-testid="text-total-members">
+                    {stats?.totalMembers ?? 0}
+                  </p>
+                  <p className="text-xs text-green-600 dark:text-green-400">
+                    +{stats?.newMembersThisMonth ?? 0} {t("dashboard.inPeriod")}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">{t('dashboard.totalMembers')}</p>
-                <p className="text-2xl font-bold" data-testid="text-total-members">
-                  {stats?.totalMembers ?? 0}
-                </p>
-                <p className="text-xs text-green-600 dark:text-green-400">
-                  +{stats?.newMembersThisMonth ?? 0} {t("dashboard.inPeriod")}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Link>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 rounded-lg bg-green-100 dark:bg-green-900/30">
-                <CreditCard className="h-5 w-5 text-green-600 dark:text-green-400" />
+        <Link href="/subscriptions">
+          <Card className="cursor-pointer hover:shadow-md transition-shadow">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-lg bg-green-100 dark:bg-green-900/30">
+                  <CreditCard className="h-5 w-5 text-green-600 dark:text-green-400" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">{t('dashboard.activeSubscriptions')}</p>
+                  <p className="text-2xl font-bold" data-testid="text-active-subs">
+                    {stats?.activeSubscriptions ?? 0}
+                  </p>
+                  <p className="text-xs text-green-600 dark:text-green-400">
+                    {stats?.totalMembers ? Math.round((stats.activeSubscriptions / stats.totalMembers) * 100) : 0}% {t("dashboard.ofMembers")}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">{t('dashboard.activeSubscriptions')}</p>
-                <p className="text-2xl font-bold" data-testid="text-active-subs">
-                  {stats?.activeSubscriptions ?? 0}
-                </p>
-                <p className="text-xs text-green-600 dark:text-green-400">
-                  {stats?.totalMembers ? Math.round((stats.activeSubscriptions / stats.totalMembers) * 100) : 0}% {t("dashboard.ofMembers")}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Link>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 rounded-lg bg-purple-100 dark:bg-purple-900/30">
-                <TrendingUp className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+        <Link href="/finance">
+          <Card className="cursor-pointer hover:shadow-md transition-shadow">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-lg bg-purple-100 dark:bg-purple-900/30">
+                  <TrendingUp className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">{t('dashboard.monthlyIncome')}</p>
+                  <p className="text-2xl font-bold" data-testid="text-monthly-income">
+                    {stats?.monthlyIncome?.toLocaleString() ?? 0} {t("common.currency")}
+                  </p>
+                  <p className="text-xs text-green-600 dark:text-green-400">{t("dashboard.inPeriod")}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">{t('dashboard.monthlyIncome')}</p>
-                <p className="text-2xl font-bold" data-testid="text-monthly-income">
-                  {stats?.monthlyIncome?.toLocaleString() ?? 0} {t("common.currency")}
-                </p>
-                <p className="text-xs text-green-600 dark:text-green-400">{t("dashboard.inPeriod")}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Link>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 rounded-lg bg-pink-100 dark:bg-pink-900/30">
-                <ShoppingCart className="h-5 w-5 text-pink-600 dark:text-pink-400" />
+        <Link href="/sales">
+          <Card className="cursor-pointer hover:shadow-md transition-shadow">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-lg bg-pink-100 dark:bg-pink-900/30">
+                  <ShoppingCart className="h-5 w-5 text-pink-600 dark:text-pink-400" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">{t('dashboard.salesIncome')}</p>
+                  <p className="text-2xl font-bold" data-testid="text-sales-income">
+                    {stats?.salesIncome?.toLocaleString() ?? 0} {t("common.currency")}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{t("dashboard.inPeriod")}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">{t('dashboard.salesIncome')}</p>
-                <p className="text-2xl font-bold" data-testid="text-sales-income">
-                  {stats?.salesIncome?.toLocaleString() ?? 0} {t("common.currency")}
-                </p>
-                <p className="text-xs text-muted-foreground">{t("dashboard.inPeriod")}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Link>
 
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 rounded-lg bg-orange-100 dark:bg-orange-900/30">
-                <Wallet className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+        <Link href="/finance">
+          <Card className="cursor-pointer hover:shadow-md transition-shadow">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-lg bg-orange-100 dark:bg-orange-900/30">
+                  <Wallet className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">{t('dashboard.netProfit')}</p>
+                  <p className="text-2xl font-bold" data-testid="text-net-profit">
+                    {stats?.netProfit?.toLocaleString() ?? 0} {t("common.currency")}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{t("common.estimated")}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">{t('dashboard.netProfit')}</p>
-                <p className="text-2xl font-bold" data-testid="text-net-profit">
-                  {stats?.netProfit?.toLocaleString() ?? 0} {t("common.currency")}
-                </p>
-                <p className="text-xs text-muted-foreground">{t("common.estimated")}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-4 pb-4">
               <div>
@@ -323,6 +333,78 @@ export default function Dashboard() {
                       <tr>
                         <td colSpan={5} className="py-8 text-center text-muted-foreground">
                           {t("dashboard.noExpiring")}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-4 pb-4">
+              <div>
+                <CardTitle className="text-base">{t("sales.purchaseHistory")}</CardTitle>
+                <p className="text-xs text-muted-foreground mt-1">{t("dashboard.salesIncome")}</p>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-start py-3 px-2 font-medium text-muted-foreground">{t("common.date")}</th>
+                      <th className="text-start py-3 px-2 font-medium text-muted-foreground">{t("common.description")}</th>
+                      <th className="text-start py-3 px-2 font-medium text-muted-foreground">{t("common.amount")}</th>
+                      <th className="text-start py-3 px-2 font-medium text-muted-foreground">{t("members.status")}</th>
+                      <th className="text-end py-3 px-2 font-medium text-muted-foreground">{t("common.actions")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stats?.recentTransactions && stats.recentTransactions.length > 0 ? (
+                      stats.recentTransactions.map((tx: any, idx: number) => (
+                        <tr key={`${tx.type}-${tx.id}-${idx}`} className="border-b last:border-0 hover-elevate">
+                          <td className="py-3 px-2">
+                            {format(new Date(tx.type === 'sale' ? tx.date : tx.startDate), "yyyy/MM/dd")}
+                          </td>
+                          <td className="py-3 px-2">
+                            <div className="flex flex-col">
+                              <span className="font-medium">
+                                {tx.type === 'sale' ? tx.productName : tx.planName}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {tx.type === 'sale' ? (tx.buyerName || t('sales.defaultBuyer')) : tx.memberName}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-2 font-medium">
+                            {(tx.type === 'sale' ? tx.totalPrice : tx.amount).toLocaleString()} {t("common.currency")}
+                          </td>
+                          <td className="py-3 px-2">
+                            <Badge variant={tx.type === 'sale' ? "outline" : "default"} className="text-[10px] px-1.5 h-5 capitalize">
+                              {tx.type === 'sale' ? t('nav.store') : t('nav.subscriptions')}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-2 text-end">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 px-2 text-xs"
+                              onClick={() => {
+                                setSelectedTransaction(tx);
+                                setIsTransactionDocsOpen(true);
+                              }}
+                            >
+                              {t('common.preview')}
+                            </Button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center text-muted-foreground">
+                          {t("common.noResults")}
                         </td>
                       </tr>
                     )}
@@ -400,6 +482,12 @@ export default function Dashboard() {
           </Card>
         </div>
       </div>
+
+      <TransactionDetailsDialog
+        transaction={selectedTransaction}
+        isOpen={isTransactionDocsOpen}
+        onClose={() => setIsTransactionDocsOpen(false)}
+      />
     </div >
   );
 }

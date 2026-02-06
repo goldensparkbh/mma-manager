@@ -42,7 +42,7 @@ export default function Members() {
   const { role, clubSettings, hasPermission } = useAuth();
   const { t, language } = useLanguage();
   const isAdmin = role === 'admin';
-  const canModify = hasPermission(PERMISSIONS.MEMBERS_CREATE); // Mapping to modify now
+  const canAdd = hasPermission(PERMISSIONS.MEMBERS_CREATE);
   const canDelete = hasPermission(PERMISSIONS.MEMBERS_DELETE);
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
@@ -144,6 +144,7 @@ export default function Members() {
     const headers = [
       t("members.exportHeaders.name"),
       t("members.exportHeaders.memberId"),
+      t("members.exportHeaders.cpr"),
       t("members.exportHeaders.phone"),
       t("members.exportHeaders.email"),
       t("members.exportHeaders.dob"),
@@ -189,6 +190,7 @@ export default function Members() {
       return [
         `"${m.name}"`,
         `"${m.memberId}"`,
+        `"${m.cpr || ''}"`,
         `"${m.phone}"`,
         `"${m.email || ''}"`,
         `"${m.dob || ''}"`,
@@ -241,19 +243,47 @@ export default function Members() {
     (member) => {
       const matchesSearch = member.name.includes(searchQuery) ||
         member.memberId.includes(searchQuery) ||
-        member.phone.includes(searchQuery);
+        member.phone.includes(searchQuery) ||
+        (member.cpr || "").includes(searchQuery);
 
       if (!matchesSearch) return false;
 
       // Status Filters
       if (activeTab === "all") return true;
-      if (activeTab === "active") return member.status === "active";
-      if (activeTab === "expired") return member.status === "expired" || (member.subscriptionEnd && new Date(member.subscriptionEnd) < new Date());
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // Determine status on the fly for 100% accuracy, fallback to member.status IF it's "upcoming"
+      let status = "inactive";
+      if (member.subscriptionEnd) {
+        const start = member.subscriptionStart ? new Date(member.subscriptionStart) : null;
+        const end = new Date(member.subscriptionEnd);
+
+        if (start) start.setHours(0, 0, 0, 0);
+        end.setHours(0, 0, 0, 0);
+
+        if (start && today < start) {
+          status = "upcoming";
+        } else if (today > end) {
+          status = "expired";
+        } else {
+          status = "active";
+        }
+      } else if (member.status === "upcoming") {
+        // Only trust DB status if it's "upcoming" and we have no dates yet
+        status = "upcoming";
+      }
+
+      if (activeTab === "active") return status === "active";
+      if (activeTab === "inactive") return status === "inactive";
+      if (activeTab === "expired") return status === "expired";
+      if (activeTab === "upcoming") return status === "upcoming";
+
       if (activeTab === "soon") {
         if (!member.subscriptionEnd) return false;
         const end = new Date(member.subscriptionEnd);
-        const now = new Date();
-        const diffTime = end.getTime() - now.getTime();
+        const diffTime = end.getTime() - today.getTime();
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         return diffDays >= 0 && diffDays <= 7; // Expiring in next 7 days
       }
@@ -262,32 +292,40 @@ export default function Members() {
   );
 
   const getStatusBadge = (member: Member) => {
-    if (!member.subscriptionEnd) {
-      switch (member.status) {
-        case "active": return <Badge className="bg-green-100 text-green-800 dark:bg-green-900/10 dark:text-green-300">{t('common.active')}</Badge>;
-        case "expired": return <Badge variant="destructive">{t('common.expired')}</Badge>;
-        default: return <Badge variant="secondary">{member.status}</Badge>;
-      }
-    }
-
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const end = new Date(member.subscriptionEnd);
-    if (isNaN(end.getTime())) {
-      return <Badge variant="secondary">{t('members.invalidDate')}</Badge>;
+    // Determine status on the fly for 100% accuracy, fallback to member.status IF it's "upcoming"
+    let status = "inactive";
+    if (member.subscriptionEnd) {
+      const start = member.subscriptionStart ? new Date(member.subscriptionStart) : null;
+      const end = new Date(member.subscriptionEnd);
+
+      if (start) start.setHours(0, 0, 0, 0);
+      end.setHours(0, 0, 0, 0);
+
+      if (start && today < start) {
+        status = "upcoming";
+      } else if (today > end) {
+        status = "expired";
+      } else {
+        status = "active";
+      }
+    } else if (member.status === "upcoming") {
+      status = "upcoming";
     }
-    end.setHours(0, 0, 0, 0);
 
-    const diffTime = end.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays < 0) {
-      return <Badge variant="destructive">{t('common.expired')}</Badge>;
-    } else if (diffDays <= 10) {
-      return <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">{t('common.aboutToExpire')}</Badge>;
-    } else {
-      return <Badge className="bg-green-100 text-green-800 dark:bg-green-900/10 dark:text-green-300">{t('common.active')}</Badge>;
+    switch (status) {
+      case "active":
+        return <Badge className="bg-green-100 text-green-800 dark:bg-green-900/10 dark:text-green-300">{t('common.active')}</Badge>;
+      case "inactive":
+        return <Badge className="bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300">{t('common.inactive')}</Badge>;
+      case "upcoming":
+        return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/10 dark:text-blue-300">{t('common.upcoming')}</Badge>;
+      case "expired":
+        return <Badge variant="destructive">{t('common.expired')}</Badge>;
+      default:
+        return <Badge variant="secondary">{status}</Badge>;
     }
   };
 
@@ -329,11 +367,19 @@ export default function Members() {
             />
           </div>
           <div className="flex gap-2">
-            <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab} className="w-full sm:w-auto">
-              <TabsList>
+            <Tabs
+              defaultValue="all"
+              value={activeTab}
+              onValueChange={setActiveTab}
+              className="w-full sm:w-auto"
+              dir={language === 'ar' ? 'rtl' : 'ltr'}
+            >
+              <TabsList className="h-auto flex-wrap sm:flex-nowrap">
                 <TabsTrigger value="all">{t('common.all')}</TabsTrigger>
                 <TabsTrigger value="active">{t('common.active')}</TabsTrigger>
                 <TabsTrigger value="inactive">{t('common.inactive')}</TabsTrigger>
+                <TabsTrigger value="upcoming">{t('common.upcoming')}</TabsTrigger>
+                <TabsTrigger value="expired">{t('common.expired')}</TabsTrigger>
                 <TabsTrigger value="soon">{t('members.expiringSoon')}</TabsTrigger>
               </TabsList>
             </Tabs>
@@ -381,7 +427,7 @@ export default function Members() {
                   <LayoutGrid className="h-4 w-4" />
                 </Button>
               </div>
-              {canModify && (
+              {canAdd && (
                 <Button
                   data-testid="button-add-member"
                   onClick={() => {
@@ -418,9 +464,9 @@ export default function Members() {
                     <th className="text-right py-3 px-4 font-medium text-muted-foreground">{t('members.name')}</th>
                     <th className="text-right py-3 px-4 font-medium text-muted-foreground">{t('members.memberId')}</th>
                     <th className="text-right py-3 px-4 font-medium text-muted-foreground">{t('members.phone')}</th>
-                    <th className="text-right py-3 px-4 font-medium text-muted-foreground">{t('members.belt')}</th>
+                    <th className="text-right py-3 px-4 font-medium text-muted-foreground">{t('members.subscriptionPeriod')}</th>
+                    <th className="text-center py-3 px-4 font-medium text-muted-foreground">{t('members.belt')}</th>
                     <th className="text-right py-3 px-4 font-medium text-muted-foreground">{t('members.status')}</th>
-                    <th className="text-right py-3 px-4 font-medium text-muted-foreground">{t('members.balance')}</th>
                     <th className="text-right py-3 px-4 font-medium text-muted-foreground">{t('common.actions')}</th>
                   </tr>
                 </thead>
@@ -470,14 +516,28 @@ export default function Members() {
                             </button>
                           </td>
                           <td className="py-3 px-3 text-right">
-                            <div className="flex -space-x-1">
-                              {getMemberBeltsBadges(member.id).map(b => (
-                                <div key={b.memberBeltId} className="w-4 h-4 rounded-full border border-white" style={{ backgroundColor: b.color }} title={b.name} />
-                              ))}
+                            <div className="flex flex-col text-xs font-mono">
+                              <span>{member.subscriptionStart || "---"}</span>
+                              <span className="text-muted-foreground">{member.subscriptionEnd || "---"}</span>
                             </div>
                           </td>
+                          <td className="py-3 px-3 text-center">
+                            {(() => {
+                              const badges = getMemberBeltsBadges(member.id);
+                              const latestBelt = badges.length > 0 ? badges[badges.length - 1] : null;
+                              if (!latestBelt) return <span className="text-muted-foreground text-xs">{t('common.none')}</span>;
+                              return (
+                                <div className="flex items-center justify-center">
+                                  <div
+                                    className="w-4 h-4 rounded-full border-2 border-background ring-1 ring-border shadow-sm"
+                                    style={{ backgroundColor: latestBelt.color }}
+                                    title={latestBelt.name}
+                                  />
+                                </div>
+                              );
+                            })()}
+                          </td>
                           <td className="py-3 px-3 text-right">{getStatusBadge(member)}</td>
-                          <td className="py-3 px-3 text-right font-mono">{member.balance || 0} {t("common.currency")}</td>
                           <td className="py-3 px-3 flex items-center gap-2 text-right no-click-propagation">
                             <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handlePrintCard(member)} title={t("members.membershipCard")}>
                               <Printer className="h-4 w-4" />
@@ -544,15 +604,24 @@ export default function Members() {
                       <p className="text-xs font-mono text-muted-foreground">{t("common.id")}: {member.memberId}</p>
                     </div>
 
-                    <div className="flex -space-x-2 py-1 justify-center w-full">
-                      {getMemberBeltsBadges(member.id).length > 0 ? getMemberBeltsBadges(member.id).map(b => (
-                        <div key={b.memberBeltId} className="w-6 h-6 rounded-full border-2 border-background" style={{ backgroundColor: b.color }} title={b.name} />
-                      )) : <div className="h-6"></div>}
+                    <div className="py-1 flex justify-center w-full">
+                      {(() => {
+                        const badges = getMemberBeltsBadges(member.id);
+                        const latestBelt = badges.length > 0 ? badges[badges.length - 1] : null;
+                        if (!latestBelt) return <div className="h-6"></div>;
+                        return (
+                          <div
+                            className="w-6 h-6 rounded-full border-2 border-background ring-2 ring-border shadow-md"
+                            style={{ backgroundColor: latestBelt.color }}
+                            title={latestBelt.name}
+                          />
+                        );
+                      })()}
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 w-full text-xs text-muted-foreground bg-muted/30 p-2 rounded">
-                      <div className="text-right">
-                        <span className="block opacity-70">{t("members.phone")}</span>
+                      <div className="text-right border-l pl-2">
+                        <span className="block opacity-70 font-semibold mb-1">{t("members.phone")}</span>
                         <button
                           type="button"
                           className="font-mono text-primary hover:underline"
@@ -561,9 +630,12 @@ export default function Members() {
                           <span dir="ltr">{member.phone}</span>
                         </button>
                       </div>
-                      <div className="text-left">
-                        <span className="block opacity-70">{t("subscriptions.endDate")}</span>
-                        <span>{member.subscriptionEnd || "-"}</span>
+                      <div className="text-right">
+                        <span className="block opacity-70 font-semibold mb-1">{t("members.subscriptionPeriod")}</span>
+                        <div className="flex flex-col font-mono text-[10px] leading-tight">
+                          <span>{member.subscriptionStart || "---"}</span>
+                          <span>{member.subscriptionEnd || "---"}</span>
+                        </div>
                       </div>
                     </div>
 

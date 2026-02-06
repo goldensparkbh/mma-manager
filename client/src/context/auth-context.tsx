@@ -247,7 +247,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const hasPermission = (permission: string) => {
     if (!role) return false;
     if (permissions.includes('*')) return true;
-    return permissions.includes(permission);
+    if (permissions.includes(permission)) return true;
+
+    // Backward compatibility for granular permissions
+    // If checking for module.add, module.edit, or module.delete, 
+    // also return true if user has the legacy module.modify permission.
+    if (permission.endsWith('.add') || permission.endsWith('.edit') || permission.endsWith('.delete')) {
+      const base = permission.split('.')[0];
+      if (permissions.includes(`${base}.modify`)) return true;
+    }
+
+    return false;
   };
 
   const value = useMemo(

@@ -15,16 +15,19 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Search, ShoppingBag, TrendingUp, Package, Printer, Trash2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { Sale } from "@shared/schema";
+import type { Sale, Member } from "@shared/schema";
 import { printReceipt as fireReceipt } from "@/lib/receipt-printer";
 import { useAuth } from "@/context/auth-context";
 import { useLanguage } from "@/context/language-context";
 import { PERMISSIONS } from "@/lib/permissions";
+import { ReceiptTypeDialog } from "@/components/receipt-type-dialog";
 
 export default function Sales() {
   const { hasPermission, clubSettings, role } = useAuth();
   const { t, language } = useLanguage();
-  const canModify = hasPermission(PERMISSIONS.SALES_CREATE);
+  const canAdd = hasPermission(PERMISSIONS.SALES_CREATE);
+  const canUpdate = hasPermission(PERMISSIONS.SALES_UPDATE);
+  const canDelete = hasPermission(PERMISSIONS.SALES_DELETE);
   const isAdmin = role === 'admin';
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
@@ -34,8 +37,15 @@ export default function Sales() {
   const [cancelReason, setCancelReason] = useState("");
   const [receiptData, setReceiptData] = useState<Sale | null>(null);
 
+  const [isReceiptTypeDialogOpen, setIsReceiptTypeDialogOpen] = useState(false);
+  const [saleToPrint, setSaleToPrint] = useState<Sale | null>(null);
+
   const { data: sales, isLoading } = useQuery<Sale[]>({
     queryKey: ["/api/sales"],
+  });
+
+  const { data: members } = useQuery<Member[]>({
+    queryKey: ["/api/members"],
   });
 
   const deleteSaleMutation = useMutation({
@@ -91,9 +101,13 @@ export default function Sales() {
   };
 
   const filteredSales = sales?.filter((sale) => {
+    const member = members?.find(m => m.id === sale.memberId);
+    const memberDisplayId = member?.memberId || "";
     const matchesSearch =
-      sale.productName.includes(searchQuery) ||
-      sale.buyerName?.includes(searchQuery) ||
+      sale.productName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      sale.buyerName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      memberDisplayId.includes(searchQuery) ||
+      sale.receiptId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       false;
     const matchesDate = !selectedDate || sale.date === selectedDate;
     return matchesSearch && matchesDate;
@@ -278,7 +292,9 @@ export default function Sales() {
               <thead>
                 <tr className="border-b bg-muted/50">
                   <th className="text-right py-3 px-3 font-medium text-muted-foreground">{t("sales.product")}</th>
+                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">{t("members.memberId")}</th>
                   <th className="text-right py-3 px-3 font-medium text-muted-foreground">{t("sales.buyer")}</th>
+                  <th className="text-right py-3 px-3 font-medium text-muted-foreground">{t("subscriptions.receiptNumber")}</th>
                   <th className="text-right py-3 px-3 font-medium text-muted-foreground">{t("sales.quantity")}</th>
                   <th className="text-right py-3 px-3 font-medium text-muted-foreground">{t("sales.unitPrice")}</th>
                   <th className="text-right py-3 px-3 font-medium text-muted-foreground">{t("sales.total")}</th>
@@ -293,7 +309,16 @@ export default function Sales() {
                   filteredSales.map((sale) => (
                     <tr key={sale.id} className="border-b last:border-0 hover-elevate" data-testid={`row-sale-${sale.id}`}>
                       <td className="py-3 px-3 font-medium text-right">{sale.productName}</td>
+                      <td className="py-3 px-3 text-right">
+                        {(() => {
+                          const member = members?.find(m => m.id === sale.memberId);
+                          return member ? <Badge variant="outline">{member.memberId}</Badge> : "-";
+                        })()}
+                      </td>
                       <td className="py-3 px-3 text-muted-foreground text-right">{sale.buyerName || "-"}</td>
+                      <td className="py-3 px-3 text-right">
+                        {sale.receiptId ? <span className="font-mono text-xs">{sale.receiptId}</span> : "-"}
+                      </td>
                       <td className="py-3 px-3 text-right">
                         <Badge variant="secondary">{sale.quantity}</Badge>
                       </td>
@@ -321,27 +346,26 @@ export default function Sales() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => fireReceipt({
-                            type: 'sale',
-                            data: sale,
-                            settings: clubSettings,
-                            language: language as any,
-                            t
-                          })}
+                          onClick={() => {
+                            setSaleToPrint(sale);
+                            setIsReceiptTypeDialogOpen(true);
+                          }}
                           title={t("sales.printReceipt")}
                         >
                           <Printer className="w-4 h-4" />
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => openCancelDialog(sale)}
-                          disabled={sale.status === "cancelled"}
-                          data-testid={`button-cancel-sale-${sale.id}`}
-                        >
-                          {t("common.cancel")}
-                        </Button>
-                        {isAdmin && <Button
+                        {canUpdate && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => openCancelDialog(sale)}
+                            disabled={sale.status === "cancelled"}
+                            data-testid={`button-cancel-sale-${sale.id}`}
+                          >
+                            {t("common.cancel")}
+                          </Button>
+                        )}
+                        {canDelete && <Button
                           size="sm"
                           variant="ghost"
                           className="text-destructive hover:text-destructive"
@@ -369,6 +393,26 @@ export default function Sales() {
       </Card>
 
       {/* Receipt dialog is no longer needed as we print directly */}
+      <ReceiptTypeDialog
+        isOpen={isReceiptTypeDialogOpen}
+        onClose={() => setIsReceiptTypeDialogOpen(false)}
+        onSelect={(format) => {
+          if (saleToPrint) {
+            const member = members?.find(m => m.id === saleToPrint.memberId);
+            fireReceipt({
+              type: 'sale',
+              data: {
+                ...saleToPrint,
+                memberDisplayId: member?.memberId
+              },
+              settings: clubSettings,
+              language: language as any,
+              t,
+              format
+            });
+          }
+        }}
+      />
     </div>
   );
 }

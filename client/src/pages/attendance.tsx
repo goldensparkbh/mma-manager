@@ -18,7 +18,8 @@ import { PERMISSIONS } from "@/lib/permissions";
 
 export default function AttendancePage() {
   const { hasPermission } = useAuth();
-  const canModify = hasPermission(PERMISSIONS.ATTENDANCE_CREATE);
+  const canAdd = hasPermission(PERMISSIONS.ATTENDANCE_CREATE);
+  const canDelete = hasPermission(PERMISSIONS.ATTENDANCE_DELETE);
   const { toast } = useToast();
   const { t, language } = useLanguage();
   const [searchQuery, setSearchQuery] = useState("");
@@ -114,9 +115,27 @@ export default function AttendancePage() {
     if (isUpdating) return;
     const existingRecord = getAttendanceRecord(member);
     if (existingRecord) {
+      if (!canDelete) {
+        toast({
+          title: t("common.error"),
+          description: t("common.accessDeniedMessage"),
+          variant: "destructive",
+        });
+        return;
+      }
       removeAttendance.mutate(existingRecord.id);
       return;
     }
+
+    if (!canAdd) {
+      toast({
+        title: t("common.error"),
+        description: t("common.accessDeniedMessage"),
+        variant: "destructive",
+      });
+      return;
+    }
+
     recordAttendance.mutate({
       memberId: member.memberId,
       memberName: member.name,
@@ -206,12 +225,12 @@ export default function AttendancePage() {
                 key={member.id}
                 className={cn(
                   "transition border hover:shadow-sm",
-                  canModify ? "cursor-pointer" : "cursor-default opacity-80",
+                  (canAdd || canDelete) ? "cursor-pointer" : "cursor-default opacity-80",
                   isPresent
                     ? "border-green-500/70 bg-green-50/60 dark:bg-green-900/10"
                     : "hover:border-primary/40"
                 )}
-                onClick={() => canModify && handleToggleAttendance(member)}
+                onClick={() => (canAdd || canDelete) && handleToggleAttendance(member)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();

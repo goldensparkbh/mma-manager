@@ -493,48 +493,80 @@ const getSubscriptionStatusForRange = (startDate: string, endDate: string) => {
   return "active";
 };
 
-async function syncMemberSubscriptionStatus(memberId: string) {
+export async function syncMemberSubscriptionStatus(memberId: string) {
   const q = query(collection(db, "subscriptions"), where("memberId", "==", memberId));
   const snapshots = await getDocs(q);
   const subs = mapDocs<Subscription>(snapshots);
+  const memberRef = doc(db, "members", memberId);
+
   if (!subs.length) {
-    await updateDoc(doc(db, "members", memberId), {
+    await updateDoc(memberRef, {
       subscriptionStart: "",
       subscriptionEnd: "",
-      status: "expired",
+      status: "inactive",
     });
     return;
   }
+
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
 
   const computed = subs.map((sub) => ({
     ...sub,
     computedStatus: getSubscriptionStatusForRange(sub.startDate, sub.endDate),
   }));
-  const activeCandidates = computed
-    .filter((sub) => sub.computedStatus === "active")
+
+  // Find the winning subscription
+  // 1. Any active sub?
+  const activeSubs = computed.filter(s => s.computedStatus === "active")
     .sort((a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime());
-  const activeSub = activeCandidates[0] ?? null;
+
+  // 2. Any upcoming sub?
+  const upcomingSubs = computed.filter(s => s.computedStatus === "upcoming")
+    .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+
+  // 3. Past subs
+  const pastSubs = computed.filter(s => s.computedStatus === "expired")
+    .sort((a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime());
+
+  let finalMemberStatus = "expired";
+  let targetSub: Subscription | null = null;
+
+  if (activeSubs.length > 0) {
+    finalMemberStatus = "active";
+    targetSub = activeSubs[0];
+  } else if (upcomingSubs.length > 0) {
+    finalMemberStatus = "upcoming";
+    targetSub = upcomingSubs[0];
+  } else if (pastSubs.length > 0) {
+    finalMemberStatus = "expired";
+    targetSub = pastSubs[0];
+  }
 
   const batch = writeBatch(db);
   computed.forEach((sub) => {
-    let finalStatus = sub.computedStatus;
-    if (sub.computedStatus === "active" && activeSub && sub.id !== activeSub.id) {
-      finalStatus = "expired";
+    let subFinalStatus = sub.computedStatus;
+    // If we have an active sub, others that might overlap or be in range should be marked correctly
+    // Actually getSubscriptionStatusForRange already does this based on dates.
+    // But we might want to ensure only ONE is marked "active" in the sub record if they overlap?
+    // The previous logic did this. Let's keep it consistent.
+    if (sub.computedStatus === "active" && targetSub && sub.id !== targetSub.id) {
+      subFinalStatus = "expired";
     }
-    if (sub.status !== finalStatus) {
-      batch.update(doc(db, "subscriptions", sub.id), { status: finalStatus });
+    if (sub.status !== subFinalStatus) {
+      batch.update(doc(db, "subscriptions", sub.id), { status: subFinalStatus });
     }
   });
   await batch.commit();
 
-  const memberRef = doc(db, "members", memberId);
-  if (activeSub) {
+  if (targetSub) {
     await updateDoc(memberRef, {
-      subscriptionStart: activeSub.startDate,
-      subscriptionEnd: activeSub.endDate,
-      status: "active",
+      subscriptionStart: targetSub.startDate || "",
+      subscriptionEnd: targetSub.endDate || "",
+      status: finalMemberStatus,
     });
   } else {
+    // Should only happen if subs.length > 0 but no sub matches any state (should be impossible)
     await updateDoc(memberRef, {
       subscriptionStart: "",
       subscriptionEnd: "",
@@ -688,18 +720,15 @@ export async function createSale(data: InsertSale): Promise<Sale> {
       throw new Error("Product not found");
     }
     const product = productSnap.data() as Product;
-    const currentStock = product.stock ?? 0;
-
-    // Only reduce stock if status is not pending (or if we want to reserve stock for pending orders)
-    // For now, let's assume we reserve stock even for unpaid orders if they are created.
-    // If strict "pending" quote logic is needed, we would skip this.
-    // Assuming "unpaid" sale still takes item off shelf.
-    if (currentStock < data.quantity) {
-      throw new Error("Insufficient stock");
+    if (product.trackInventory) {
+      const currentStock = product.stock ?? 0;
+      if (currentStock < data.quantity) {
+        throw new Error("Insufficient stock");
+      }
+      transaction.update(productRef, {
+        stock: currentStock - data.quantity,
+      });
     }
-    transaction.update(productRef, {
-      stock: currentStock - data.quantity,
-    });
 
     transaction.set(saleRef, {
       ...data,
@@ -753,9 +782,11 @@ export async function deleteReceipt(receiptId: string) {
         const productSnap = await transaction.get(productRef);
         if (!productSnap.exists()) return;
         const product = productSnap.data() as Product;
-        transaction.update(productRef, {
-          stock: (product.stock ?? 0) + (sale.quantity ?? 0),
-        });
+        if (product.trackInventory) {
+          transaction.update(productRef, {
+            stock: (product.stock ?? 0) + (sale.quantity ?? 0),
+          });
+        }
       });
     }
   }
@@ -819,9 +850,11 @@ export async function cancelSale(id: string, reason: string): Promise<Sale | nul
   const productSnap = await getDoc(productRef);
   if (productSnap.exists()) {
     const product = productSnap.data() as Product;
-    await updateDoc(productRef, {
-      stock: (product.stock ?? 0) + sale.quantity,
-    });
+    if (product.trackInventory) {
+      await updateDoc(productRef, {
+        stock: (product.stock ?? 0) + sale.quantity,
+      });
+    }
   }
 
   await safeLogActivity({
@@ -967,17 +1000,30 @@ export async function getDashboardStats(startDate?: string, endDate?: string): P
     return m.subscriptionEnd <= next10DaysStr;
   });
 
+  const recentSalesInPeriod = sales
+    .filter((s) => s.date.split("T")[0] >= start && s.date.split("T")[0] <= end && s.status !== "cancelled")
+    .map(s => ({ ...s, type: 'sale' as const }));
+
+  const recentSubscriptionsInPeriod = subscriptions
+    .filter((s) => s.startDate >= start && s.startDate <= end)
+    .map(s => ({ ...s, type: 'subscription' as const, date: s.startDate }));
+
+  const recentTransactions = [...recentSalesInPeriod, ...recentSubscriptionsInPeriod]
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 10);
+
   return {
     totalMembers: members.length,
-    activeSubscriptions, // Now represents true active members count
-    monthlyIncome, // Subscriptions income in range
+    activeSubscriptions,
+    monthlyIncome,
     netProfit,
     totalExpenses,
     expensesByCategory,
     newMembersThisMonth,
     expiringSubscriptions,
-    salesIncome // Added field
-  } as DashboardStats; // Cast to bypass strict type check if salesIncome is missing in schema type definition for now, will update schema next
+    salesIncome,
+    recentTransactions
+  } as DashboardStats;
 }
 
 export async function ensureUserRole(userId: string, role: string) {
@@ -1017,9 +1063,11 @@ export async function updateSubscriptionPackage(
   });
 }
 
-export async function getMemberBelts(memberId: string): Promise<MemberBelt[]> {
-  const q = query(collection(db, "memberBelts"), where("memberId", "==", memberId));
-  const snapshots = await getDocs(q);
+export async function getMemberBelts(memberId?: string): Promise<MemberBelt[]> {
+  const beltsRef = collection(db, "memberBelts");
+  const snapshots = memberId
+    ? await getDocs(query(beltsRef, where("memberId", "==", memberId)))
+    : await getDocs(beltsRef);
   return mapDocs<MemberBelt>(snapshots);
 }
 
@@ -1239,9 +1287,11 @@ export async function deleteSale(id: string) {
         const productSnap = await transaction.get(productRef);
         if (!productSnap.exists()) return;
         const product = productSnap.data() as Product;
-        transaction.update(productRef, {
-          stock: (product.stock ?? 0) + (sale.quantity ?? 0),
-        });
+        if (product.trackInventory) {
+          transaction.update(productRef, {
+            stock: (product.stock ?? 0) + (sale.quantity ?? 0),
+          });
+        }
       });
     }
   }

@@ -13,9 +13,10 @@ export interface Member {
   id: string;
   name: string;
   firstName?: string | null;
-  grandFatherName?: string | null; // Middle/Second Name
+  fatherName?: string | null; // Middle/Second Name
   lastName?: string | null;
   memberId: string;
+  cpr?: string | null;
   phone: string;
   email?: string | null;
   dob?: string | null; // Date of Birth
@@ -52,6 +53,7 @@ export interface Product {
   stock: number;
   category: string;
   imageUrl?: string | null;
+  trackInventory?: boolean;
 }
 
 export type InsertProduct = Omit<Product, "id">;
@@ -172,6 +174,7 @@ export interface DashboardStats {
   newMembersThisMonth: number;
   expiringSubscriptions: Member[];
   salesIncome: number;
+  recentTransactions: (Sale | Subscription)[];
 }
 
 export interface FinanceReport {

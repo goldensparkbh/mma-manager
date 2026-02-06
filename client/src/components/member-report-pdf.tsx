@@ -22,17 +22,25 @@ export type MemberReportData = {
         memberId: string;
         phone: string;
         email: string;
+        cpr: string;
         subscriptionEnd: string;
+        dob: string;
+        gender: string;
     };
     sectionTitles: {
         personalInfo: string;
         healthNotes: string;
+        contactInfo: string;
+        belts: string;
     };
     member: {
         name: string;
         memberId: string;
+        cpr: string;
         phone: string;
         email: string;
+        dob: string;
+        gender: string;
         imageUrl?: string;
         subscriptionEnd: string;
     };
@@ -40,488 +48,636 @@ export type MemberReportData = {
     status: string;
     statusLabel: string;
     summaryCards: { label: string; value: string }[];
-    detailItems: { label: string; value: string }[];
     healthNotes: string;
     tableSections: { title: string; columns: string[]; rows: string[][]; emptyText: string }[];
+    beltChain: {
+        id: string;
+        name: string;
+        color: string;
+        isEarned: boolean;
+        awardedAt?: string;
+    }[];
+    financials: {
+        subPaid: number;
+        subUnpaid: number;
+        salesPaid: number;
+        salesUnpaid: number;
+        totalPaidLabel: string;
+        totalUnpaidLabel: string;
+    };
 };
 
 const styles = StyleSheet.create({
     page: {
-        padding: 24,
-        backgroundColor: "#f2f5fb",
-        color: "#090e1a",
+        backgroundColor: "#ffffff",
+        color: "#0f172a",
+        fontFamily: "NotoSans",
         fontSize: 10,
+        padding: 0,
     },
     pageRtl: {
         direction: "rtl",
     },
-    header: {
-        backgroundColor: "#090e1a",
+    container: {
+        flexDirection: "row",
+        height: "100%",
+    },
+    containerRtl: {
+        flexDirection: "row-reverse",
+    },
+    // SIDEBAR
+    sidebar: {
+        width: "30%",
+        backgroundColor: "#f8fafc",
+        padding: 24,
+        borderRightWidth: 1,
+        borderRightColor: "#e2e8f0",
+        height: "100%",
+    },
+    sidebarRtl: {
+        borderRightWidth: 0,
+        borderLeftWidth: 1,
+        borderLeftColor: "#e2e8f0",
+    },
+    sidebarContent: {
+        alignItems: "center",
+    },
+    avatar: {
+        width: 100,
+        height: 100,
+        borderRadius: 50,
+        objectFit: "cover",
+        marginBottom: 16,
+        borderWidth: 4,
+        borderColor: "#ffffff",
+        backgroundColor: "#e2e8f0",
+    },
+    avatarPlaceholder: {
+        width: 100,
+        height: 100,
+        borderRadius: 50,
+        backgroundColor: "#cbd5e1",
+        marginBottom: 16,
+        alignItems: "center",
+        justifyContent: "center",
+        borderWidth: 4,
+        borderColor: "#ffffff",
+    },
+    initials: {
+        fontSize: 32,
         color: "#ffffff",
+        fontWeight: 700,
+    },
+    memberName: {
+        fontSize: 18,
+        fontWeight: 700,
+        marginBottom: 4,
+        textAlign: "center",
+        color: "#0f172a",
+    },
+    memberId: {
+        fontSize: 12,
+        color: "#64748b",
+        marginBottom: 16,
+        textAlign: "center",
+    },
+    statusBadge: {
+        paddingVertical: 6,
+        paddingHorizontal: 12,
         borderRadius: 12,
-        padding: 14,
+        backgroundColor: "#e2e8f0",
+        color: "#475569",
+        fontSize: 10,
+        fontWeight: 700,
+        marginBottom: 32,
+        alignSelf: "center",
+    },
+    statusActive: { backgroundColor: "#dcfce7", color: "#166534" },
+    statusExpired: { backgroundColor: "#fee2e2", color: "#991b1b" },
+    statusUpcoming: { backgroundColor: "#fef9c3", color: "#854d0e" },
+
+    sectionTitle: {
+        fontSize: 10,
+        fontWeight: 700,
+        color: "#1e293b",
+        textTransform: "uppercase",
+        letterSpacing: 0.5,
+        marginBottom: 12,
+        width: "100%",
+        borderLeftWidth: 3,
+        borderLeftColor: "#3b82f6",
+        paddingLeft: 8,
         flexDirection: "row",
         alignItems: "center",
+    },
+    sectionTitleRtl: {
+        borderLeftWidth: 0,
+        borderRightWidth: 3,
+        borderRightColor: "#3b82f6",
+        paddingLeft: 0,
+        paddingRight: 8,
+    },
+    infoRow: {
+        width: "100%",
+        marginBottom: 12,
+    },
+    infoLabel: {
+        fontSize: 9,
+        color: "#64748b",
+        marginBottom: 2,
+    },
+    infoValue: {
+        fontSize: 11,
+        color: "#0f172a",
+        fontWeight: 500,
+    },
+    // MAIN CONTENT
+    main: {
+        width: "70%",
+        padding: 32,
+        paddingTop: 40,
+    },
+    header: {
+        flexDirection: "row",
         justifyContent: "space-between",
+        alignItems: "flex-start",
+        marginBottom: 32,
+        borderBottomWidth: 2,
+        borderBottomColor: "#f1f5f9",
+        paddingBottom: 20,
     },
     headerRtl: {
         flexDirection: "row-reverse",
     },
-    headerLeft: {
+    headerBrand: {
         flexDirection: "row",
         alignItems: "center",
     },
-    headerLeftRtl: {
+    headerBrandRtl: {
         flexDirection: "row-reverse",
     },
     logo: {
-        width: 46,
-        height: 46,
-        borderRadius: 10,
-        backgroundColor: "#ffffff",
-        padding: 4,
+        width: 32,
+        height: 32,
+        objectFit: "contain",
         marginRight: 10,
     },
     logoRtl: {
         marginRight: 0,
         marginLeft: 10,
     },
-    logoPlaceholder: {
-        width: 46,
-        height: 46,
-        borderRadius: 10,
-        backgroundColor: "#ffffff",
-        alignItems: "center",
-        justifyContent: "center",
-        marginRight: 10,
+    clubName: {
+        fontSize: 20,
+        fontWeight: 800,
+        color: "#0f172a",
     },
-    headerTitle: {
-        fontSize: 16,
-        fontWeight: 700,
-    },
-    headerSubtitle: {
-        fontSize: 10,
-        color: "rgba(255,255,255,0.7)",
+    reportTitle: {
+        fontSize: 12,
+        color: "#64748b",
         marginTop: 2,
     },
-    headerMeta: {
+    meta: {
         alignItems: "flex-end",
     },
-    headerMetaRtl: {
+    metaRtl: {
         alignItems: "flex-start",
     },
-    metaPill: {
-        backgroundColor: "rgba(255,255,255,0.18)",
-        paddingVertical: 4,
-        paddingHorizontal: 8,
-        borderRadius: 999,
+    metaText: {
         fontSize: 9,
-        marginBottom: 4,
+        color: "#94a3b8",
+        marginBottom: 2,
     },
-    body: {
-        marginTop: 16,
+
+    // STATS GRID
+    statsGrid: {
         flexDirection: "row",
+        marginBottom: 32,
+        gap: 12,
     },
-    bodyRtl: {
+    statsGridRtl: {
         flexDirection: "row-reverse",
     },
-    summaryColumn: {
+    statCard: {
         flex: 1,
-        minWidth: 0,
-    },
-    summaryColumnSpacing: {
-        marginRight: 12,
-    },
-    summaryColumnSpacingRtl: {
-        marginRight: 0,
-        marginLeft: 12,
-    },
-    tableBody: {
-        marginTop: 16,
-    },
-    card: {
-        backgroundColor: "#ffffff",
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: "#e1e6f0",
+        backgroundColor: "#f8fafc",
+        borderRadius: 8,
         padding: 12,
-    },
-    cardSpacing: {
-        marginBottom: 12,
-    },
-    cardTitle: {
-        fontSize: 11,
-        fontWeight: 700,
-        marginBottom: 8,
-        color: "#090e1a",
-    },
-    memberTop: {
-        flexDirection: "row",
-        alignItems: "center",
-    },
-    memberTopRtl: {
-        flexDirection: "row-reverse",
-    },
-    memberAvatar: {
-        width: 64,
-        height: 64,
-        borderRadius: 12,
-        marginRight: 10,
-        backgroundColor: "#e4e9f6",
-    },
-    memberAvatarRtl: {
-        marginRight: 0,
-        marginLeft: 10,
-    },
-    memberPlaceholder: {
-        width: 64,
-        height: 64,
-        borderRadius: 12,
-        backgroundColor: "#e4e9f6",
-        alignItems: "center",
-        justifyContent: "center",
-        marginRight: 10,
-    },
-    memberPlaceholderRtl: {
-        marginRight: 0,
-        marginLeft: 10,
-    },
-    memberName: {
-        fontSize: 13,
-        fontWeight: 700,
-        color: "#090e1a",
-    },
-    memberId: {
-        fontSize: 9,
-        color: "#6b7280",
-        marginTop: 2,
-    },
-    statusPill: {
-        marginTop: 6,
-        fontSize: 9,
-        paddingVertical: 3,
-        paddingHorizontal: 8,
-        borderRadius: 999,
-        alignSelf: "flex-start",
-        backgroundColor: "#e4e9f6",
-        color: "#223f7a",
-    },
-    contactList: {
-        marginTop: 10,
-    },
-    contactListRtl: {
-        alignItems: "flex-end",
-    },
-    contactRow: {
-        marginBottom: 4,
-    },
-    contactText: {
-        fontSize: 9,
-        color: "#2b3446",
-    },
-    statList: {},
-    statItem: {
-        backgroundColor: "#f4f6fb",
-        borderRadius: 10,
         borderWidth: 1,
-        borderColor: "#e1e6f0",
-        padding: 8,
+        borderColor: "#e2e8f0",
     },
     statLabel: {
-        fontSize: 8,
-        color: "#6b7280",
-        textTransform: "uppercase",
-        letterSpacing: 0.4,
+        fontSize: 9,
+        color: "#64748b",
+        marginBottom: 4,
     },
     statValue: {
-        fontSize: 12,
+        fontSize: 16,
         fontWeight: 700,
-        marginTop: 2,
-        color: "#090e1a",
+        color: "#0f172a",
     },
-    infoGrid: {
-        flexDirection: "row",
-        flexWrap: "wrap",
+
+    // HEALTH NOTES
+    notesBox: {
+        backgroundColor: "#fff7ed",
+        borderLeftWidth: 4,
+        borderLeftColor: "#f97316",
+        padding: 12,
+        marginBottom: 32,
+        borderRadius: 4,
     },
-    infoGridRtl: {
-        flexDirection: "row-reverse",
+    notesBoxRtl: {
+        borderLeftWidth: 0,
+        borderRightWidth: 4,
+        borderRightColor: "#f97316",
     },
-    infoItem: {
-        width: "50%",
-        paddingRight: 6,
-        paddingBottom: 6,
-    },
-    infoItemRtl: {
-        paddingRight: 0,
-        paddingLeft: 6,
-    },
-    infoItemFull: {
-        width: "100%",
-    },
-    infoBox: {
-        backgroundColor: "#f4f6fb",
-        borderRadius: 10,
-        borderWidth: 1,
-        borderColor: "#e1e6f0",
-        padding: 8,
-    },
-    infoLabel: {
-        fontSize: 8,
-        color: "#6b7280",
-        textTransform: "uppercase",
-        letterSpacing: 0.4,
-    },
-    infoValue: {
+    notesTitle: {
         fontSize: 10,
-        fontWeight: 600,
-        marginTop: 2,
-        color: "#090e1a",
+        fontWeight: 700,
+        color: "#9a3412",
+        marginBottom: 8,
+        borderLeftWidth: 3,
+        borderLeftColor: "#f97316",
+        paddingLeft: 8,
     },
-    notes: {
-        backgroundColor: "#f4f6fb",
-        borderRadius: 10,
-        borderWidth: 1,
-        borderColor: "#e1e6f0",
-        padding: 8,
-        fontSize: 9,
-        color: "#2b3446",
-        lineHeight: 1.4,
+    notesText: {
+        fontSize: 10,
+        color: "#7c2d12",
+        lineHeight: 1.5,
+    },
+
+    // TABLES
+    tableSection: {
+        marginBottom: 24,
+    },
+    tableTitle: {
+        fontSize: 11,
+        fontWeight: 700,
+        color: "#1e293b",
+        marginBottom: 12,
+        borderLeftWidth: 3,
+        borderLeftColor: "#3b82f6",
+        paddingLeft: 8,
     },
     table: {
+        width: "100%",
         borderWidth: 1,
-        borderColor: "#e1e6f0",
-        borderRadius: 10,
+        borderColor: "#e2e8f0",
+        borderRadius: 6,
         overflow: "hidden",
+    },
+    tableHeader: {
+        flexDirection: "row",
+        backgroundColor: "#f8fafc",
+        borderBottomWidth: 1,
+        borderBottomColor: "#e2e8f0",
+    },
+    tableHeaderRtl: {
+        flexDirection: "row-reverse",
     },
     tableRow: {
         flexDirection: "row",
         borderBottomWidth: 1,
-        borderBottomColor: "#e1e6f0",
+        borderBottomColor: "#e2e8f0",
     },
-    tableHeader: {
-        backgroundColor: "#f4f6fb",
+    tableRowRtl: {
+        flexDirection: "row-reverse",
     },
-    tableCell: {
+    th: {
         flex: 1,
-        paddingVertical: 6,
-        paddingHorizontal: 8,
-        fontSize: 8.5,
-        color: "#2b3446",
-    },
-    tableHeaderCell: {
-        fontSize: 8,
-        color: "#64748b",
-        textTransform: "uppercase",
-        letterSpacing: 0.4,
-    },
-    tableEmpty: {
-        padding: 10,
-        textAlign: "center",
+        padding: 8,
         fontSize: 9,
-        color: "#6b7280",
+        fontWeight: 700,
+        color: "#475569",
+        textAlign: "left",
     },
-    textRtl: {
+    thRtl: {
         textAlign: "right",
     },
+    td: {
+        flex: 1,
+        padding: 8,
+        fontSize: 9,
+        color: "#334155",
+        textAlign: "left",
+    },
+    tdRtl: {
+        textAlign: "right",
+    },
+    noData: {
+        padding: 12,
+        fontSize: 9,
+        color: "#94a3b8",
+        textAlign: "center",
+        //     fontStyle: "italic", // Removed to fix Cairo font resolution error
+    },
+    textRight: {
+        textAlign: "right",
+    },
+    // BELT CHAIN
+    beltChainContainer: {
+        marginTop: 24,
+        marginBottom: 40,
+        padding: 16,
+        backgroundColor: "#f8fafc",
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: "#e2e8f0",
+    },
+    beltChainTitle: {
+        fontSize: 11,
+        fontWeight: 700,
+        color: "#1e293b",
+        marginBottom: 16,
+        borderLeftWidth: 3,
+        borderLeftColor: "#3b82f6",
+        paddingLeft: 8,
+    },
+    beltChainList: {
+        flexDirection: "row",
+        justifyContent: "center",
+        gap: 8,
+        width: "100%",
+    },
+    beltChainListRtl: {
+        flexDirection: "row-reverse",
+    },
+    beltItem: {
+        alignItems: "center",
+        width: "18%",
+        marginBottom: 16,
+    },
+    beltCircle: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        borderWidth: 2,
+        borderColor: "#cbd5e1",
+        marginBottom: 6,
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
+        flexGrow: 0,
+    },
+    beltName: {
+        fontSize: 8,
+        fontWeight: 700,
+        textAlign: "center",
+        color: "#1e293b",
+    },
+    beltDate: {
+        fontSize: 6,
+        color: "#64748b",
+        textAlign: "center",
+        marginTop: 1,
+    },
+    checkMark: {
+        fontSize: 10,
+        color: "#ffffff",
+    },
+    // FINANCE SUMMARY
+    financeSummary: {
+        flexDirection: "row",
+        justifyContent: "flex-end",
+        gap: 16,
+        marginTop: 8,
+        padding: 8,
+        backgroundColor: "#f8fafc",
+        borderRadius: 4,
+        borderWidth: 1,
+        borderColor: "#e2e8f0",
+    },
+    financeSummaryRtl: {
+        flexDirection: "row-reverse",
+    },
+    financeItem: {
+        alignItems: "flex-end",
+    },
+    financeItemRtl: {
+        alignItems: "flex-start",
+    },
+    financeLabel: {
+        fontSize: 7,
+        color: "#64748b",
+        textTransform: "uppercase",
+        fontWeight: 700,
+        marginBottom: 2,
+    },
+    financeValue: {
+        fontSize: 9,
+        fontWeight: 700,
+        color: "#1e293b",
+    },
+    paid: { color: "#166534" },
+    unpaid: { color: "#991b1b" },
 });
-
-const getInitials = (value: string) =>
-    value
-        .split(/\s+/)
-        .filter(Boolean)
-        .slice(0, 2)
-        .map((part) => part[0])
-        .join("")
-        .toUpperCase();
-
-const getStatusStyle = (status: string) => {
-    switch (status) {
-        case "active":
-            return { backgroundColor: "rgba(34,197,94,0.18)", color: "#166534" };
-        case "aboutToExpire":
-            return { backgroundColor: "rgba(234,179,8,0.2)", color: "#92400e" };
-        case "expired":
-            return { backgroundColor: "rgba(239,68,68,0.18)", color: "#991b1b" };
-        case "inactive":
-            return { backgroundColor: "rgba(148,163,184,0.2)", color: "#475569" };
-        default:
-            return { backgroundColor: "#e4e9f6", color: "#223f7a" };
-    }
-};
 
 export function MemberReportPdf({ data }: { data: MemberReportData }) {
     const isRtl = data.isRtl;
-    const pageStyle = [
-        styles.page,
-        isRtl && styles.pageRtl,
-        { fontFamily: isRtl ? "Cairo" : "NotoSans" },
-    ];
-    const textAlign = isRtl ? styles.textRtl : null;
-    const detailItems = data.detailItems;
-    const tableSections = data.tableSections.map((section) => ({
-        ...section,
-        columns: isRtl ? [...section.columns].reverse() : section.columns,
-        rows: isRtl ? section.rows.map((row) => [...row].reverse()) : section.rows,
-    }));
-    const headerMetaItems = isRtl
-        ? [
-            `${data.labels.memberId}: ${data.member.memberId}`,
-            `${data.labels.date}: ${data.reportDate}`,
-        ]
-        : [
-            `${data.labels.date}: ${data.reportDate}`,
-            `${data.labels.memberId}: ${data.member.memberId}`,
-        ];
-    const summaryColumnSpacing = isRtl ? styles.summaryColumnSpacingRtl : styles.summaryColumnSpacing;
-    const keepTableTogetherThreshold = 8;
-    const tableMinPresenceAhead = 120;
-    const clubInitials = getInitials(data.clubName || data.reportTitle);
-    const memberInitials = data.memberInitials || getInitials(data.member.name);
-    const statusStyle = getStatusStyle(data.status);
-    const header = (
-        <View style={[styles.header, isRtl && styles.headerRtl]}>
-            <View style={[styles.headerLeft, isRtl && styles.headerLeftRtl]}>
-                {data.logoUrl ? (
-                    <Image src={data.logoUrl} style={[styles.logo, isRtl && styles.logoRtl]} />
-                ) : (
-                    <View style={[styles.logoPlaceholder, isRtl && styles.logoRtl]}>
-                        <Text>{clubInitials}</Text>
-                    </View>
-                )}
-                <View>
-                    <Text style={[styles.headerTitle, textAlign]}>{data.reportTitle}</Text>
-                    <Text style={[styles.headerSubtitle, textAlign]}>{data.clubName}</Text>
-                </View>
-            </View>
-            <View style={[styles.headerMeta, isRtl && styles.headerMetaRtl]}>
-                {headerMetaItems.map((meta) => (
-                    <Text key={meta} style={[styles.metaPill, textAlign]}>
-                        {meta}
-                    </Text>
-                ))}
-            </View>
-        </View>
-    );
+    const fontFamily = isRtl ? "Cairo" : "NotoSans";
+
+    const getStatusStyle = (status: string) => {
+        if (status === "active") return styles.statusActive;
+        if (status === "expired") return styles.statusExpired;
+        if (status === "upcoming") return styles.statusUpcoming;
+        return {};
+    };
 
     return (
         <Document title={data.reportFileName} author={data.clubName}>
-            <Page size="A4" style={pageStyle}>
-                {header}
+            <Page size="A4" style={[styles.page, isRtl && styles.pageRtl, { fontFamily }]}>
+                <View style={[styles.container, isRtl && styles.containerRtl]}>
 
-                <View style={[styles.body, isRtl && styles.bodyRtl]}>
-                    <View style={[styles.summaryColumn, summaryColumnSpacing]}>
-                        <View style={[styles.card, styles.cardSpacing]} wrap={false}>
-                            <View style={[styles.memberTop, isRtl && styles.memberTopRtl]}>
-                                {data.member.imageUrl ? (
-                                    <Image src={data.member.imageUrl} style={[styles.memberAvatar, isRtl && styles.memberAvatarRtl]} />
-                                ) : (
-                                    <View style={[styles.memberPlaceholder, isRtl && styles.memberPlaceholderRtl]}>
-                                        <Text>{memberInitials}</Text>
-                                    </View>
-                                )}
+                    {/* SIDEBAR */}
+                    <View style={[styles.sidebar, isRtl && styles.sidebarRtl]}>
+                        <View style={styles.sidebarContent}>
+                            {data.member.imageUrl ? (
+                                <Image src={data.member.imageUrl} style={styles.avatar} />
+                            ) : (
+                                <View style={styles.avatarPlaceholder}>
+                                    <Text style={styles.initials}>{data.memberInitials}</Text>
+                                </View>
+                            )}
+
+                            <Text style={styles.memberName}>{data.member.name}</Text>
+                            <Text style={styles.memberId}>#{data.member.memberId}</Text>
+
+                            <Text style={[styles.statusBadge, getStatusStyle(data.status)]}>
+                                {data.statusLabel}
+                            </Text>
+
+                            <View style={[styles.sectionTitle, isRtl && styles.sectionTitleRtl]}>
+                                <Text>{data.sectionTitles.contactInfo}</Text>
+                            </View>
+
+                            {data.member.cpr && (
+                                <View style={styles.infoRow}>
+                                    <Text style={[styles.infoLabel, isRtl && styles.textRight]}>{data.labels.cpr}</Text>
+                                    <Text style={[styles.infoValue, isRtl && styles.textRight]}>{data.member.cpr}</Text>
+                                </View>
+                            )}
+
+                            <View style={styles.infoRow}>
+                                <Text style={[styles.infoLabel, isRtl && styles.textRight]}>{data.labels.phone}</Text>
+                                <Text style={[styles.infoValue, isRtl && styles.textRight]}>{data.member.phone}</Text>
+                            </View>
+
+                            <View style={styles.infoRow}>
+                                <Text style={[styles.infoLabel, isRtl && styles.textRight]}>{data.labels.email}</Text>
+                                <Text style={[styles.infoValue, isRtl && styles.textRight]}>{data.member.email}</Text>
+                            </View>
+
+                            {data.member.dob && (
+                                <View style={styles.infoRow}>
+                                    <Text style={[styles.infoLabel, isRtl && styles.textRight]}>{data.labels.dob}</Text>
+                                    <Text style={[styles.infoValue, isRtl && styles.textRight]}>{data.member.dob}</Text>
+                                </View>
+                            )}
+
+                            {data.member.gender && (
+                                <View style={styles.infoRow}>
+                                    <Text style={[styles.infoLabel, isRtl && styles.textRight]}>{data.labels.gender}</Text>
+                                    <Text style={[styles.infoValue, isRtl && styles.textRight]}>{data.member.gender}</Text>
+                                </View>
+                            )}
+                        </View>
+                    </View>
+
+                    {/* MAIN CONTENT */}
+                    <View style={styles.main}>
+
+                        {/* Header */}
+                        <View style={[styles.header, isRtl && styles.headerRtl]}>
+                            <View style={[styles.headerBrand, isRtl && styles.headerBrandRtl]}>
+                                {data.logoUrl && <Image src={data.logoUrl} style={[styles.logo, isRtl && styles.logoRtl]} />}
                                 <View>
-                                    <Text style={[styles.memberName, textAlign]}>{data.member.name}</Text>
-                                    <Text style={[styles.memberId, textAlign]}>#{data.member.memberId}</Text>
-                                    <Text style={[styles.statusPill, statusStyle, isRtl && { alignSelf: "flex-end" }]}>
-                                        {data.statusLabel}
-                                    </Text>
+                                    <Text style={[styles.clubName, isRtl && styles.textRight]}>{data.clubName}</Text>
+                                    <Text style={[styles.reportTitle, isRtl && styles.textRight]}>{data.reportTitle}</Text>
                                 </View>
                             </View>
-                            <View style={[styles.contactList, isRtl && styles.contactListRtl]}>
-                                <Text style={[styles.contactText, styles.contactRow, textAlign]}>{`${data.labels.phone}: ${data.member.phone}`}</Text>
-                                <Text style={[styles.contactText, styles.contactRow, textAlign]}>{`${data.labels.email}: ${data.member.email}`}</Text>
-                                <Text style={[styles.contactText, textAlign]}>{`${data.labels.subscriptionEnd}: ${data.member.subscriptionEnd}`}</Text>
-                            </View>
-                        </View>
-                    </View>
-
-                    <View style={[styles.summaryColumn, summaryColumnSpacing]}>
-                        <View style={[styles.card, styles.cardSpacing]} wrap={false}>
-                            <View style={styles.statList}>
-                                {data.summaryCards.map((card, index) => (
-                                    <View
-                                        key={card.label}
-                                        style={[
-                                            styles.statItem,
-                                            index < data.summaryCards.length - 1 ? { marginBottom: 6 } : null,
-                                        ]}
-                                    >
-                                        <Text style={[styles.statLabel, textAlign]}>{card.label}</Text>
-                                        <Text style={[styles.statValue, textAlign]}>{card.value}</Text>
-                                    </View>
-                                ))}
-                            </View>
-                        </View>
-                    </View>
-
-                    <View style={styles.summaryColumn}>
-                        <View style={[styles.card, styles.cardSpacing]} wrap={false}>
-                            <Text style={[styles.cardTitle, textAlign]}>{data.sectionTitles.personalInfo}</Text>
-                            <View style={[styles.infoGrid, isRtl && styles.infoGridRtl]}>
-                                {detailItems.map((item) => (
-                                    <View key={item.label} style={[styles.infoItem, styles.infoItemFull, isRtl && styles.infoItemRtl]}>
-                                        <View style={styles.infoBox}>
-                                            <Text style={[styles.infoLabel, textAlign]}>{item.label}</Text>
-                                            <Text style={[styles.infoValue, textAlign]}>{item.value}</Text>
-                                        </View>
-                                    </View>
-                                ))}
+                            <View style={[styles.meta, isRtl && styles.metaRtl]}>
+                                <Text style={styles.metaText}>{data.labels.date}: {data.reportDate}</Text>
+                                <Text style={styles.metaText}>{data.labels.memberId}: {data.member.memberId}</Text>
                             </View>
                         </View>
 
-                        <View style={[styles.card, styles.cardSpacing]} wrap={false}>
-                            <Text style={[styles.cardTitle, textAlign]}>{data.sectionTitles.healthNotes}</Text>
-                            <Text style={[styles.notes, textAlign]}>{data.healthNotes}</Text>
-                        </View>
-                    </View>
-                </View>
-            </Page>
-
-            <Page size="A4" style={pageStyle}>
-                {header}
-
-                <View style={styles.tableBody}>
-                    {tableSections.map((section, index) => {
-                        const keepTogether = section.rows.length <= keepTableTogetherThreshold;
-                        return (
-                            <View
-                                key={`${section.title}-${index}`}
-                                style={[styles.card, styles.cardSpacing]}
-                                wrap={!keepTogether}
-                                minPresenceAhead={keepTogether ? 0 : tableMinPresenceAhead}
-                            >
-                            <Text style={[styles.cardTitle, textAlign]}>{section.title}</Text>
-                            <View style={styles.table}>
-                                <View style={[styles.tableRow, styles.tableHeader]}>
-                                    {section.columns.map((column) => (
-                                        <Text key={column} style={[styles.tableCell, styles.tableHeaderCell, textAlign]}>
-                                            {column}
-                                        </Text>
-                                    ))}
+                        {/* Summary Stats */}
+                        <View style={[styles.statsGrid, isRtl && styles.statsGridRtl]}>
+                            {data.summaryCards.map((card, i) => (
+                                <View key={i} style={styles.statCard}>
+                                    <Text style={[styles.statLabel, isRtl && styles.textRight]}>{card.label}</Text>
+                                    <Text style={[styles.statValue, isRtl && styles.textRight]}>{card.value}</Text>
                                 </View>
-                                {section.rows.length ? (
-                                    section.rows.map((row, rowIndex) => (
-                                        <View
-                                            key={`${section.title}-${rowIndex}`}
-                                            style={[
-                                                styles.tableRow,
-                                                rowIndex === section.rows.length - 1 ? { borderBottomWidth: 0 } : null,
-                                            ]}
-                                        >
-                                            {row.map((cell, cellIndex) => (
-                                                <Text key={`${rowIndex}-${cellIndex}`} style={[styles.tableCell, textAlign]}>
-                                                    {cell}
-                                                </Text>
+                            ))}
+                        </View>
+
+                        {/* Belt Chain */}
+                        {data.beltChain && data.beltChain.length > 0 && (
+                            <View style={styles.beltChainContainer} wrap={false}>
+                                <Text style={[styles.beltChainTitle, isRtl && styles.sectionTitleRtl, isRtl && styles.textRight]}>{data.sectionTitles.belts}</Text>
+                                {(() => {
+                                    const rows = [];
+                                    const itemsPerRow = 5;
+                                    for (let i = 0; i < data.beltChain.length; i += itemsPerRow) {
+                                        rows.push(data.beltChain.slice(i, i + itemsPerRow));
+                                    }
+                                    return rows.map((row, rowIdx) => (
+                                        <View key={rowIdx} style={[styles.beltChainList, isRtl && styles.beltChainListRtl, { marginBottom: 10 }]}>
+                                            {row.map((belt) => (
+                                                <View key={belt.id} style={styles.beltItem}>
+                                                    <View
+                                                        style={[
+                                                            styles.beltCircle,
+                                                            {
+                                                                backgroundColor: belt.isEarned ? belt.color : "#f1f5f9",
+                                                                borderColor: "#cbd5e1"
+                                                            }
+                                                        ]}
+                                                    >
+                                                        {belt.isEarned && <Text style={styles.checkMark}>✓</Text>}
+                                                    </View>
+                                                    <Text style={styles.beltName}>{belt.name}</Text>
+                                                    {belt.awardedAt && (
+                                                        <Text style={styles.beltDate}>{belt.awardedAt}</Text>
+                                                    )}
+                                                </View>
+                                            ))}
+                                            {/* Fill remaining slots to maintain alignment */}
+                                            {row.length < itemsPerRow && Array.from({ length: itemsPerRow - row.length }).map((_, i) => (
+                                                <View key={`empty-${i}`} style={styles.beltItem} />
                                             ))}
                                         </View>
-                                    ))
-                                ) : (
-                                    <Text style={[styles.tableEmpty, textAlign]}>{section.emptyText}</Text>
+                                    ));
+                                })()}
+                            </View>
+                        )}
+
+                        {/* Health Notes */}
+                        {data.healthNotes && data.healthNotes !== "No results" && data.healthNotes !== "لا توجد نتائج" && (
+                            <View style={[styles.notesBox, isRtl && styles.notesBoxRtl]}>
+                                <Text style={[styles.notesTitle, isRtl && styles.sectionTitleRtl, isRtl && styles.textRight]}>{data.sectionTitles.healthNotes}</Text>
+                                <Text style={[styles.notesText, isRtl && styles.textRight]}>{data.healthNotes}</Text>
+                            </View>
+                        )}
+
+                        {/* Tables */}
+                        {data.tableSections.map((section, idx) => (
+                            <View key={idx} style={styles.tableSection} wrap={false}>
+                                <Text style={[styles.tableTitle, isRtl && styles.sectionTitleRtl, isRtl && styles.textRight]}>{section.title}</Text>
+                                <View style={styles.table}>
+                                    {/* Header */}
+                                    <View style={[styles.tableHeader, isRtl && styles.tableHeaderRtl]}>
+                                        {section.columns.map((col, i) => (
+                                            <Text key={i} style={[styles.th, isRtl && styles.thRtl]}>{col}</Text>
+                                        ))}
+                                    </View>
+                                    {/* Rows */}
+                                    {section.rows.length > 0 ? (
+                                        section.rows.map((row, rIdx) => (
+                                            <View key={rIdx} style={[styles.tableRow, isRtl && styles.tableRowRtl]}>
+                                                {row.map((cell, cIdx) => (
+                                                    <Text key={cIdx} style={[styles.td, isRtl && styles.tdRtl]}>{cell}</Text>
+                                                ))}
+                                            </View>
+                                        ))
+                                    ) : (
+                                        <Text style={styles.noData}>{section.emptyText}</Text>
+                                    )}
+                                </View>
+
+                                {/* Financial Summaries for Tables */}
+                                {(section.title === data.tableSections[0].title || section.title === data.tableSections[3].title) && (
+                                    <View style={[styles.financeSummary, data.isRtl && styles.financeSummaryRtl]}>
+                                        <View style={[styles.financeItem, data.isRtl && styles.financeItemRtl]}>
+                                            <Text style={styles.financeLabel}>
+                                                {data.financials.totalPaidLabel}
+                                            </Text>
+                                            <Text style={[styles.financeValue, styles.paid]}>
+                                                {section.title === data.tableSections[0].title
+                                                    ? `${data.financials.subPaid.toFixed(3)} BHD`
+                                                    : `${data.financials.salesPaid.toFixed(3)} BHD`}
+                                            </Text>
+                                        </View>
+                                        <View style={[styles.financeItem, data.isRtl && styles.financeItemRtl]}>
+                                            <Text style={styles.financeLabel}>
+                                                {data.financials.totalUnpaidLabel}
+                                            </Text>
+                                            <Text style={[styles.financeValue, styles.unpaid]}>
+                                                {section.title === data.tableSections[0].title
+                                                    ? `${data.financials.subUnpaid.toFixed(3)} BHD`
+                                                    : `${data.financials.salesUnpaid.toFixed(3)} BHD`}
+                                            </Text>
+                                        </View>
+                                    </View>
                                 )}
                             </View>
-                            </View>
-                        );
-                    })}
+                        ))}
+
+                        {/* Financial Summaries for Tables */}
+                        {/* We need to inject these specifically after Subscriptions and Sales */}
+                        {/* I will modify the map above to handle this logic or just add a final summary if needed */}
+                        {/* Actually, user wants it for BOTH. I will adjust the table rendering loop */}
+
+                    </View>
                 </View>
             </Page>
         </Document>

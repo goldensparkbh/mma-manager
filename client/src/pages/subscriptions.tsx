@@ -30,18 +30,22 @@ import { useLanguage } from "@/context/language-context";
 import { PERMISSIONS } from "@/lib/permissions";
 import { endOfDay, isAfter, isBefore, parseISO, startOfDay } from "date-fns";
 import { printReceipt as fireReceipt } from "@/lib/receipt-printer";
+import { ReceiptTypeDialog } from "@/components/receipt-type-dialog";
 
 export default function Subscriptions() {
   const { hasPermission, clubSettings, role } = useAuth();
   const isAdmin = role === "admin";
   const { t, language } = useLanguage();
-  const canModify = hasPermission(PERMISSIONS.SUBSCRIPTIONS_CREATE);
+  const canAdd = hasPermission(PERMISSIONS.SUBSCRIPTIONS_CREATE);
+  const canDelete = hasPermission(PERMISSIONS.SUBSCRIPTIONS_DELETE);
+  const canUpdate = hasPermission(PERMISSIONS.SUBSCRIPTIONS_UPDATE);
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("subscriptions");
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isPackageDialogOpen, setIsPackageDialogOpen] = useState(false);
-  const [receiptData, setReceiptData] = useState<Subscription | null>(null);
+  const [isReceiptTypeDialogOpen, setIsReceiptTypeDialogOpen] = useState(false);
+  const [subToPrint, setSubToPrint] = useState<Subscription | null>(null);
   const [editingPackageId, setEditingPackageId] = useState<string | null>(null);
 
   const [editingSubId, setEditingSubId] = useState<string | null>(null);
@@ -287,19 +291,20 @@ export default function Subscriptions() {
   };
 
   const printReceipt = (sub: Subscription) => {
-    fireReceipt({
-      type: 'subscription',
-      data: sub,
-      settings: clubSettings,
-      language: language as any,
-      t
-    });
+    setSubToPrint(sub);
+    setIsReceiptTypeDialogOpen(true);
   };
 
   const filteredSubscriptions = subscriptions?.filter(
-    (sub) =>
-      sub.memberName.includes(searchQuery) ||
-      sub.memberId.includes(searchQuery)
+    (sub) => {
+      const member = members?.find(m => m.id === sub.memberId);
+      const memberDisplayId = member?.memberId || "";
+      return (
+        sub.memberName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        sub.memberId.includes(searchQuery) ||
+        memberDisplayId.includes(searchQuery)
+      );
+    }
   );
 
   const hasOverlap = useMemo(() => {
@@ -336,7 +341,12 @@ export default function Subscriptions() {
 
   return (
     <div className="space-y-6" dir={language === 'ar' ? 'rtl' : 'ltr'}>
-      {/* Header ... */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">{t('subscriptions.title')}</h1>
+          <p className="text-sm text-muted-foreground">{t('subscriptions.subtitle')}</p>
+        </div>
+      </div>
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full" dir={language === 'ar' ? 'rtl' : 'ltr'}>
         <TabsList className="mb-8 w-full justify-start bg-transparent border-b rounded-none h-auto p-0 gap-8">
           <TabsTrigger
@@ -359,75 +369,83 @@ export default function Subscriptions() {
               <Search className="absolute right-3 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input placeholder={t("common.search")} className="pr-10" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
             </div>
-            <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
-              <DialogTrigger asChild><Button>{t('subscriptions.newSubscription')}</Button></DialogTrigger>
-              <DialogContent>
-                <DialogHeader><DialogTitle>{editingSubId ? t('subscriptions.editSubscription') : t('subscriptions.newSubscription')}</DialogTitle></DialogHeader>
-                <form onSubmit={handleSubmitSubscription} className="space-y-4">
-                  {/* Form Fields - Member, Plan, Dates... same as before plus Payment Status */}
-                  <div className="space-y-2">
-                    <Label>{t('subscriptions.member')}</Label>
-                    <Select value={formData.memberId} onValueChange={(v) => {
-                      const m = members?.find(m => m.id === v);
-                      setFormData({ ...formData, memberId: v, memberName: m?.name });
-                    }}>
-                      <SelectTrigger><SelectValue placeholder={t('members.selectMember')} /></SelectTrigger>
-                      <SelectContent>
-                        {members?.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>{t('subscriptions.package')}</Label>
-                    <Select value={formData.planName} onValueChange={handlePlanChange}>
-                      <SelectTrigger><SelectValue placeholder={t('subscriptions.selectPackage')} /></SelectTrigger>
-                      <SelectContent>
-                        {packages.map(p => <SelectItem key={p.id} value={p.name}>{p.name} - {p.price} {t("common.currency")}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {canAdd && (
+              <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
+                <DialogTrigger asChild><Button>{t('subscriptions.newSubscription')}</Button></DialogTrigger>
+                <DialogContent>
+                  <DialogHeader><DialogTitle>{editingSubId ? t('subscriptions.editSubscription') : t('subscriptions.newSubscription')}</DialogTitle></DialogHeader>
+                  <form onSubmit={handleSubmitSubscription} className="space-y-4">
+                    {/* Form Fields - Member, Plan, Dates... same as before plus Payment Status */}
                     <div className="space-y-2">
-                      <Label>{t('subscriptions.startDate')}</Label>
-                      <Input type="date" value={formData.startDate} onChange={handleStartDateChange} />
+                      <Label>{t('subscriptions.member')}</Label>
+                      <Select value={formData.memberId} onValueChange={(v) => {
+                        const m = members?.find(m => m.id === v);
+                        setFormData({ ...formData, memberId: v, memberName: m?.name });
+                      }}>
+                        <SelectTrigger><SelectValue placeholder={t('members.selectMember')} /></SelectTrigger>
+                        <SelectContent>
+                          {members?.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>{t('subscriptions.endDate')}</Label>
-                      <Input type="date" value={formData.endDate} disabled className="bg-muted text-muted-foreground" />
+                      <Label>{t('subscriptions.package')}</Label>
+                      <Select value={formData.planName} onValueChange={handlePlanChange}>
+                        <SelectTrigger><SelectValue placeholder={t('subscriptions.selectPackage')} /></SelectTrigger>
+                        <SelectContent>
+                          {packages.map(p => <SelectItem key={p.id} value={p.name}>{p.name} - {p.price} {t("common.currency")}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
                     </div>
-                  </div>
 
-                  {/* Payment Status Field */}
-                  <div className="space-y-2">
-                    <Label>{t('subscriptions.paymentStatus')}</Label>
-                    <Select value={formData.paymentStatus} onValueChange={(v: any) => setFormData({ ...formData, paymentStatus: v })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="paid">{t('subscriptions.paid')}</SelectItem>
-                        <SelectItem value="pending">{t('subscriptions.pending')}</SelectItem>
-                        <SelectItem value="unpaid">{t('subscriptions.unpaid')}</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {/* Submit */}
-                  <Button
-                    type="submit"
-                    className="w-full"
-                    disabled={createSubscription.isPending || updateSubscription.isPending || hasOverlap}
-                  >
-                    {createSubscription.isPending || updateSubscription.isPending
-                      ? t('common.loading')
-                      : hasOverlap
-                        ? t('subscriptions.overlapButton')
-                        : t('common.save')}
-                  </Button>
-                  {hasOverlap && (
-                    <p className="text-xs text-destructive">{t('subscriptions.overlapWarning')}</p>
-                  )}
-                </form>
-              </DialogContent>
-            </Dialog>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>{t('subscriptions.startDate')}</Label>
+                        <Input type="date" value={formData.startDate} onChange={handleStartDateChange} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>{t('subscriptions.endDate')}</Label>
+                        <Input type="date" value={formData.endDate} disabled className="bg-muted text-muted-foreground" />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>{t('finance.paymentMethod')}</Label>
+                      <Select value={formData.paymentMethod} onValueChange={(v) => setFormData({ ...formData, paymentMethod: v as any })}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="cash">{t("finance.paymentMethods.cash")}</SelectItem>
+                          <SelectItem value="card">{t("finance.paymentMethods.card")}</SelectItem>
+                          <SelectItem value="transfer">{t("finance.paymentMethods.transfer")}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>{t('subscriptions.paymentStatus')}</Label>
+                      <Select value={formData.paymentStatus} onValueChange={(v: any) => setFormData({ ...formData, paymentStatus: v })}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="paid">{t('subscriptions.paid')}</SelectItem>
+                          <SelectItem value="pending">{t('subscriptions.pending')}</SelectItem>
+                          <SelectItem value="unpaid">{t('subscriptions.unpaid')}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {hasOverlap && (
+                      <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md text-sm text-yellow-800">
+                        {t('subscriptions.overlapWarning')}
+                      </div>
+                    )}
+
+                    <Button type="submit" className="w-full" disabled={createSubscription.isPending || updateSubscription.isPending || hasOverlap}>
+                      {createSubscription.isPending || updateSubscription.isPending ? t('common.loading') : t('common.save')}
+                    </Button>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            )}
           </div>
 
           <Card>
@@ -435,6 +453,7 @@ export default function Subscriptions() {
               <table className="w-full text-sm" dir={language === 'ar' ? 'rtl' : 'ltr'}>
                 <thead className="bg-muted/50 border-b text-muted-foreground">
                   <tr>
+                    <th className="p-4 text-start">{t('members.memberId')}</th>
                     <th className="p-4 text-start">{t('subscriptions.member')}</th>
                     <th className="p-4 text-start">{t('subscriptions.package')}</th>
                     <th className="p-4 text-start">{t('common.amount')}</th>
@@ -447,7 +466,13 @@ export default function Subscriptions() {
                 <tbody>
                   {filteredSubscriptions?.map(sub => (
                     <tr key={sub.id} className="border-b hover:bg-muted/5">
-                      <td className="p-4 text-start font-medium text-gray-900">{sub.memberName}</td>
+                      <td className="p-4 text-start font-medium text-foreground">
+                        {(() => {
+                          const member = members?.find(m => m.id === sub.memberId);
+                          return member ? member.memberId : "-";
+                        })()}
+                      </td>
+                      <td className="p-4 text-start font-medium text-foreground">{sub.memberName}</td>
                       <td className="p-4 text-start">{sub.planName}</td>
                       <td className="p-4 font-bold text-start">{sub.amount} {t("common.currency")}</td>
                       <td className="p-4 text-xs text-muted-foreground text-start">
@@ -478,10 +503,12 @@ export default function Subscriptions() {
                           <Button size="sm" variant="ghost" className="h-8 w-8" onClick={() => printReceipt(sub)} title={t('common.print')}>
                             <Printer className="w-4 h-4" />
                           </Button>
-                          <Button size="sm" variant="ghost" className="h-8 w-8" onClick={() => openEditDialog(sub)} title={t('common.edit')}>
-                            <Pencil className="w-4 h-4" />
-                          </Button>
-                          {isAdmin && (
+                          {canUpdate && (
+                            <Button size="sm" variant="ghost" className="h-8 w-8" onClick={() => openEditDialog(sub)} title={t('common.edit')}>
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                          )}
+                          {canDelete && (
                             <Button size="sm" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => {
                               if (confirm(t("subscriptions.confirmDelete"))) deleteSubscription.mutate(sub.id);
                             }} title={t("common.delete")}>
@@ -496,14 +523,14 @@ export default function Subscriptions() {
               </table>
             </CardContent>
           </Card>
-        </TabsContent>
+        </TabsContent >
 
         <TabsContent value="packages">
           <div className="flex justify-between items-center mb-6" dir={language === 'ar' ? 'rtl' : 'ltr'}>
             <h3 className="font-semibold text-lg">{t("subscriptions.packagesTitle")}</h3>
             <Dialog open={isPackageDialogOpen} onOpenChange={handlePackageDialogChange}>
               <DialogTrigger asChild>
-                {canModify && (
+                {canAdd && (
                   <Button variant="outline" onClick={openCreatePackageDialog}>{t('subscriptions.addPackage')}</Button>
                 )}
               </DialogTrigger>
@@ -522,14 +549,18 @@ export default function Subscriptions() {
               <Card key={p.id}>
                 <CardHeader className="flex flex-row justify-between pb-2">
                   <CardTitle className="text-sm">{p.name}</CardTitle>
-                  {isAdmin && (
+                  {(canUpdate || canDelete) && (
                     <div className="flex items-center gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => openEditPackageDialog(p)}>
-                        <Pencil className="w-4 h-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => deletePackage.mutate(p.id)}>
-                        <Trash2 className="w-4 h-4 text-destructive" />
-                      </Button>
+                      {canUpdate && (
+                        <Button variant="ghost" size="icon" onClick={() => openEditPackageDialog(p)}>
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                      )}
+                      {canDelete && (
+                        <Button variant="ghost" size="icon" onClick={() => deletePackage.mutate(p.id)}>
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
+                      )}
                     </div>
                   )}
                 </CardHeader>
@@ -541,7 +572,27 @@ export default function Subscriptions() {
             ))}
           </div>
         </TabsContent>
-      </Tabs>
-    </div>
+      </Tabs >
+      <ReceiptTypeDialog
+        isOpen={isReceiptTypeDialogOpen}
+        onClose={() => setIsReceiptTypeDialogOpen(false)}
+        onSelect={(format) => {
+          if (subToPrint) {
+            const member = members?.find(m => m.id === subToPrint.memberId);
+            fireReceipt({
+              type: 'subscription',
+              data: {
+                ...subToPrint,
+                memberDisplayId: member?.memberId
+              },
+              settings: clubSettings,
+              language: language as any,
+              t,
+              format
+            });
+          }
+        }}
+      />
+    </div >
   );
 }

@@ -17,9 +17,11 @@ import { useLanguage } from "@/context/language-context";
 import { format } from "date-fns";
 import { ar, enUS } from "date-fns/locale";
 import { useRef, useMemo, useEffect } from "react";
+import { printReceipt } from "@/lib/receipt-printer";
+import { ReceiptTypeDialog } from "./receipt-type-dialog";
 import { useAuth } from "@/context/auth-context";
 import { PERMISSIONS } from "@/lib/permissions";
-import { updateMemberDocuments, deleteMemberDocument, assignBeltToMember, getSubscriptionPackages, createSubscription, getSubscriptionsByMember, getMemberBelts, revokeMemberBelt, getSalesByMember, payReceipt, deleteReceipt, deleteSale, createAttendance, deleteAttendance, deleteSubscription, getAttendanceByMember } from "@/lib/firebaseData";
+import { updateMemberDocuments, deleteMemberDocument, assignBeltToMember, getSubscriptionPackages, createSubscription, getSubscriptionsByMember, getMemberBelts, revokeMemberBelt, getSalesByMember, payReceipt, deleteReceipt, deleteSale, createAttendance, deleteAttendance, deleteSubscription, getAttendanceByMember, syncMemberSubscriptionStatus } from "@/lib/firebaseData";
 import { POSDialog } from "./pos-dialog";
 import { WhatsAppTemplateDialog } from "@/components/whatsapp-template-dialog";
 import { FileText, Trash2, Upload, AlertCircle, CheckCircle2, Pencil, Plus, History, ShoppingCart, Loader2, Package, Calendar, X, Printer, Download } from "lucide-react";
@@ -58,7 +60,7 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
     const [formData, setFormData] = useState<Partial<InsertMember>>({
         name: "",
         firstName: "",
-        grandFatherName: "",
+        fatherName: "",
         lastName: "",
         phone: "",
         email: "",
@@ -81,6 +83,7 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
     const [selectedPackageId, setSelectedPackageId] = useState<string>("");
     const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
     const [paymentMethod, setPaymentMethod] = useState("cash");
+    const [paymentStatus, setPaymentStatus] = useState("paid");
     const [showAssignBeltForm, setShowAssignBeltForm] = useState(false);
     const [selectedBeltId, setSelectedBeltId] = useState<string>("");
     const [awardDate, setAwardDate] = useState(new Date().toISOString().split('T')[0]);
@@ -91,6 +94,9 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
     const [isWhatsAppDialogOpen, setIsWhatsAppDialogOpen] = useState(false);
     const [isGeneratingReport, setIsGeneratingReport] = useState(false);
     const [isDownloadingReport, setIsDownloadingReport] = useState(false);
+    const [isReceiptTypeDialogOpen, setIsReceiptTypeDialogOpen] = useState(false);
+    const [printData, setPrintData] = useState<any>(null);
+    const [printType, setPrintType] = useState<'sale' | 'subscription' | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Store Purchase State
@@ -111,13 +117,13 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
     const { data: memberSales, isLoading: loadingSales, isError: errorSales } = useQuery<Sale[]>({
         queryKey: ["/api/sales/member", member?.id],
         queryFn: () => member ? getSalesByMember(member.id) : Promise.resolve([]),
-        enabled: isOpen && !!member && (activeTab === "store" || activeTab === "finance")
+        enabled: isOpen && !!member
     });
 
     const { data: memberSubscriptions, isLoading: loadingSubs, isError: errorSubs } = useQuery<Subscription[]>({
         queryKey: ["/api/subscriptions/member", member?.id],
         queryFn: () => member ? getSubscriptionsByMember(member.id) : Promise.resolve([]),
-        enabled: isOpen && !!member && activeTab === "subscriptions"
+        enabled: isOpen && !!member
     });
 
     const { data: memberBelts } = useQuery<MemberBelt[]>({
@@ -136,6 +142,19 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
         () => packages?.find(pkg => pkg.id === selectedPackageId),
         [packages, selectedPackageId]
     );
+
+    // Auto-sync status if it looks incorrect
+    useEffect(() => {
+        if (isOpen && member && memberSubscriptions) {
+            // Trigger a logic-check re-sync if the current status is inactive but we see subscriptions
+            // This is a safety net for any missed backend syncs.
+            if (member.status === "inactive" && memberSubscriptions.length > 0) {
+                syncMemberSubscriptionStatus(member.id).then(() => {
+                    queryClient.invalidateQueries({ queryKey: ["/api/members"] });
+                });
+            }
+        }
+    }, [isOpen, member?.id, member?.status, memberSubscriptions]);
 
     const endDatePreview = useMemo(() => {
         if (!selectedPackage || !startDate) return "";
@@ -194,10 +213,44 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                 items: items,
                 total: items.reduce((sum, item) => sum + item.totalPrice, 0),
                 paymentStatus: hasUnpaid ? 'unpaid' : 'paid',
-                paymentMethod: items[0].paymentMethod
+                paymentMethod: items[0].paymentMethod,
+                memberName: member?.name,
+                memberId: member?.id,
+                memberDisplayId: member?.memberId
             };
         }).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
     }, [memberSales]);
+
+    const calculatedBalance = useMemo(() => {
+        if (!member) return 0;
+        let balance = member.balance || 0;
+
+        // Subtract unpaid subscriptions
+        if (memberSubscriptions) {
+            const unpaidSubs = memberSubscriptions
+                .filter(s => s.paymentStatus !== 'paid')
+                .reduce((sum, s) => sum + s.amount, 0);
+            balance -= unpaidSubs;
+        }
+
+        // Subtract unpaid sales
+        if (memberSales) {
+            const unpaidSales = memberSales
+                .filter(s => s.paymentStatus === 'unpaid')
+                .reduce((sum, s) => sum + s.totalPrice, 0);
+            balance -= unpaidSales;
+        }
+
+        return balance;
+    }, [member, memberSubscriptions, memberSales]);
+
+    const memberForWhatsApp = useMemo(() => {
+        if (!member) return null;
+        return {
+            ...member,
+            balance: calculatedBalance
+        };
+    }, [member, calculatedBalance]);
 
     // Mutations
     const buyItemMutation = useMutation({
@@ -344,19 +397,34 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
 
     const memberSubscriptionStatus = useMemo(() => {
         if (!member) return null;
-        if (!member.subscriptionEnd) {
-            if (member.status === "inactive") return "inactive";
-            if (member.status === "active") return "active";
-            return "expired";
-        }
-        const end = new Date(member.subscriptionEnd);
-        if (Number.isNaN(end.getTime())) {
-            return member.status === "active" ? "active" : "expired";
-        }
+
         const today = new Date();
         today.setHours(0, 0, 0, 0);
+
+        // Fallback to member.status ONLY IF it's "upcoming"
+        if (!member.subscriptionEnd) {
+            if (member.status === "upcoming") {
+                return "upcoming";
+            }
+            return "inactive";
+        }
+
+        const end = new Date(member.subscriptionEnd);
+        const start = member.subscriptionStart ? new Date(member.subscriptionStart) : null;
+
+        if (Number.isNaN(end.getTime())) {
+            return member.status === "upcoming" ? "upcoming" : "inactive";
+        }
+
         end.setHours(0, 0, 0, 0);
+        if (start) start.setHours(0, 0, 0, 0);
+
+        if (start && today < start) {
+            return "upcoming";
+        }
+
         const diffDays = Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
         if (diffDays < 0) return "expired";
         if (diffDays <= 10) return "aboutToExpire";
         return "active";
@@ -463,9 +531,10 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                 setFormData({
                     name: member.name,
                     firstName: member.firstName || "",
-                    grandFatherName: member.grandFatherName || "",
+                    fatherName: member.fatherName || "",
                     lastName: member.lastName || "",
                     phone: member.phone,
+                    cpr: member.cpr || "",
                     email: member.email || "",
                     dob: member.dob || "",
                     gender: member.gender as any,
@@ -485,9 +554,10 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                 setFormData({
                     name: "",
                     firstName: "",
-                    grandFatherName: "",
+                    fatherName: "",
                     lastName: "",
                     phone: "",
+                    cpr: "",
                     email: "",
                     dob: "",
                     gender: undefined,
@@ -613,13 +683,13 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
 
         let finalName = formData.name;
         if (formData.firstName || formData.lastName) {
-            finalName = [formData.firstName, formData.grandFatherName, formData.lastName].filter(Boolean).join(" ");
+            finalName = [formData.firstName, formData.fatherName, formData.lastName].filter(Boolean).join(" ");
         }
 
         const submissionData = { ...formData, name: finalName };
 
         const missingRequired = !formData.firstName?.trim()
-            || !formData.grandFatherName?.trim()
+            || !formData.fatherName?.trim()
             || !formData.lastName?.trim()
             || !formData.phone?.trim()
             || !formData.gender
@@ -627,6 +697,11 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
             || formData.age === null;
         if (missingRequired) {
             toast({ variant: "destructive", title: t('common.error'), description: "Required fields are missing" });
+            return;
+        }
+
+        if (formData.cpr && formData.cpr.length !== 9) {
+            toast({ variant: "destructive", title: t('common.error'), description: t('members.cprInvalid') || "CPR must be 9 digits" });
             return;
         }
 
@@ -699,7 +774,7 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
             endDate: end.toISOString().split('T')[0],
             status: "active",
             paymentMethod: paymentMethod,
-            paymentStatus: "paid"
+            paymentStatus: paymentStatus
         });
     };
 
@@ -930,6 +1005,9 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                     <circle cx="12" cy="12" r="9"></circle>
                     <path d="M8 12l2 2 4-4"></path>
                 `),
+            checkSimple: svgIcon(`
+                    <path d="M20 6L9 17L4 12"></path>
+                `),
         };
 
         const defaultLogoUrl = ""; // No local fallback
@@ -1006,17 +1084,25 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                 sale.productName || "-",
                 String(sale.quantity || 0),
                 `${formatMoney(sale.totalPrice)} ${t("common.currency")}`,
+                sale.paymentStatus ? t(`common.${sale.paymentStatus}`) : "-",
             ]));
 
         const healthNotesText = member.healthNotes && member.healthNotes.trim()
             ? member.healthNotes
             : t('common.noResults');
         const healthNotes = escapeHtml(healthNotesText);
+
+        // Financial calculations
+        const subPaid = subscriptions.filter(s => s.paymentStatus === "paid").reduce((sum, s) => sum + (s.amount || 0), 0);
+        const subUnpaid = subscriptions.filter(s => s.paymentStatus !== "paid").reduce((sum, s) => sum + (s.amount || 0), 0);
+        const salesPaid = sales.filter(s => s.paymentStatus === "paid").reduce((sum, s) => sum + (s.totalPrice || 0), 0);
+        const salesUnpaid = sales.filter(s => s.paymentStatus !== "paid").reduce((sum, s) => sum + (s.totalPrice || 0), 0);
+
         const totalSpent = sales.reduce((sum, sale) => sum + (sale.totalPrice || 0), 0);
         const statusClass = memberSubscriptionStatus || "inactive";
         const logoHtml = logoUrl
-            ? `<img src="${logoUrl}" class="logo" />`
-            : `<div class="logo logo-placeholder">${icons.report}</div>`;
+            ? `<img src="${logoUrl}" class="logo-img" />`
+            : `<div class="logo-img logo-placeholder">${icons.report}</div>`;
         const summaryCards = [
             { label: t('subscriptions.title'), value: String(subscriptions.length), icon: icons.subscriptions },
             { label: t('nav.belts'), value: String(beltsEarned.length), icon: icons.belt },
@@ -1057,11 +1143,24 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
             {
                 key: "sales",
                 title: t('sales.purchaseHistory'),
-                columns: [t('common.date'), t('sales.product'), t('sales.quantity'), t('common.amount')],
+                columns: [t('common.date'), t('sales.product'), t('sales.quantity'), t('common.amount'), t('subscriptions.paymentStatus')],
                 rows: salesData,
                 emptyText: t('common.noResults'),
             },
         ];
+
+        const beltChain = (belts || [])
+            .sort((a, b) => a.order - b.order)
+            .map(belt => {
+                const earned = beltsEarned.find(be => be.beltId === belt.id);
+                return {
+                    id: belt.id,
+                    name: belt.name,
+                    color: belt.color,
+                    isEarned: !!earned,
+                    awardedAt: earned ? formatDateSafe(earned.awardedAt) : undefined
+                };
+            });
 
         const reportData: MemberReportData = {
             isRtl: dir === "rtl",
@@ -1075,32 +1174,48 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                 memberId: t('members.memberId'),
                 phone: t('members.phone'),
                 email: t('members.email'),
+                cpr: t('members.cpr'),
                 subscriptionEnd: t('subscriptions.endDate'),
+                dob: t('members.dob'),
+                gender: t('members.gender'),
             },
             sectionTitles: {
                 personalInfo: t('members.personalInfo'),
                 healthNotes: t('members.healthNotes'),
+                contactInfo: t('members.contactInfo'),
+                belts: t('nav.belts'),
             },
             member: {
                 name: member.name,
                 memberId: member.memberId,
+                cpr: member.cpr || "-",
                 phone: member.phone || "-",
                 email: member.email || "-",
+                dob: member.dob ? formatDateSafe(member.dob) : "-",
+                gender: member.gender ? (member.gender === "male" ? t('members.male') : t('members.female')) : "-",
                 imageUrl: member.imageUrl || "",
                 subscriptionEnd: member.subscriptionEnd ? formatDateSafe(member.subscriptionEnd) : "-",
             },
             memberInitials,
             status: statusClass,
             statusLabel,
-            detailItems: detailItemsPlain,
-            healthNotes: healthNotesText,
             summaryCards: summaryCardsPlain,
+            healthNotes: healthNotesText,
             tableSections: tableSections.map((section) => ({
                 title: section.title,
                 columns: section.columns,
                 rows: section.rows,
                 emptyText: section.emptyText,
             })),
+            beltChain,
+            financials: {
+                subPaid,
+                subUnpaid,
+                salesPaid,
+                salesUnpaid,
+                totalPaidLabel: t('finance.totalPaid'),
+                totalUnpaidLabel: t('finance.totalUnpaid')
+            }
         };
 
         const tableRowsByKey = Object.fromEntries(
@@ -1134,298 +1249,375 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                 <html lang="${dir === "rtl" ? "ar" : "en"}" dir="${dir}">
                     <head>
                         <meta charset="UTF-8" />
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+                        <link rel="preconnect" href="https://fonts.googleapis.com">
+                        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+                        <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
                         <title>${escapeHtml(reportFileName)}</title>
                         <style>
-                            * { box-sizing: border-box; }
+                            @page { size: auto; margin: 25mm 0 0 0 !important; }
+                            @page :first { margin-top: 0mm !important; }
+                            * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
                             :root {
-                                --ink: #090e1a;
-                                --ink-soft: #2b3446;
-                                --accent: #223f7a;
-                                --accent-soft: #e4e9f6;
+                                --primary: #1e293b;
+                                --accent: #3b82f6;
+                                --ink: #0f172a;
+                                --ink-light: #64748b;
+                                --border: #e2e8f0;
                                 --surface: #ffffff;
-                                --surface-alt: #f4f6fb;
-                                --border: #e1e6f0;
+                                --surface-alt: #f8fafc;
+                                --danger: #ef4444;
                             }
                             body {
-                                margin: 0;
-                                font-family: "Segoe UI", "Noto Sans", Arial, sans-serif;
+                                margin: 0 15mm 15mm 15mm;
+                                padding: 0;
+                                font-family: 'Cairo', system-ui, -apple-system, sans-serif !important;
                                 color: var(--ink);
-                                background: #f2f5fb;
-                                text-align: start;
+                                background: #fff;
                                 line-height: 1.5;
-                                -webkit-font-smoothing: antialiased;
+                                font-size: 11pt;
                             }
-                            .report {
-                                max-width: 920px;
-                                margin: 18px auto 32px;
-                                padding: 20px;
-                                background: var(--surface);
-                                border-radius: 18px;
-                                border: 1px solid var(--border);
-                                box-shadow: 0 18px 36px rgba(9, 14, 26, 0.12);
+                            .report-container { width: 100%; max-width: 100%; margin: 0 auto; }
+                                                        /* Professional Header */
+                            .header { 
+                                display: flex; 
+                                background: var(--primary);
+                                color: white;
+                                padding: 25px 15mm;
+                                margin: 0 -15mm 10mm -15mm;
+                                align-items: flex-end;
+                                border-bottom: none;
                             }
-                            .svg-icon { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-                            .report-header {
+                            .brand { display: flex; align-items: center; gap: 15px; flex: 1; }
+                            .logo-img { height: 40px !important; width: auto !important; max-width: 130px !important; object-fit: contain !important; filter: brightness(0) invert(1); }
+                            .brand-text h1 { font-size: 20pt; margin: 0; color: white !important; font-weight: 700; line-height: 1; }
+                            .brand-text p { font-size: 9pt; margin: 4px 0 0; color: rgba(255,255,255,0.8) !important; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+                            .meta { text-align: ${dir === "rtl" ? "left" : "right"}; font-size: 9pt; color: rgba(255,255,255,0.9) !important; line-height: 1.4; }
+                            .meta-item { margin-bottom: 2px; }
+
+                            /* Footer */
+                            .footer {
+                                background: var(--primary);
+                                color: white;
+                                padding: 15px 15mm;
+                                margin: 50px -15mm 0 -15mm;
                                 display: flex;
-                                align-items: center;
                                 justify-content: space-between;
-                                gap: 16px;
-                                padding: 16px;
-                                background: var(--ink);
-                                color: #fff;
-                                border-radius: 16px;
-                                box-shadow: 0 14px 26px rgba(9, 14, 26, 0.24);
-                            }
-                            .brand { display: flex; align-items: center; gap: 12px; }
-                            .logo { width: 52px; height: 52px; object-fit: contain; border-radius: 12px; background: #fff; padding: 6px; border: 1px solid rgba(255,255,255,0.2); }
-                            .logo-placeholder { display: flex; align-items: center; justify-content: center; color: var(--ink); background: #fff; }
-                            .header-text { display: flex; flex-direction: column; gap: 4px; }
-                            .header-title { font-size: 18px; font-weight: 700; letter-spacing: 0.02em; }
-                            .header-subtitle { font-size: 11px; color: rgba(255,255,255,0.7); }
-                            .header-meta { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
-                            .meta-pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; background: rgba(255,255,255,0.16); font-size: 11px; }
-                            .meta-pill .svg-icon { width: 14px; height: 14px; }
-                            .report-summary { margin-top: 16px; }
-                            .summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-                            .summary-column { display: flex; flex-direction: column; gap: 12px; }
-                            .summary-grid .info-grid { grid-template-columns: 1fr; }
-                            .report-tables { margin-top: 16px; display: flex; flex-direction: column; gap: 12px; }
-                            .card {
-                                padding: 14px;
-                                border-radius: 14px;
-                                border: 1px solid var(--border);
-                                background: var(--surface);
-                                box-shadow: 0 10px 20px rgba(9, 14, 26, 0.06);
-                            }
-                            .card-title { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; margin-bottom: 10px; color: var(--ink); }
-                            .card-title .svg-icon { color: var(--accent); width: 16px; height: 16px; }
-                            .member-card .member-top { display: flex; gap: 12px; align-items: center; }
-                            .member-avatar { width: 72px; height: 72px; border-radius: 14px; object-fit: cover; border: 2px solid var(--accent-soft); }
-                            .member-placeholder { width: 72px; height: 72px; border-radius: 14px; display: flex; align-items: center; justify-content: center; background: var(--accent-soft); font-size: 24px; font-weight: 700; color: var(--accent); }
-                            .member-name { font-size: 16px; font-weight: 700; color: var(--ink); }
-                            .member-id { font-size: 11px; color: #6b7280; margin-top: 2px; }
-                            .status-pill {
-                                display: inline-flex;
                                 align-items: center;
-                                gap: 6px;
-                                padding: 4px 8px;
-                                border-radius: 999px;
-                                font-size: 10px;
-                                font-weight: 600;
-                                margin-top: 6px;
-                                background: var(--accent-soft);
-                                color: var(--accent);
+                                font-size: 8pt;
+                                border-radius: 0 0 4px 4px;
                             }
-                            .status-pill.active { background: rgba(34, 197, 94, 0.18); color: #166534; }
-                            .status-pill.aboutToExpire { background: rgba(234, 179, 8, 0.2); color: #92400e; }
-                            .status-pill.expired { background: rgba(239, 68, 68, 0.18); color: #991b1b; }
-                            .status-pill.inactive { background: rgba(148, 163, 184, 0.2); color: #475569; }
-                            .member-contacts { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; font-size: 11px; color: var(--ink-soft); }
-                            .contact-row { display: flex; align-items: center; gap: 6px; }
-                            .stat-list { display: grid; gap: 8px; }
-                            .stat-item {
-                                display: flex;
-                                align-items: center;
-                                gap: 10px;
-                                padding: 8px 10px;
-                                border-radius: 12px;
-                                background: var(--surface-alt);
+                            .footer-text { opacity: 0.8; }
+
+                            .footer-text { opacity: 0.8; }
+
+                            /* Content Layout */
+                            .report-grid { display: flex; gap: 40px; margin-bottom: 40px; }
+                            .side-col { width: 33%; }
+                            .main-col { width: 67%; }
+                            
+                            /* Profile Card */
+                            .profile-card { 
+                                background: var(--surface-alt); 
                                 border: 1px solid var(--border);
+                                border-radius: 12px; 
+                                padding: 20px 15px; 
+                                text-align: center;
+                                margin-bottom: 20px;
                             }
-                            .stat-icon { width: 32px; height: 32px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; }
-                            .stat-label { font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.04em; }
-                            .stat-value { font-size: 14px; font-weight: 700; color: var(--ink); margin-top: 2px; }
-                            .info-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-                            .info-item {
-                                display: flex;
-                                gap: 8px;
-                                padding: 8px 10px;
-                                border-radius: 10px;
-                                background: var(--surface-alt);
-                                border: 1px solid var(--border);
-                            }
-                            .info-icon { width: 28px; height: 28px; border-radius: 9px; background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-                            .info-text .label { font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.04em; }
-                            .info-text .value { font-size: 12px; font-weight: 600; margin-top: 2px; color: var(--ink); }
-                            .notes { padding: 10px 12px; border: 1px dashed var(--border); border-radius: 10px; background: var(--surface-alt); white-space: pre-wrap; color: var(--ink-soft); }
-                            .table-wrap { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: #fff; }
-                            .table { width: 100%; border-collapse: collapse; font-size: 11px; }
-                            .table th {
-                                background: var(--surface-alt);
-                                padding: 8px 10px;
-                                text-align: ${dir === "rtl" ? "right" : "left"};
-                                color: #64748b;
-                                font-size: 10px;
+                            .profile-img { width: 110px; height: 110px; border-radius: 50%; object-fit: cover; border: 4px solid #fff; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); margin: 0 auto 12px; }
+                            .placeholder-img { width: 110px; height: 110px; border-radius: 50%; background: var(--primary); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 32pt; font-weight: 700; margin: 0 auto 12px; border: 4px solid #fff; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+                            .member-name { font-size: 14pt; font-weight: 700; margin-bottom: 4px; color: var(--primary); }
+                            .member-id { font-size: 9pt; color: var(--ink-light); margin-bottom: 12px; font-weight: 600; }
+                            .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 8.5pt; font-weight: 700; text-transform: uppercase; }
+                            .status-active { background: #dcfce7; color: #166534; }
+                            .status-expired { background: #fee2e2; color: #991b1b; }
+
+                            .contact-list { margin-top: 20px; text-align: ${dir === "rtl" ? "right" : "left"}; border-top: 1px solid var(--border); padding-top: 15px; }
+                            .contact-item { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 10pt; color: var(--ink); }
+                            .contact-icon { color: var(--accent); }
+
+                            /* Data Sections */
+                            .section-group { margin-bottom: 30px; }
+                            .section-title { 
+                                display: flex; 
+                                align-items: center; 
+                                gap: 10px; 
+                                font-size: 11pt; 
+                                font-weight: 700; 
+                                color: var(--primary); 
+                                border-inline-start: 4px solid var(--accent);
+                                padding-inline-start: 12px;
+                                margin-bottom: 15px;
                                 text-transform: uppercase;
-                                letter-spacing: 0.05em;
+                                letter-spacing: 0.5px;
                             }
-                            .table td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: ${dir === "rtl" ? "right" : "left"}; color: var(--ink-soft); }
-                            .table tbody tr:nth-child(even) { background: #f9fbff; }
-                            .th-content { display: inline-flex; align-items: center; gap: 6px; }
-                            .empty { text-align: center; color: #6b7280; }
+                            
+                            .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+                            .data-card { 
+                                background: var(--surface); 
+                                border: 1px solid var(--border); 
+                                border-radius: 8px; 
+                                padding: 10px 12px; 
+                                transition: all 0.2s;
+                            }
+                            .data-label { font-size: 8pt; color: var(--ink-light); text-transform: uppercase; font-weight: 700; margin-bottom: 2px; opacity: 0.8; }
+                            .data-value { font-size: 10pt; font-weight: 700; color: var(--ink); }
+
+                            /* Finance Summary */
+                            .finance-summary { 
+                                display: flex; 
+                                justify-content: flex-end; 
+                                gap: 20px; 
+                                margin-top: 10px; 
+                                padding: 12px;
+                                background: var(--surface-alt);
+                                border-radius: 8px;
+                                border: 1px solid var(--border);
+                            }
+                            .finance-item { text-align: right; }
+                            .finance-label { font-size: 7.5pt; color: var(--ink-light); text-transform: uppercase; font-weight: 700; margin-bottom: 2px; }
+                            .finance-value { font-size: 10pt; font-weight: 700; color: var(--primary); }
+                            .finance-value.paid { color: #166534; }
+                            .finance-value.unpaid { color: #991b1b; }
+
+
+
+                            /* Belt Chain Section */
+                            .belt-chain-section { 
+                                background: #f8fafc; 
+                                border: 1px solid var(--border); 
+                                border-radius: 16px; 
+                                padding: 25px; 
+                                margin: 40px 0;
+                                page-break-inside: avoid;
+                            }
+                            .belt-chain-title { font-size: 16pt; font-weight: 700; color: var(--primary); margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+                            .belt-table { width: 100%; table-layout: fixed; border-spacing: 0; }
+                            .belt-circle { border: 3px solid #fff; outline: 1px solid rgba(0,0,0,0.1); box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+
+                            /* History Tables */
+                            .table-section { margin-bottom: 40px; page-break-inside: avoid; }
+                            .full-width-table { width: 100%; border-collapse: separate; border-spacing: 0; overflow: hidden; border-radius: 12px; border: 1px solid var(--border); }
+                            .full-width-table th { background: #f8fafc; padding: 14px 18px; text-align: ${dir === "rtl" ? "right" : "left"}; font-size: 9pt; font-weight: 700; color: var(--ink-light); text-transform: uppercase; border-bottom: 2px solid var(--border); letter-spacing: 0.5px; }
+                            .full-width-table td { padding: 12px 18px; border-bottom: 1px solid var(--border); font-size: 10pt; color: var(--ink); }
+                            .full-width-table tr:last-child td { border-bottom: none; }
+                            .full-width-table tr:nth-child(even) { background: #fafafa; }
+
+                            .note-box { background: #fffbeb; border: 1px solid #fef3c7; border-radius: 10px; padding: 15px; font-size: 10pt; color: #92400e; margin-top: 10px; line-height: 1.6; }
+                            .svg-icon { width: 18px; height: 18px; vertical-align: middle; fill: currentColor; }
+                            
                             @media print {
-                                @page { margin: 12mm; }
-                                body { background: #f2f5fb; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                                .report { margin: 0; }
-                                .report-tables { break-before: page; page-break-before: always; }
-                                .card, .table-wrap { break-inside: avoid; }
-                            }
-                            @media (max-width: 900px) {
-                                .summary-grid { grid-template-columns: 1fr; }
-                                .info-grid { grid-template-columns: 1fr; }
+                                body { padding: 10mm; background: white; }
                             }
                         </style>
                     </head>
                     <body>
-                        <div class="report">
-                            <header class="report-header">
+                        <div class="report-container">
+                            <header class="header">
                                 <div class="brand">
                                     ${logoHtml}
-                                    <div class="header-text">
-                                        <div class="header-title">${escapeHtml(t('members.report'))}</div>
-                                        <div class="header-subtitle">${escapeHtml(clubName)}</div>
+                                    <div class="brand-text">
+                                        <h1>${escapeHtml(clubName)}</h1>
+                                        <p>${escapeHtml(t('members.report'))}</p>
                                     </div>
                                 </div>
-                                <div class="header-meta">
-                                    <span class="meta-pill">${icons.calendar}<span>${escapeHtml(t('common.date'))}: ${escapeHtml(reportDate)}</span></span>
-                                    <span class="meta-pill">${icons.id}<span>${escapeHtml(t('members.memberId'))}: ${escapeHtml(member.memberId)}</span></span>
+                                <div class="meta">
+                                    <div class="meta-item">${escapeHtml(t('common.date'))}: ${escapeHtml(reportDate)}</div>
+                                    <div class="meta-item">${escapeHtml(t('members.memberId'))}: #${escapeHtml(member.memberId)}</div>
                                 </div>
                             </header>
 
-                            <div class="report-summary">
-                                <div class="summary-grid">
-                                    <div class="summary-column">
-                                        <div class="card member-card">
-                                            <div class="member-top">
-                                                ${member.imageUrl ? `<img src="${member.imageUrl}" class="member-avatar" />` : `<div class="member-placeholder">${escapeHtml(memberInitials || "M")}</div>`}
-                                                <div class="member-info">
-                                                    <div class="member-name">${escapeHtml(member.name)}</div>
-                                                    <div class="member-id">#${escapeHtml(member.memberId)}</div>
-                                                    <div class="status-pill ${statusClass}">${icons.status}${escapeHtml(statusLabel)}</div>
-                                                </div>
+                            <div class="report-grid">
+                                <div class="side-col">
+                                    <div class="profile-card">
+                                        ${member.imageUrl ?
+                `<img src="${member.imageUrl}" class="profile-img" />` :
+                `<div class="placeholder-img">${escapeHtml(memberInitials || "M")}</div>`
+            }
+                                        <div class="member-name">${escapeHtml(member.name)}</div>
+                                        <div class="member-id">#${escapeHtml(member.memberId)}</div>
+                                        
+                                        <div class="status-badge ${statusClass}">
+                                            ${escapeHtml(statusLabel)}
+                                        </div>
+
+                                        <div class="contact-list">
+                                            <div class="contact-item">
+                                                <div class="contact-icon">${icons.phone}</div>
+                                                <span dir="ltr">${escapeHtml(member.phone || "-")}</span>
                                             </div>
-                                            <div class="member-contacts">
-                                                <div class="contact-row">${icons.phone}<span dir="ltr">${escapeHtml(member.phone || "-")}</span></div>
-                                                <div class="contact-row">${icons.mail}<span>${escapeHtml(member.email || "-")}</span></div>
-                                                <div class="contact-row">${icons.calendar}<span>${escapeHtml(t('subscriptions.endDate'))}: ${escapeHtml(member.subscriptionEnd ? formatDateSafe(member.subscriptionEnd) : "-")}</span></div>
+                                            <div class="contact-item">
+                                                <div class="contact-icon">${icons.mail}</div>
+                                                <span>${escapeHtml(member.email || "-")}</span>
+                                            </div>
+                                            <div class="contact-item" style="margin-top: 10px; border-top: 1px dashed var(--border); padding-top: 10px;">
+                                                <div class="contact-icon">${icons.calendar}</div>
+                                                <span style="font-size: 8.5pt;">${escapeHtml(t('subscriptions.endDate'))}: ${escapeHtml(member.subscriptionEnd ? formatDateSafe(member.subscriptionEnd) : "-")}</span>
+                                            </div>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <div class="summary-column">
-                                        <div class="card">
-                                            <div class="stat-list">
-                                                ${summaryCards.map(card => `
-                                                    <div class="stat-item">
-                                                        <div class="stat-icon">${card.icon}</div>
-                                                        <div>
-                                                            <div class="stat-label">${escapeHtml(card.label)}</div>
-                                                            <div class="stat-value">${escapeHtml(card.value)}</div>
-                                                        </div>
-                                                    </div>
-                                                `).join("")}
+                                <div class="main-col">
+                                        <div class="section-group">
+                                            <div class="section-title">
+                                                ${icons.user} ${escapeHtml(t('members.personalInfo'))}
                                             </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="summary-column">
-                                        <section class="card">
-                                            <div class="card-title">${icons.user}<span>${escapeHtml(t('members.personalInfo'))}</span></div>
                                             <div class="info-grid">
                                                 ${detailItems.map(item => `
-                                                    <div class="info-item">
-                                                        <div class="info-icon">${item.icon}</div>
-                                                        <div class="info-text">
-                                                            <div class="label">${escapeHtml(item.label)}</div>
-                                                            <div class="value">${escapeHtml(item.value)}</div>
-                                                        </div>
+                                                    <div class="data-card">
+                                                        <div class="data-label">${escapeHtml(item.label)}</div>
+                                                        <div class="data-value">${escapeHtml(item.value)}</div>
                                                     </div>
                                                 `).join("")}
                                             </div>
-                                        </section>
+                                        </div>
 
-                                        <section class="card">
-                                            <div class="card-title">${icons.health}<span>${escapeHtml(t('members.healthNotes'))}</span></div>
-                                            <div class="notes">${healthNotes}</div>
-                                        </section>
+                                        <div class="section-group">
+                                            <div class="section-title">
+                                                ${icons.chart} ${escapeHtml(t('dashboard.statsReport'))}
+                                            </div>
+                                            <div class="info-grid">
+                                                ${summaryCards.map(card => `
+                                                    <div class="data-card">
+                                                        <div class="data-label">${escapeHtml(card.label)}</div>
+                                                        <div class="data-value">${escapeHtml(card.value)}</div>
+                                                    </div>
+                                                `).join("")}
+                                            </div>
+                                        </div>
+
+                                        ${healthNotesText && healthNotesText !== '-' ? `
+                                            <div class="section-group">
+                                                <div class="section-title">
+                                                    ${icons.health} ${escapeHtml(t('members.healthNotes'))}
+                                                </div>
+                                                <div class="note-box">${healthNotes}</div>
+                                            </div>
+                                        ` : ''}
                                     </div>
                                 </div>
+
+                                <div class="belt-chain-section">
+                                    <div class="belt-chain-title">
+                                        ${icons.belt} الأحزمة
+                                    </div>
+                                    <div style="background: white; border-radius: 12px; padding: 20px; border: 1px solid var(--border);">
+                                        <table class="belt-table">
+                                            ${(() => {
+                const totalBelts = beltChain.length;
+                let itemsPerRow = 5;
+                let circleSize = 44;
+
+                if (totalBelts > 10) { itemsPerRow = 6; circleSize = 40; }
+                if (totalBelts > 15) { itemsPerRow = 8; circleSize = 34; }
+                if (totalBelts > 20) { itemsPerRow = 10; circleSize = 30; }
+
+                const rowWidth = 100 / itemsPerRow;
+                const rows = [];
+                for (let i = 0; i < beltChain.length; i += itemsPerRow) {
+                    rows.push(beltChain.slice(i, i + itemsPerRow));
+                }
+                return rows.map((row) => `
+                                                    <tr>
+                                                        ${row.map(belt => `
+                                                            <td style="width: ${rowWidth}%; padding: 10px 4px; vertical-align: top; text-align: center;">
+                                                                <div class="belt-circle" style="width: ${circleSize}px !important; height: ${circleSize}px !important; min-width: ${circleSize}px !important; max-width: ${circleSize}px !important; min-height: ${circleSize}px !important; max-height: ${circleSize}px !important; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; background-color: ${belt.isEarned ? belt.color : '#e2e8f0'}; border: 2px solid ${belt.isEarned ? 'rgba(0,0,0,0.1)' : '#cbd5e1'};">
+                                                                    ${belt.isEarned ? `<span style="color: white; font-weight: bold; font-size: ${circleSize > 34 ? 14 : 10}px;">✓</span>` : '&nbsp;'}
+                                                                </div>
+                                                                <div style="font-size: ${circleSize > 34 ? 10 : 8.5}px; font-weight: 700; color: var(--primary); line-height: 1.2;">
+                                                                    ${escapeHtml(belt.name)}
+                                                                </div>
+                                                                ${belt.awardedAt ? `<div style="font-size: 8px; color: var(--ink-light); margin-top: 2px;">${escapeHtml(belt.awardedAt)}</div>` : ''}
+                                                            </td>
+                                                        `).join("")}
+                                                        ${/* Fill empty cells */ row.length < itemsPerRow ? Array.from({ length: itemsPerRow - row.length }).map(() => `<td style="width: ${rowWidth}%;"></td>`).join("") : ""}
+                                                    </tr>
+                                                `).join("");
+            })()}
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <div class="table-section">
+                                    <div class="section-title">${icons.subscriptions} ${escapeHtml(t('subscriptions.history'))}</div>
+                                    <table class="full-width-table">
+                                        <thead>
+                                            <tr>
+                                                <th>${escapeHtml(t('subscriptions.planName'))}</th>
+                                                <th>${escapeHtml(t('subscriptions.startDate'))}</th>
+                                                <th>${escapeHtml(t('subscriptions.endDate'))}</th>
+                                                <th>${escapeHtml(t('common.amount'))}</th>
+                                                <th>${escapeHtml(t('members.status'))}</th>
+                                                <th>${escapeHtml(t('subscriptions.paymentStatus'))}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>${subscriptionsRows}</tbody>
+                                    </table>
+                                    <div class="finance-summary">
+                                        <div class="finance-item">
+                                            <div class="finance-label">${escapeHtml(t('finance.totalPaid'))}</div>
+                                            <div class="finance-value paid">${formatMoney(subPaid)} ${escapeHtml(t("common.currency"))}</div>
+                                        </div>
+                                        <div class="finance-item">
+                                            <div class="finance-label">${escapeHtml(t('finance.totalUnpaid'))}</div>
+                                            <div class="finance-value unpaid">${formatMoney(subUnpaid)} ${escapeHtml(t("common.currency"))}</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="table-section">
+                                    <div class="section-title">${icons.sales} ${escapeHtml(t('sales.purchaseHistory'))}</div>
+                                    <table class="full-width-table">
+                                        <thead>
+                                            <tr>
+                                                <th>${escapeHtml(t('common.date'))}</th>
+                                                <th>${escapeHtml(t('sales.product'))}</th>
+                                                <th>${escapeHtml(t('sales.quantity'))}</th>
+                                                <th>${escapeHtml(t('common.amount'))}</th>
+                                                <th>${escapeHtml(t('subscriptions.paymentStatus'))}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>${salesRows}</tbody>
+                                    </table>
+                                    <div class="finance-summary">
+                                        <div class="finance-item">
+                                            <div class="finance-label">${escapeHtml(t('finance.totalPaid'))}</div>
+                                            <div class="finance-value paid">${formatMoney(salesPaid)} ${escapeHtml(t("common.currency"))}</div>
+                                        </div>
+                                        <div class="finance-item">
+                                            <div class="finance-label">${escapeHtml(t('finance.totalUnpaid'))}</div>
+                                            <div class="finance-value unpaid">${formatMoney(salesUnpaid)} ${escapeHtml(t("common.currency"))}</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="table-section">
+                                    <div class="section-title">${icons.attendance} ${escapeHtml(t('attendance.attendanceHistory'))}</div>
+                                    <table class="full-width-table">
+                                        <thead>
+                                            <tr>
+                                                <th>${escapeHtml(t('common.date'))}</th>
+                                                <th>${escapeHtml(t('attendance.checkIn'))}</th>
+                                                <th>${escapeHtml(t('attendance.checkOut'))}</th>
+                                                <th>${escapeHtml(t('common.notes'))}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>${attendanceRows}</tbody>
+                                    </table>
+                                </div>
+
+                                </div>
                             </div>
-
-                            <div class="report-tables">
-                                <section class="card">
-                                    <div class="card-title">${icons.subscriptions}<span>${escapeHtml(t('subscriptions.history'))}</span></div>
-                                    <div class="table-wrap">
-                                        <table class="table">
-                                            <thead>
-                                                <tr>
-                                                    <th><span class="th-content">${icons.subscriptions}<span>${escapeHtml(t('subscriptions.planName'))}</span></span></th>
-                                                    <th><span class="th-content">${icons.calendar}<span>${escapeHtml(t('subscriptions.startDate'))}</span></span></th>
-                                                    <th><span class="th-content">${icons.calendar}<span>${escapeHtml(t('subscriptions.endDate'))}</span></span></th>
-                                                    <th><span class="th-content">${icons.amount}<span>${escapeHtml(t('common.amount'))}</span></span></th>
-                                                    <th><span class="th-content">${icons.status}<span>${escapeHtml(t('members.status'))}</span></span></th>
-                                                    <th><span class="th-content">${icons.check}<span>${escapeHtml(t('subscriptions.paymentStatus'))}</span></span></th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>${subscriptionsRows}</tbody>
-                                        </table>
-                                    </div>
-                                </section>
-
-                                <section class="card">
-                                    <div class="card-title">${icons.belt}<span>${escapeHtml(t('nav.belts'))}</span></div>
-                                    <div class="table-wrap">
-                                        <table class="table">
-                                            <thead>
-                                                <tr>
-                                                    <th><span class="th-content">${icons.belt}<span>${escapeHtml(t('belts.beltName'))}</span></span></th>
-                                                    <th><span class="th-content">${icons.calendar}<span>${escapeHtml(t('common.date'))}</span></span></th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>${beltsRows}</tbody>
-                                        </table>
-                                    </div>
-                                </section>
-
-                                <section class="card">
-                                    <div class="card-title">${icons.attendance}<span>${escapeHtml(t('attendance.attendanceHistory'))}</span></div>
-                                    <div class="table-wrap">
-                                        <table class="table">
-                                            <thead>
-                                                <tr>
-                                                    <th><span class="th-content">${icons.calendar}<span>${escapeHtml(t('common.date'))}</span></span></th>
-                                                    <th><span class="th-content">${icons.time}<span>${escapeHtml(t('attendance.checkIn'))}</span></span></th>
-                                                    <th><span class="th-content">${icons.time}<span>${escapeHtml(t('attendance.checkOut'))}</span></span></th>
-                                                    <th><span class="th-content">${icons.notes}<span>${escapeHtml(t('common.notes'))}</span></span></th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>${attendanceRows}</tbody>
-                                        </table>
-                                    </div>
-                                </section>
-
-                                <section class="card">
-                                    <div class="card-title">${icons.sales}<span>${escapeHtml(t('sales.purchaseHistory'))}</span></div>
-                                    <div class="table-wrap">
-                                        <table class="table">
-                                            <thead>
-                                                <tr>
-                                                    <th><span class="th-content">${icons.calendar}<span>${escapeHtml(t('common.date'))}</span></span></th>
-                                                    <th><span class="th-content">${icons.product}<span>${escapeHtml(t('sales.product'))}</span></span></th>
-                                                    <th><span class="th-content">${icons.quantity}<span>${escapeHtml(t('sales.quantity'))}</span></span></th>
-                                                    <th><span class="th-content">${icons.amount}<span>${escapeHtml(t('common.amount'))}</span></span></th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>${salesRows}</tbody>
-                                        </table>
-                                    </div>
-                                </section>
-                            </div>
-                        </div>
-                        ${printScript}
-                    </body>
-                </html>
-            `;
+                            <footer class="footer">
+                                <div class="footer-text">${escapeHtml(clubName)} - ${escapeHtml(t('members.report'))}</div>
+                                <div class="footer-text">${escapeHtml(reportDate)}</div>
+                            </footer>
+                            ${printScript}
+                        </body>
+                    </html>
+                `;
 
         return { reportHtml, reportFileName, reportData };
     };
@@ -1509,10 +1701,13 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                                             variant={
                                                 memberSubscriptionStatus === "expired"
                                                     ? "destructive"
-                                                    : memberSubscriptionStatus === "aboutToExpire" || memberSubscriptionStatus === "inactive"
-                                                        ? "secondary"
-                                                        : "default"
+                                                    : memberSubscriptionStatus === "upcoming"
+                                                        ? "outline"
+                                                        : memberSubscriptionStatus === "aboutToExpire" || memberSubscriptionStatus === "inactive"
+                                                            ? "secondary"
+                                                            : "default"
                                             }
+                                            className={memberSubscriptionStatus === "upcoming" ? "border-blue-500 text-blue-600 bg-blue-50 dark:bg-blue-900/10 dark:text-blue-300" : ""}
                                         >
                                             {memberSubscriptionStatus === "active"
                                                 ? t('common.active')
@@ -1520,7 +1715,9 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                                                     ? t('common.aboutToExpire')
                                                     : memberSubscriptionStatus === "inactive"
                                                         ? t('common.inactive')
-                                                        : t('common.expired')}
+                                                        : memberSubscriptionStatus === "upcoming"
+                                                            ? t('common.upcoming')
+                                                            : t('common.expired')}
                                         </Badge>
                                     )}
                                 </div>
@@ -1536,7 +1733,7 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                         {member && (
                             <div className="flex gap-2 shrink-0">
                                 <Button
-                                    variant="outline"
+                                    variant="default"
                                     size="sm"
                                     onClick={handleGenerateReport}
                                     disabled={isGeneratingReport || isDownloadingReport}
@@ -1548,26 +1745,8 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                                         </>
                                     ) : (
                                         <>
-                                            <FileText className="h-4 w-4 me-2" />
+                                            <Printer className="h-4 w-4 me-2" />
                                             {t('members.report')}
-                                        </>
-                                    )}
-                                </Button>
-                                <Button
-                                    variant="default"
-                                    size="sm"
-                                    onClick={handleDownloadReportPdf}
-                                    disabled={isGeneratingReport || isDownloadingReport}
-                                >
-                                    {isDownloadingReport ? (
-                                        <>
-                                            <Loader2 className="h-4 w-4 animate-spin me-2" />
-                                            {t('common.loading')}
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Download className="h-4 w-4 me-2" />
-                                            {t('members.downloadPdf')}
                                         </>
                                     )}
                                 </Button>
@@ -1611,11 +1790,11 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                                                     />
                                                 </div>
                                                 <div className="space-y-2">
-                                                    <Label htmlFor="grandFatherName">{t('members.grandFatherName')} *</Label>
+                                                    <Label htmlFor="fatherName">{t('members.fatherName')} *</Label>
                                                     <Input
-                                                        id="grandFatherName"
-                                                        value={formData.grandFatherName || ""}
-                                                        onChange={(e) => setFormData({ ...formData, grandFatherName: e.target.value })}
+                                                        id="fatherName"
+                                                        value={formData.fatherName || ""}
+                                                        onChange={(e) => setFormData({ ...formData, fatherName: e.target.value })}
                                                     />
                                                 </div>
                                                 <div className="space-y-2">
@@ -1628,7 +1807,22 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                                                 </div>
                                             </div>
 
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="cpr">{t('members.cpr')}</Label>
+                                                    <Input
+                                                        id="cpr"
+                                                        value={formData.cpr || ""}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value;
+                                                            if (/^\d{0,9}$/.test(val)) {
+                                                                setFormData({ ...formData, cpr: val });
+                                                            }
+                                                        }}
+                                                        placeholder="000000000"
+                                                        maxLength={9}
+                                                    />
+                                                </div>
                                                 <div className="space-y-2">
                                                     <Label htmlFor="phone">{t('members.phone')} *</Label>
                                                     <Input
@@ -1754,6 +1948,7 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                                                 )}
                                             </CardHeader>
                                             <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6 text-start">
+                                                <div className="space-y-1 text-start"><Label>{t('members.cpr')}</Label><div className="font-medium text-start">{member.cpr || "-"}</div></div>
                                                 <div className="space-y-1 text-start">
                                                     <Label>{t('members.phone')}</Label>
                                                     <button
@@ -1971,6 +2166,17 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                                                     </SelectContent>
                                                 </Select>
                                             </div>
+                                            <div className="space-y-2">
+                                                <Label>{t('finance.paymentStatus')}</Label>
+                                                <Select value={paymentStatus} onValueChange={setPaymentStatus}>
+                                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="paid">{t("finance.paid")}</SelectItem>
+                                                        <SelectItem value="unpaid">{t("finance.unpaid")}</SelectItem>
+                                                        <SelectItem value="pending">{t("finance.pending")}</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
                                             <div className="flex items-end md:col-span-2">
                                                 <Button
                                                     className="w-full"
@@ -2055,6 +2261,11 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                                                                                 <AlertCircle className="h-3 w-3 text-orange-500" />
                                                                                 {t('common.aboutToExpire')}
                                                                             </>
+                                                                        ) : status === 'upcoming' ? (
+                                                                            <>
+                                                                                <Calendar className="h-3 w-3 text-blue-500" />
+                                                                                {t('common.upcoming')}
+                                                                            </>
                                                                         ) : (
                                                                             <>
                                                                                 <CheckCircle2 className="h-3 w-3 text-green-500" />
@@ -2068,23 +2279,37 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                                                                         isExpiring ? 'text-orange-700' :
                                                                             'text-green-700'
                                                                         }`}>{activeSub.amount} {t("common.currency")}</div>
-                                                                    {hasPermission(PERMISSIONS.SUBSCRIPTIONS_DELETE) && (
+                                                                    <div className="flex items-center gap-1">
                                                                         <Button
                                                                             variant="ghost"
                                                                             size="icon"
-                                                                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                                                            className="h-8 w-8 text-muted-foreground hover:text-primary"
                                                                             onClick={() => {
-                                                                                if (confirm(t('common.deleteConfirm'))) {
-                                                                                    deleteSubscriptionMutation.mutate(activeSub.id);
-                                                                                }
+                                                                                setPrintType('subscription');
+                                                                                setPrintData(activeSub);
+                                                                                setIsReceiptTypeDialogOpen(true);
                                                                             }}
-                                                                            disabled={deleteSubscriptionMutation.isPending}
                                                                         >
-                                                                            {deleteSubscriptionMutation.isPending && deleteSubscriptionMutation.variables === activeSub.id
-                                                                                ? <Loader2 className="h-4 w-4 animate-spin" />
-                                                                                : <Trash2 className="h-4 w-4" />}
+                                                                            <Printer className="h-4 w-4" />
                                                                         </Button>
-                                                                    )}
+                                                                        {hasPermission(PERMISSIONS.SUBSCRIPTIONS_DELETE) && (
+                                                                            <Button
+                                                                                variant="ghost"
+                                                                                size="icon"
+                                                                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                                                                onClick={() => {
+                                                                                    if (confirm(t('common.deleteConfirm'))) {
+                                                                                        deleteSubscriptionMutation.mutate(activeSub.id);
+                                                                                    }
+                                                                                }}
+                                                                                disabled={deleteSubscriptionMutation.isPending}
+                                                                            >
+                                                                                {deleteSubscriptionMutation.isPending && deleteSubscriptionMutation.variables === activeSub.id
+                                                                                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                                                                                    : <Trash2 className="h-4 w-4" />}
+                                                                            </Button>
+                                                                        )}
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         </Card>
@@ -2134,23 +2359,37 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                                                                             {statusLabel}
                                                                         </Badge>
                                                                     </div>
-                                                                    {hasPermission(PERMISSIONS.SUBSCRIPTIONS_DELETE) && (
+                                                                    <div className="flex items-center gap-1">
                                                                         <Button
                                                                             variant="ghost"
                                                                             size="icon"
-                                                                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                                                            className="h-8 w-8 text-muted-foreground hover:text-primary"
                                                                             onClick={() => {
-                                                                                if (confirm(t('common.deleteConfirm'))) {
-                                                                                    deleteSubscriptionMutation.mutate(sub.id);
-                                                                                }
+                                                                                setPrintType('subscription');
+                                                                                setPrintData(sub);
+                                                                                setIsReceiptTypeDialogOpen(true);
                                                                             }}
-                                                                            disabled={deleteSubscriptionMutation.isPending}
                                                                         >
-                                                                            {deleteSubscriptionMutation.isPending && deleteSubscriptionMutation.variables === sub.id
-                                                                                ? <Loader2 className="h-4 w-4 animate-spin" />
-                                                                                : <Trash2 className="h-4 w-4" />}
+                                                                            <Printer className="h-4 w-4" />
                                                                         </Button>
-                                                                    )}
+                                                                        {hasPermission(PERMISSIONS.SUBSCRIPTIONS_DELETE) && (
+                                                                            <Button
+                                                                                variant="ghost"
+                                                                                size="icon"
+                                                                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                                                                onClick={() => {
+                                                                                    if (confirm(t('common.deleteConfirm'))) {
+                                                                                        deleteSubscriptionMutation.mutate(sub.id);
+                                                                                    }
+                                                                                }}
+                                                                                disabled={deleteSubscriptionMutation.isPending}
+                                                                            >
+                                                                                {deleteSubscriptionMutation.isPending && deleteSubscriptionMutation.variables === sub.id
+                                                                                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                                                                                    : <Trash2 className="h-4 w-4" />}
+                                                                            </Button>
+                                                                        )}
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         </Card>
@@ -2170,14 +2409,79 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
 
                         <TabsContent value="belts" className="m-0 text-start">
                             <div className="space-y-4">
+
                                 <div className="flex justify-between items-center">
                                     <h3 className="text-lg font-semibold text-start">{t('belts.title')}</h3>
-                                    {!showAssignBeltForm && (
+                                    {hasPermission(PERMISSIONS.BELTS_CREATE) && !showAssignBeltForm && (
                                         <Button size="sm" onClick={() => setShowAssignBeltForm(true)}>
                                             <Plus className="h-4 w-4 me-2" /> {t('belts.addBelt')}
                                         </Button>
                                     )}
                                 </div>
+
+                                {/* Belt Timeline */}
+                                <Card
+                                    className="p-6 bg-muted/10 overflow-x-auto scrollbar-hide"
+                                    style={{
+                                        msOverflowStyle: 'none',
+                                        scrollbarWidth: 'none',
+                                        WebkitOverflowScrolling: 'touch'
+                                    }}
+                                >
+                                    <div className="flex items-center min-w-max justify-center mx-auto py-2">
+                                        {belts?.sort((a, b) => a.order - b.order).map((belt, index, array) => {
+                                            const earnedBelt = memberBelts?.find(mb => mb.beltId === belt.id);
+                                            const isEarned = !!earnedBelt;
+                                            const isNext = !isEarned && (index === 0 || !!memberBelts?.find(mb => mb.beltId === array[index - 1].id));
+                                            const isLast = index === array.length - 1;
+
+                                            return (
+                                                <div key={belt.id} className="flex items-center">
+                                                    <div className="relative flex flex-col items-center group">
+                                                        <div
+                                                            className={`w-14 h-14 rounded-full border-4 flex items-center justify-center transition-all duration-300 z-10 relative
+                                                                ${isEarned
+                                                                    ? 'border-primary shadow-lg scale-110'
+                                                                    : isNext
+                                                                        ? 'border-dashed border-muted-foreground/50 bg-background opacity-80'
+                                                                        : 'border-muted bg-muted opacity-40 grayscale'
+                                                                }
+                                                            `}
+                                                            style={{
+                                                                backgroundColor: isEarned ? belt.color : isNext ? undefined : belt.color
+                                                            }}
+                                                            title={belt.name}
+                                                        >
+                                                            {isEarned && <CheckCircle2 className="w-6 h-6 text-white drop-shadow-md" />}
+                                                            {!isEarned && isNext && <div className="w-3 h-3 rounded-full" style={{ backgroundColor: belt.color }} />}
+                                                        </div>
+
+                                                        <div className="absolute top-full mt-3 flex flex-col items-center w-32 text-center">
+                                                            <div className={`font-bold text-sm ${isEarned ? 'text-foreground' : 'text-muted-foreground'}`}>
+                                                                {belt.name}
+                                                            </div>
+                                                            {isEarned && (
+                                                                <div className="text-[10px] text-muted-foreground font-medium bg-background/80 px-2 py-0.5 rounded-full border mt-1">
+                                                                    {format(new Date(earnedBelt.awardedAt), "MMM yyyy", { locale: language === 'ar' ? ar : enUS })}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    {!isLast && (
+                                                        <div className={`h-1 w-12 sm:w-20 lg:w-32 transition-colors duration-500 rounded-full mx-[-4px] z-0
+                                                            ${isEarned && memberBelts?.find(mb => mb.beltId === array[index + 1].id)
+                                                                ? 'bg-primary'
+                                                                : 'bg-muted-foreground/20'
+                                                            }
+                                                        `} />
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                    <div className="h-16" /> {/* Spacer for labels */}
+                                </Card>
 
                                 {showAssignBeltForm && (
                                     <Card className="p-4 border-primary/50 bg-primary/5 space-y-4">
@@ -2244,20 +2548,22 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                                                         </div>
                                                     </div>
                                                 </div>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="text-muted-foreground hover:text-destructive"
-                                                    onClick={() => {
-                                                        if (confirm(t('common.deleteConfirm'))) revokeBeltMutation.mutate(mb.id);
-                                                    }}
-                                                    disabled={revokeBeltMutation.isPending}
-                                                >
-                                                    {revokeBeltMutation.isPending && revokeBeltMutation.variables === mb.id ?
-                                                        <Loader2 className="h-4 w-4 animate-spin" /> :
-                                                        <Trash2 className="h-4 w-4" />
-                                                    }
-                                                </Button>
+                                                {hasPermission(PERMISSIONS.BELTS_DELETE) && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="text-muted-foreground hover:text-destructive"
+                                                        onClick={() => {
+                                                            if (confirm(t('common.deleteConfirm'))) revokeBeltMutation.mutate(mb.id);
+                                                        }}
+                                                        disabled={revokeBeltMutation.isPending}
+                                                    >
+                                                        {revokeBeltMutation.isPending && revokeBeltMutation.variables === mb.id ?
+                                                            <Loader2 className="h-4 w-4 animate-spin" /> :
+                                                            <Trash2 className="h-4 w-4" />
+                                                        }
+                                                    </Button>
+                                                )}
                                             </Card>
                                         );
                                     })}
@@ -2335,91 +2641,9 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                                                             size="icon"
                                                             className="h-8 w-8"
                                                             onClick={() => {
-                                                                const printWindow = window.open('', '', 'height=600,width=800');
-                                                                if (!printWindow) return;
-
-                                                                const itemsHtml = receipt.items.map(item => `
-                                                                    <div class="flex justify-between items-center text-sm py-1 border-b border-gray-50 last:border-0">
-                                                                        <div class="flex flex-col">
-                                                                            <span class="font-semibold text-gray-900">${item.productName}</span>
-                                                                            <span class="text-[10px] text-gray-500">${item.quantity} x ${item.unitPrice.toFixed(3)} ${t("common.currency")}</span>
-                                                                        </div>
-                                                                        <span class="font-mono font-medium">${item.totalPrice.toFixed(3)} ${t("common.currency")}</span>
-                                                                    </div>
-                                                                `).join('');
-
-                                                                printWindow.document.write(`
-                                                                    <html>
-                                                                    <head>
-                                                                        <title>${t("finance.receipt")} ${receipt.id}</title>
-                                                                        <script src="https://cdn.tailwindcss.com"></script>
-                                                                        <style>
-                                                                            @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
-                                                                            body { font-family: 'Cairo', sans-serif; }
-                                                                            @page { size: 80mm 150mm; margin: 0; }
-                                                                        </style>
-                                                                    </head>
-                                                                    <body class="bg-white p-4" dir="${dir}">
-                                                                        <div class="max-w-[80mm] mx-auto">
-                                                                            <!-- Header -->
-                                                                            <div class="flex flex-col items-center mb-6 text-center">
-                                                                                ${clubSettings?.logoUrlLight ? `<img src="${clubSettings.logoUrlLight}" class="w-16 h-16 object-contain mb-2" alt="Logo" />` : ''}
-                                                                                <h1 class="text-lg font-bold text-gray-900">${clubSettings?.name || t("members.clubFallback")}</h1>
-                                                                                <p class="text-[10px] text-gray-500 mt-1">
-                                                                                    ${format(new Date(receipt.date), "PPP p", { locale: language === 'ar' ? ar : enUS })}
-                                                                                </p>
-                                                                            </div>
-
-                                                                            <!-- Receipt Details -->
-                                                                            <div class="border-t-2 border-dashed border-gray-200 py-4 space-y-3">
-                                                                                <div class="flex justify-between items-center text-sm">
-                                                                                    <span class="text-gray-500">${t('finance.receipt')}:</span>
-                                                                                    <span class="font-mono font-bold">#${receipt.id}</span>
-                                                                                </div>
-                                                                                <div class="flex justify-between items-center text-sm">
-                                                                                    <span class="text-gray-500">${t('members.name')}:</span>
-                                                                                    <span class="font-semibold text-gray-900">${member.name}</span>
-                                                                                </div>
-                                                                            </div>
-
-                                                                            <!-- Item List -->
-                                                                            <div class="border-t-2 border-dashed border-gray-200 py-4">
-                                                                                <div class="text-[10px] uppercase text-gray-400 mb-2 font-bold">${t('nav.store')}</div>
-                                                                                ${itemsHtml}
-                                                                            </div>
-
-                                                                            <!-- Totals -->
-                                                                            <div class="border-t-2 border-dashed border-gray-200 pt-4 mt-2">
-                                                                                <div class="flex justify-between items-center mb-4">
-                                                                                    <span class="text-sm font-bold text-gray-900">${t('store.total')}</span>
-                                                                                    <span class="text-lg font-bold text-gray-900">${receipt.total.toFixed(3)} ${t("common.currency")}</span>
-                                                                                </div>
-                                                                                <div class="flex justify-between items-center text-[10px] text-gray-500 bg-gray-50 p-2 rounded">
-                                                                                    <span>${t('finance.paymentStatus')}:</span>
-                                                                                    <span class="font-medium ${receipt.paymentStatus === 'paid' ? 'text-green-600' : 'text-red-600'}">
-                                                                                        ${receipt.paymentStatus === 'paid' ? t('finance.paid') : t('finance.unpaid')}
-                                                                                    </span>
-                                                                                </div>
-                                                                            </div>
-
-                                                                            <!-- Footer -->
-                                                                            <div class="mt-8 text-center space-y-1">
-                                                                                <p class="text-[10px] text-gray-400">${t("store.receiptThanks")}</p>
-                                                                                <p class="text-[8px] text-gray-300 italic">${t("finance.eReceiptLabel").replace("{id}", receipt.id)}</p>
-                                                                            </div>
-                                                                        </div>
-                                                                        <script>
-                                                                            window.onload = () => {
-                                                                                setTimeout(() => {
-                                                                                    window.print();
-                                                                                    window.close();
-                                                                                }, 500);
-                                                                            };
-                                                                        </script>
-                                                                    </body>
-                                                                    </html>
-                                                                `);
-                                                                printWindow.document.close();
+                                                                setPrintType('sale');
+                                                                setPrintData(receipt);
+                                                                setIsReceiptTypeDialogOpen(true);
                                                             }}
                                                         >
                                                             <Printer className="h-4 w-4" />
@@ -2708,10 +2932,27 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
             )}
 
             <WhatsAppTemplateDialog
-                member={member}
+                member={memberForWhatsApp}
                 open={isWhatsAppDialogOpen}
                 onOpenChange={setIsWhatsAppDialogOpen}
                 templates={clubSettings?.whatsappTemplates ?? []}
+            />
+
+            <ReceiptTypeDialog
+                isOpen={isReceiptTypeDialogOpen}
+                onClose={() => setIsReceiptTypeDialogOpen(false)}
+                onSelect={(format) => {
+                    if (printData && printType) {
+                        printReceipt({
+                            type: printType,
+                            data: printData,
+                            settings: clubSettings,
+                            language: language as any,
+                            t,
+                            format
+                        });
+                    }
+                }}
             />
         </Dialog>
     );

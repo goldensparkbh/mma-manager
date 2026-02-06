@@ -17,6 +17,7 @@ import { createSale } from "@/lib/firebaseData";
 import { Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, Package, X, Loader2, Printer, CheckCircle2 } from "lucide-react";
 import { printReceipt } from "@/lib/receipt-printer";
 import { useAuth } from "@/context/auth-context";
+import { ReceiptTypeDialog } from "./receipt-type-dialog";
 
 interface POSDialogProps {
     isOpen: boolean;
@@ -38,6 +39,7 @@ export function POSDialog({ isOpen, onClose, member }: POSDialogProps) {
     const [paymentMethod, setPaymentMethod] = useState<string>("cash");
     const [paymentType, setPaymentType] = useState<"pay_now" | "pay_later">("pay_now");
     const [lastSaleData, setLastSaleData] = useState<any>(null);
+    const [isReceiptTypeDialogOpen, setIsReceiptTypeDialogOpen] = useState(false);
     const { clubSettings } = useAuth();
 
     const { data: products } = useQuery<Product[]>({
@@ -140,7 +142,14 @@ export function POSDialog({ isOpen, onClose, member }: POSDialogProps) {
             setLastSaleData({
                 id: receiptId,
                 buyerName: member.name,
-                productName: cart.map(i => `${i.product.name} (x${i.quantity})`).join(", "),
+                memberDisplayId: member.memberId,
+                items: cart.map(item => ({
+                    id: item.product.id,
+                    productName: item.product.name,
+                    quantity: item.quantity,
+                    unitPrice: item.product.price,
+                    totalPrice: item.product.price * item.quantity
+                })),
                 totalPrice: totalAmount,
                 paymentStatus: paymentType === "pay_now" ? "paid" : "unpaid",
                 date: new Date().toISOString()
@@ -176,13 +185,7 @@ export function POSDialog({ isOpen, onClose, member }: POSDialogProps) {
                             <Button
                                 size="lg"
                                 className="w-full gap-2"
-                                onClick={() => printReceipt({
-                                    type: 'sale',
-                                    data: lastSaleData,
-                                    settings: clubSettings,
-                                    language: language as any,
-                                    t
-                                })}
+                                onClick={() => setIsReceiptTypeDialogOpen(true)}
                             >
                                 <Printer className="w-5 h-5" />
                                 {t("sales.printReceipt")}
@@ -365,6 +368,22 @@ export function POSDialog({ isOpen, onClose, member }: POSDialogProps) {
                         </div>
                     </div>
                 )}
+                <ReceiptTypeDialog
+                    isOpen={isReceiptTypeDialogOpen}
+                    onClose={() => setIsReceiptTypeDialogOpen(false)}
+                    onSelect={(format) => {
+                        if (lastSaleData) {
+                            printReceipt({
+                                type: 'sale',
+                                data: lastSaleData,
+                                settings: clubSettings,
+                                language: language as any,
+                                t,
+                                format
+                            });
+                        }
+                    }}
+                />
             </DialogContent>
         </Dialog>
     );

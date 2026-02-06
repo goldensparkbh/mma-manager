@@ -31,5 +31,5 @@ jobs:
         with:
           repoToken: '${{ secrets.GITHUB_TOKEN }}'
           firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_CLUBMANAGER_0 }}'
-          projectId: clubmanager-0
+          projectId: kumitecombat
           channelId: live

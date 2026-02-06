@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Package, Search, ShoppingCart, Minus, Trash2, ImagePlus, LayoutGrid, LayoutList, X } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -37,6 +38,7 @@ const defaultProductForm: Partial<InsertProduct> = {
   description: "",
   price: 0,
   stock: 0,
+  trackInventory: true,
   category: "general",
   imageUrl: "",
 };
@@ -53,7 +55,9 @@ const defaultCategoryValues = [
 export default function Store() {
   const { hasPermission } = useAuth();
   const { t } = useLanguage();
-  const canModify = hasPermission(PERMISSIONS.STORE_CREATE);
+  const canAdd = hasPermission(PERMISSIONS.STORE_CREATE);
+  const canUpdate = hasPermission(PERMISSIONS.STORE_UPDATE);
+  const canDelete = hasPermission(PERMISSIONS.STORE_DELETE);
   const canSell = hasPermission(PERMISSIONS.SALES_CREATE);
   const { toast } = useToast();
 
@@ -70,6 +74,7 @@ export default function Store() {
   const [customerName, setCustomerName] = useState("");
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [stockToAdd, setStockToAdd] = useState<number>(0);
   const [formData, setFormData] = useState<Partial<InsertProduct>>({
     ...defaultProductForm,
   });
@@ -119,6 +124,7 @@ export default function Store() {
 
   const resetProductForm = () => {
     setFormData({ ...defaultProductForm });
+    setStockToAdd(0);
     if (imagePreview?.startsWith("blob:")) {
       URL.revokeObjectURL(imagePreview);
     }
@@ -188,12 +194,14 @@ export default function Store() {
       stock: product.stock,
       category: product.category ?? "general",
       imageUrl: product.imageUrl ?? "",
+      trackInventory: product.trackInventory ?? false,
     });
     if (imagePreview?.startsWith("blob:")) {
       URL.revokeObjectURL(imagePreview);
     }
     setImagePreview(product.imageUrl || null);
     setImageFile(null);
+    setStockToAdd(0);
     setIsDialogOpen(true);
   };
 
@@ -347,9 +355,10 @@ export default function Store() {
       return;
     }
     if (isEditing && editingProduct) {
+      const finalStock = (formData.stock || 0) + (stockToAdd || 0);
       updateProduct.mutate({
         id: editingProduct.id,
-        updates: { ...formData, imageFile },
+        updates: { ...formData, stock: finalStock, imageFile },
       });
       return;
     }
@@ -358,8 +367,10 @@ export default function Store() {
 
   const addToCart = (product: Product) => {
     const latestProduct = getLatestProduct(product.id);
+    const tracking = latestProduct?.trackInventory ?? product.trackInventory ?? false;
     const availableStock = latestProduct?.stock ?? product.stock;
-    if (availableStock <= 0) {
+
+    if (tracking && availableStock <= 0) {
       toast({
         title: t("common.warning"),
         description: t("store.productUnavailable"),
@@ -371,7 +382,7 @@ export default function Store() {
     setCart((prevCart) => {
       const existingItem = prevCart.find((item) => item.product.id === product.id);
       if (existingItem) {
-        if (existingItem.quantity >= availableStock) {
+        if (tracking && existingItem.quantity >= availableStock) {
           toast({
             title: t("common.warning"),
             description: t("store.stockLimited"),
@@ -409,12 +420,13 @@ export default function Store() {
       if (!item) return prevCart;
 
       const latestProduct = getLatestProduct(productId);
+      const tracking = latestProduct?.trackInventory ?? item.product.trackInventory ?? false;
       const availableStock = latestProduct?.stock ?? item.product.stock;
       const newQuantity = item.quantity + delta;
       if (newQuantity <= 0) {
         return prevCart.filter((i) => i.product.id !== productId);
       }
-      if (newQuantity > availableStock) {
+      if (tracking && newQuantity > availableStock) {
         toast({
           title: t("common.warning"),
           description: t("store.stockLimited"),
@@ -471,7 +483,7 @@ export default function Store() {
           <p className="text-sm text-muted-foreground">{t('store.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
-          {canModify && (
+          {canAdd && (
             <Dialog open={isDialogOpen} onOpenChange={handleProductDialogChange}>
               <DialogTrigger asChild>
                 <Button data-testid="button-add-product" onClick={openCreateDialog}>
@@ -523,17 +535,49 @@ export default function Store() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>{t("store.quantity")} *</Label>
+                      <Label>{isEditing ? t("store.addStock") : t("store.quantity")} *</Label>
                       <Input
                         type="number"
                         placeholder="0"
-                        value={formData.stock || ""}
-                        onChange={(e) =>
-                          setFormData({ ...formData, stock: parseInt(e.target.value) || 0 })
-                        }
+                        value={isEditing ? (stockToAdd || "") : (formData.stock || "")}
+                        disabled={!formData.trackInventory}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value) || 0;
+                          if (isEditing) setStockToAdd(val);
+                          else setFormData({ ...formData, stock: val });
+                        }}
                         data-testid="input-product-stock"
                       />
+                      {isEditing && formData.trackInventory && (
+                        <div className="flex justify-between text-[10px] font-medium uppercase tracking-tighter text-muted-foreground bg-muted/30 p-1.5 rounded-md border border-dashed">
+                          <span>{t("store.currentStock")}: {formData.stock}</span>
+                          <span className="text-primary font-bold">
+                            {t("store.total")}: {(formData.stock || 0) + stockToAdd}
+                          </span>
+                        </div>
+                      )}
                     </div>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                    <div className="space-y-0.5">
+                      <Label className="text-base">{t("store.trackInventory")}</Label>
+                      <p className="text-sm text-muted-foreground">
+                        {t("store.trackInventoryDescription")}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={formData.trackInventory}
+                      onCheckedChange={(checked) => {
+                        setFormData({
+                          ...formData,
+                          trackInventory: checked,
+                          stock: checked ? formData.stock : 0
+                        });
+                        setStockToAdd(0);
+                      }}
+                      data-testid="switch-track-inventory"
+                    />
                   </div>
 
                   <div className="space-y-2">
@@ -611,7 +655,7 @@ export default function Store() {
                           : t('common.save')}
                     </Button>
 
-                    {isEditing && editingProduct && canModify && (
+                    {isEditing && editingProduct && canDelete && (
                       <Button
                         type="button"
                         variant="destructive"
@@ -658,8 +702,9 @@ export default function Store() {
                   <div className="space-y-3 max-h-64 overflow-y-auto">
                     {cart.map((item) => {
                       const latestProduct = getLatestProduct(item.product.id);
+                      const tracking = latestProduct?.trackInventory ?? item.product.trackInventory ?? false;
                       const availableStock = latestProduct?.stock ?? item.product.stock;
-                      const atStockLimit = item.quantity >= availableStock;
+                      const atStockLimit = tracking && item.quantity >= availableStock;
 
                       return (
                         <div
@@ -782,7 +827,7 @@ export default function Store() {
         </div>
       </div>
 
-      {canModify && (
+      {canUpdate && (
         <Card>
           <CardHeader>
             <CardTitle>{t("store.categoriesTitle")}</CardTitle>
@@ -836,25 +881,25 @@ export default function Store() {
             filteredProducts.map((product) => {
               const cartQuantity =
                 cart.find((item) => item.product.id === product.id)?.quantity ?? 0;
-              const atStockLimit = cartQuantity >= product.stock;
-              const isOutOfStock = product.stock <= 0 || atStockLimit;
+              const atStockLimit = product.trackInventory && cartQuantity >= product.stock;
+              const isOutOfStock = product.trackInventory && (product.stock <= 0 || atStockLimit);
 
               return (
                 <Card
                   key={product.id}
                   className="overflow-hidden cursor-pointer relative"
-                  onClick={() => canModify && openEditDialog(product)}
+                  onClick={() => canUpdate && openEditDialog(product)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
-                      canModify && openEditDialog(product);
+                      canUpdate && openEditDialog(product);
                     }
                   }}
                   role="button"
                   tabIndex={0}
                   data-testid={`card-product-${product.id}`}
                 >
-                  {canModify && (
+                  {canDelete && (
                     <Button
                       size="icon"
                       variant="ghost"
@@ -896,7 +941,7 @@ export default function Store() {
                       <div>
                         <p className="text-xl font-bold">{product.price} {t("common.currency")}</p>
                         <p className="text-xs text-muted-foreground">
-                          {t("store.stock")}: {product.stock}
+                          {product.trackInventory ? `${t("store.stock")}: ${product.stock}` : t("store.unlimitedStock")}
                         </p>
                       </div>
                       <Button
@@ -938,14 +983,14 @@ export default function Store() {
                 {filteredProducts.map((product) => {
                   const cartQuantity =
                     cart.find((item) => item.product.id === product.id)?.quantity ?? 0;
-                  const atStockLimit = cartQuantity >= product.stock;
-                  const isOutOfStock = product.stock <= 0 || atStockLimit;
+                  const atStockLimit = product.trackInventory && cartQuantity >= product.stock;
+                  const isOutOfStock = product.trackInventory && (product.stock <= 0 || atStockLimit);
 
                   return (
                     <tr
                       key={product.id}
-                      className={`border-b hover:bg-muted/50 ${canModify ? 'cursor-pointer' : 'cursor-default'}`}
-                      onClick={() => canModify && openEditDialog(product)}
+                      className={`border-b hover:bg-muted/50 ${canUpdate ? 'cursor-pointer' : 'cursor-default'}`}
+                      onClick={() => canUpdate && openEditDialog(product)}
                     >
                       <td className="p-4">
                         <div className="flex items-center gap-3">
@@ -970,7 +1015,17 @@ export default function Store() {
                       </td>
                       <td className="p-4">{getCategoryLabel(product.category)}</td>
                       <td className="p-4 font-mono">{product.price} {t("common.currency")}</td>
-                      <td className="p-4">{product.stock}</td>
+                      <td className="p-4">
+                        {product.trackInventory ? (
+                          <Badge variant={product.stock <= 0 ? "destructive" : "outline"}>
+                            {product.stock}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-muted-foreground border-dashed">
+                            {t("store.unlimitedStock")}
+                          </Badge>
+                        )}
+                      </td>
                       <td className="p-4 flex items-center gap-2">
                         <Button
                           size="sm"
@@ -983,7 +1038,7 @@ export default function Store() {
                         >
                           {isOutOfStock ? t('store.outOfStock') : t('store.addToCart')}
                         </Button>
-                        {canModify && (
+                        {canDelete && (
                           <Button
                             size="icon"
                             variant="ghost"

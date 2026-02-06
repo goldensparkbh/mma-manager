@@ -72,7 +72,7 @@ type ClubProfile = {
 export default function SystemSettings() {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const { user, refreshClubSettings, hasPermission } = useAuth();
-    const canModify = hasPermission(PERMISSIONS.SETTINGS_MODIFY);
+    const canEdit = hasPermission(PERMISSIONS.SETTINGS_MODIFY);
     const { toast } = useToast();
     const [loading, setLoading] = useState(false);
     const [progressStatus, setProgressStatus] = useState("");
@@ -841,7 +841,7 @@ export default function SystemSettings() {
                             )}
                         </CardContent>
                     </Card>
-                    {canModify && (
+                    {canEdit && (
                         <Button onClick={handleSaveProfile} disabled={loading} className="w-full md:w-auto mt-4">
                             {loading ? <Loader2 className="w-4 h-4 animate-spin me-2" /> : <Save className="w-4 h-4 me-2" />}
                             {t("common.saveChanges")}
@@ -857,32 +857,8 @@ export default function SystemSettings() {
                             <CardDescription>{t("settings.receipts.description")}</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-6">
-                            <div className="space-y-3">
-                                <Label>{t("settings.receipts.formatLabel")}</Label>
-                                <RadioGroup
-                                    value={clubProfile.receiptType}
-                                    onValueChange={(v: 'thermal' | 'a4') => setClubProfile({ ...clubProfile, receiptType: v })}
-                                    className="grid grid-cols-1 md:grid-cols-2 gap-4"
-                                >
-                                    <div className="flex items-center space-x-2 rtl:space-x-reverse border p-4 rounded-lg hover:bg-muted/50 transition-all cursor-pointer has-[:checked]:border-primary has-[:checked]:bg-primary/5">
-                                        <RadioGroupItem value="thermal" id="thermal" />
-                                        <Label htmlFor="thermal" className="flex-1 cursor-pointer">
-                                            <div className="font-bold">{t("settings.receipts.thermalTitle")}</div>
-                                            <div className="text-xs text-muted-foreground">{t("settings.receipts.thermalDesc")}</div>
-                                        </Label>
-                                    </div>
-                                    <div className="flex items-center space-x-2 rtl:space-x-reverse border p-4 rounded-lg hover:bg-muted/50 transition-all cursor-pointer has-[:checked]:border-primary has-[:checked]:bg-primary/5">
-                                        <RadioGroupItem value="a4" id="a4" />
-                                        <Label htmlFor="a4" className="flex-1 cursor-pointer">
-                                            <div className="font-bold">{t("settings.receipts.a4Title")}</div>
-                                            <div className="text-xs text-muted-foreground">{t("settings.receipts.a4Desc")}</div>
-                                        </Label>
-                                    </div>
-                                </RadioGroup>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t">
-                                <div className={`space-y-4 transition-opacity ${clubProfile.receiptType !== 'a4' ? 'opacity-50 grayscale pointer-events-none' : ''}`}>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-0">
+                                <div className="space-y-4">
                                     <div className="flex items-center gap-2">
                                         <div className="p-2 rounded bg-primary/10 text-primary">
                                             <Package className="w-4 h-4" />
@@ -910,7 +886,7 @@ export default function SystemSettings() {
                                     </div>
                                 </div>
 
-                                <div className={`space-y-4 transition-opacity ${clubProfile.receiptType !== 'thermal' ? 'opacity-50 grayscale pointer-events-none' : ''}`}>
+                                <div className="space-y-4">
                                     <div className="flex items-center gap-2">
                                         <div className="p-2 rounded bg-primary/10 text-primary">
                                             <ImageIcon className="w-4 h-4" />
@@ -941,7 +917,7 @@ export default function SystemSettings() {
                         </CardContent>
                     </Card>
 
-                    {canModify && (
+                    {canEdit && (
                         <Button onClick={handleSaveProfile} disabled={loading} className="w-full md:w-auto mt-4">
                             {loading ? <Loader2 className="w-4 h-4 animate-spin me-2" /> : <Save className="w-4 h-4 me-2" />}
                             {t("common.saveChanges")}
@@ -971,7 +947,7 @@ export default function SystemSettings() {
                                     <Input type="password" value={credForm.confirmPassword} onChange={e => setCredForm({ ...credForm, confirmPassword: e.target.value })} />
                                 </div>
                             </div>
-                            {canModify && (
+                            {canEdit && (
                                 <Button onClick={handleUpdateCredentials} disabled={loading}>
                                     {loading ? <Loader2 className="w-4 h-4 animate-spin me-2" /> : null}
                                     {t("settings.updateCredentials")}
@@ -1082,7 +1058,7 @@ export default function SystemSettings() {
                             </CardContent>
                         </Card>
 
-                        <Card className="border-destructive/30">
+                        <Card className="border-destructive/30" style={{ display: "none" }}>
                             <CardHeader className="text-start">
                                 <CardTitle className="flex items-center gap-2 text-destructive">
                                     <Trash2 className="w-5 h-5" />

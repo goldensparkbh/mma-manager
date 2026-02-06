@@ -6,10 +6,11 @@ interface PrintReceiptOptions {
   settings: any;
   language: 'ar' | 'en';
   t: (key: string) => string;
+  format?: 'thermal' | 'a4';
 }
 
-export const printReceipt = ({ type, data, settings, language, t }: PrintReceiptOptions) => {
-  const isThermal = settings?.receiptType === 'thermal' || !settings?.receiptType;
+export const printReceipt = ({ type, data, settings, language, t, format }: PrintReceiptOptions) => {
+  const isThermal = format ? (format === 'thermal') : (settings?.receiptType === 'thermal' || !settings?.receiptType);
   const isArabic = language === 'ar';
 
   const printWindow = window.open('', '', 'height=600,width=800');
@@ -22,6 +23,11 @@ export const printReceipt = ({ type, data, settings, language, t }: PrintReceipt
     month: 'long',
     day: 'numeric',
   });
+
+  const total = data.total || data.amount || data.totalPrice || 0;
+  const isPaid = data.paymentStatus === 'paid';
+  const amountPaid = isPaid ? total : 0;
+  const balanceDue = Math.max(0, total - amountPaid);
 
   let content = '';
 
@@ -56,31 +62,45 @@ export const printReceipt = ({ type, data, settings, language, t }: PrintReceipt
               </div>
               <div class="flex justify-between items-center text-sm">
                 <span class="text-gray-500">${t("subscriptions.member")}:</span>
-                <span class="font-semibold text-gray-900">${data.memberName || data.buyerName}</span>
+                <span class="font-semibold text-gray-900">${data.memberName || data.buyerName || t("common.guest")}</span>
               </div>
               
-              ${type === 'subscription' ? `
-                <div class="flex justify-between items-center text-sm">
-                  <span class="text-gray-500">${t("subscriptions.package")}:</span>
-                  <span class="font-semibold text-gray-900">${data.planName}</span>
-                </div>
-                <div class="flex justify-between items-center text-sm">
-                  <span class="text-gray-500">${t("common.from")}:</span>
-                  <span class="font-mono text-gray-900">${data.startDate}</span>
-                </div>
-                <div class="flex justify-between items-center text-sm">
-                  <span class="text-gray-500">${t("common.to")}:</span>
-                  <span class="font-mono text-gray-900">${data.endDate}</span>
+              ${data.items && data.items.length > 0 ? `
+                <div class="border-t border-gray-100 pt-3 mt-1">
+                  ${data.items.map((item: any) => `
+                    <div class="flex justify-between items-start text-sm mb-2">
+                      <div class="flex flex-col">
+                        <span class="font-semibold text-gray-900">${item.productName}</span>
+                        <span class="text-[10px] text-gray-500">${item.quantity} x ${item.unitPrice}</span>
+                      </div>
+                      <span class="font-mono text-gray-900">${item.totalPrice}</span>
+                    </div>
+                  `).join('')}
                 </div>
               ` : `
-                <div class="flex justify-between items-center text-sm">
-                  <span class="text-gray-500">${t("sales.product")}:</span>
-                  <span class="font-semibold text-gray-900">${data.productName}</span>
-                </div>
-                <div class="flex justify-between items-center text-sm">
-                  <span class="text-gray-500">${t("common.amount")}:</span>
-                  <span class="font-mono text-gray-900">${data.quantity} x ${data.unitPrice}</span>
-                </div>
+                ${type === 'subscription' ? `
+                  <div class="flex justify-between items-center text-sm">
+                    <span class="text-gray-500">${t("subscriptions.package")}:</span>
+                    <span class="font-semibold text-gray-900">${data.planName || 'N/A'}</span>
+                  </div>
+                  <div class="flex justify-between items-center text-sm">
+                    <span class="text-gray-500">${t("common.from")}:</span>
+                    <span class="font-mono text-gray-900">${data.startDate || '-'}</span>
+                  </div>
+                  <div class="flex justify-between items-center text-sm">
+                    <span class="text-gray-500">${t("common.to")}:</span>
+                    <span class="font-mono text-gray-900">${data.endDate || '-'}</span>
+                  </div>
+                ` : `
+                  <div class="flex justify-between items-center text-sm">
+                    <span class="text-gray-500">${t("sales.product")}:</span>
+                    <span class="font-semibold text-gray-900">${data.productName || 'N/A'}</span>
+                  </div>
+                  <div class="flex justify-between items-center text-sm">
+                    <span class="text-gray-500">${t("common.amount")}:</span>
+                    <span class="font-mono text-gray-900">${data.quantity || 1} x ${data.unitPrice || data.totalPrice || 0}</span>
+                  </div>
+                `}
               `}
             </div>
 
@@ -88,12 +108,12 @@ export const printReceipt = ({ type, data, settings, language, t }: PrintReceipt
             <div class="border-t-2 border-dashed border-gray-200 pt-4 mt-2">
               <div class="flex justify-between items-center mb-4">
                 <span class="text-base font-bold text-gray-900">${t("subscriptions.totalAmount")}</span>
-                <span class="text-xl font-bold text-gray-900">${data.amount || data.totalPrice} ${t("common.currency")}</span>
+                <span class="text-xl font-bold text-gray-900">${data.amount || data.totalPrice || total} ${t("common.currency")}</span>
               </div>
                <div class="flex justify-between items-center text-xs text-gray-500 bg-gray-50 p-2 rounded">
                 <span>${t("subscriptions.paymentStatus")}:</span>
                 <span class="font-medium ${data.paymentStatus === 'paid' ? 'text-green-600' : 'text-red-600'}">
-                  ${data.paymentStatus === 'paid' ? t('subscriptions.paid') : t('subscriptions.unpaid')}
+                  ${data.paymentStatus === 'paid' ? t('subscriptions.paid') : (data.paymentStatus === 'unpaid' ? t('subscriptions.unpaid') : t('subscriptions.pending'))}
                 </span>
               </div>
             </div>
@@ -112,11 +132,6 @@ export const printReceipt = ({ type, data, settings, language, t }: PrintReceipt
     `;
   } else {
     // formal A4 Invoice Layout
-    const total = data.amount || data.totalPrice || 0;
-    const isPaid = data.paymentStatus === 'paid';
-    const amountPaid = isPaid ? total : 0;
-    const balanceDue = total - amountPaid;
-
     content = `
       <html>
         <head>
@@ -124,6 +139,15 @@ export const printReceipt = ({ type, data, settings, language, t }: PrintReceipt
           <script src="https://cdn.tailwindcss.com"></script>
           <style>
             @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap');
+            tailwind.config = {
+              theme: {
+                extend: {
+                  colors: {
+                    primary: '#2563eb',
+                  }
+                }
+              }
+            }
             * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
             body { 
               font-family: 'Cairo', sans-serif; 
@@ -215,7 +239,7 @@ export const printReceipt = ({ type, data, settings, language, t }: PrintReceipt
                       </h3>
                       <div class="text-2xl font-black text-gray-900 mb-1">${data.memberName || data.buyerName}</div>
                       <div class="flex gap-4 mt-2">
-                        <span class="text-xs font-bold text-gray-500 font-mono">ID: ${data.memberId || 'N/A'}</span>
+                        <span class="text-xs font-bold text-gray-500 font-mono">ID: ${data.memberDisplayId || data.memberId || 'N/A'}</span>
                         ${data.buyerPhone ? `<span class="text-xs font-bold text-gray-500 font-mono">TEL: ${data.buyerPhone}</span>` : ''}
                       </div>
                     </div>
@@ -242,31 +266,54 @@ export const printReceipt = ({ type, data, settings, language, t }: PrintReceipt
                         </tr>
                       </thead>
                       <tbody>
-                        <tr class="border-b border-gray-100">
-                          <td class="p-6">
-                            <div class="font-bold text-lg text-gray-900 mb-1">${data.planName || data.productName}</div>
-                            ${type === 'subscription' ? `
-                              <div class="text-[10px] font-bold text-gray-400 flex items-center gap-2">
-                                 ${data.startDate} &mdash; ${data.endDate}
-                              </div>
-                            ` : `
-                              <div class="text-[10px] font-bold text-gray-400">
-                                 QTY: ${data.quantity} &times; ${data.unitPrice} ${t("common.currency")}
-                              </div>
-                            `}
-                          </td>
-                          <td class="p-6 text-center">
-                            <span class="px-3 py-1 bg-gray-100/30 text-gray-600 rounded text-[9px] font-black uppercase tracking-tighter">
-                              ${type === 'subscription' ? t("nav.subscriptions") : t("nav.store")}
-                            </span>
-                          </td>
-                          <td class="p-6 text-center font-bold text-gray-500">
-                            ${data.amount || data.totalPrice}
-                          </td>
-                          <td class="p-6 text-end font-black text-lg text-gray-900">
-                            ${data.amount || data.totalPrice}<span class="currency-symbol">${t("common.currency")}</span>
-                          </td>
-                        </tr>
+                        ${data.items && data.items.length > 0 ?
+        data.items.map((item: any) => `
+                            <tr class="border-b border-gray-100">
+                              <td class="p-6">
+                                <div class="font-bold text-lg text-gray-900 mb-1">${item.productName}</div>
+                                <div class="text-[10px] font-bold text-gray-400">
+                                   QTY: ${item.quantity} &times; ${item.unitPrice} ${t("common.currency")}
+                                </div>
+                              </td>
+                              <td class="p-6 text-center">
+                                <span class="px-3 py-1 bg-gray-100/30 text-gray-600 rounded text-[9px] font-black uppercase tracking-tighter">
+                                  ${t("nav.store")}
+                                </span>
+                              </td>
+                              <td class="p-6 text-center font-bold text-gray-500">
+                                ${item.unitPrice}
+                              </td>
+                              <td class="p-6 text-end font-black text-lg text-gray-900">
+                                ${item.totalPrice}<span class="currency-symbol">${t("common.currency")}</span>
+                              </td>
+                            </tr>
+                          `).join('') : `
+                            <tr class="border-b border-gray-100">
+                              <td class="p-6">
+                                <div class="font-bold text-lg text-gray-900 mb-1">${data.planName || data.productName || 'N/A'}</div>
+                                ${type === 'subscription' ? `
+                                  <div class="text-[10px] font-bold text-gray-400 flex items-center gap-2">
+                                     ${data.startDate || '-'} &mdash; ${data.endDate || '-'}
+                                  </div>
+                                ` : `
+                                  <div class="text-[10px] font-bold text-gray-400">
+                                     QTY: ${data.quantity || 1} &times; ${data.unitPrice || data.totalPrice || 0} ${t("common.currency")}
+                                  </div>
+                                `}
+                              </td>
+                              <td class="p-6 text-center">
+                                <span class="px-3 py-1 bg-gray-100/30 text-gray-600 rounded text-[9px] font-black uppercase tracking-tighter">
+                                  ${type === 'subscription' ? t("nav.subscriptions") : t("nav.store")}
+                                </span>
+                              </td>
+                              <td class="p-6 text-center font-bold text-gray-500">
+                                ${data.amount || data.totalPrice || 0}
+                              </td>
+                              <td class="p-6 text-end font-black text-lg text-gray-900">
+                                ${data.amount || data.totalPrice || 0}<span class="currency-symbol">${t("common.currency")}</span>
+                              </td>
+                            </tr>
+                        `}
                       </tbody>
                     </table>
                   </div>
@@ -288,12 +335,7 @@ export const printReceipt = ({ type, data, settings, language, t }: PrintReceipt
                           <span class="text-xs font-black text-red-600 uppercase tracking-widest">DUE / المتبقي</span>
                           <span class="text-xl font-black text-red-600">${balanceDue} ${t("common.currency")}</span>
                         </div>
-                      ` : `
-                        <div class="flex justify-between items-center p-5 bg-primary/80 text-white rounded-xl shadow-lg border border-primary">
-                          <span class="text-xs font-black uppercase tracking-widest">TOTAL PAID</span>
-                          <span class="text-2xl font-black">${total}<span class="text-xs ml-1 opacity-70">${t("common.currency")}</span></span>
-                        </div>
-                      `}
+                      ` : ''}
                     </div>
                   </div>
 
