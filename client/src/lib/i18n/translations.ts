@@ -257,6 +257,7 @@ export const translations = {
         },
         subscriptions: {
             title: "الاشتراكات",
+            subtitle: "إدارة الاشتراكات وتجديدها",
             tabs: {
                 history: "سجل الاشتراكات",
                 packages: "إعدادات الباقات"
@@ -1045,6 +1046,7 @@ export const translations = {
         },
         subscriptions: {
             title: "Subscriptions",
+            subtitle: "Manage subscriptions and renewals",
             tabs: {
                 history: "Subscription History",
                 packages: "Packages Settings"

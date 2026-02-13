@@ -3,6 +3,8 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,7 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Search, ShoppingBag, TrendingUp, Package, Printer, Trash2 } from "lucide-react";
+import { Search, ShoppingBag, TrendingUp, Package, Printer, Trash2, MessageSquare } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Sale, Member } from "@shared/schema";
 import { printReceipt as fireReceipt } from "@/lib/receipt-printer";
@@ -21,6 +23,9 @@ import { useAuth } from "@/context/auth-context";
 import { useLanguage } from "@/context/language-context";
 import { PERMISSIONS } from "@/lib/permissions";
 import { ReceiptTypeDialog } from "@/components/receipt-type-dialog";
+import { MemberDetailsDialog } from "@/components/member-details-dialog";
+import { WhatsAppTemplateDialog } from "@/components/whatsapp-template-dialog";
+import { MessageSquare } from "lucide-react";
 
 export default function Sales() {
   const { hasPermission, clubSettings, role } = useAuth();
@@ -39,6 +44,19 @@ export default function Sales() {
 
   const [isReceiptTypeDialogOpen, setIsReceiptTypeDialogOpen] = useState(false);
   const [saleToPrint, setSaleToPrint] = useState<Sale | null>(null);
+
+  // Member Details Dialog State
+  const [detailsMember, setDetailsMember] = useState<Member | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [detailsTab, setDetailsTab] = useState("profile");
+
+  // WhatsApp Dialog State
+  const [whatsAppMember, setWhatsAppMember] = useState<Member | null>(null);
+  const [isWhatsAppDialogOpen, setIsWhatsAppDialogOpen] = useState(false);
+  const whatsappTemplates = clubSettings?.whatsappTemplates ?? [];
+
+  // Transaction Details State
+  const [selectedTransaction, setSelectedTransaction] = useState<Sale | null>(null);
 
   const { data: sales, isLoading } = useQuery<Sale[]>({
     queryKey: ["/api/sales"],
@@ -98,6 +116,45 @@ export default function Sales() {
       setSelectedSale(null);
       setCancelReason("");
     }
+  };
+
+  const handleMemberClick = (memberId: string, tabValue: string) => {
+    const member = members?.find((m) => m.id === memberId);
+    if (member) {
+      setDetailsMember(member);
+      setDetailsTab(tabValue);
+      setIsDetailsOpen(true);
+    }
+  };
+
+  const handleWhatsAppClick = (phone: string, name: string, memberId?: string) => {
+    // Determine if we have a real member or need a mock
+    if (memberId) {
+      const realMember = members?.find(m => m.id === memberId);
+      if (realMember) {
+        setWhatsAppMember(realMember);
+        setIsWhatsAppDialogOpen(true);
+        return;
+      }
+    }
+
+    // Mock member for guest / missing member
+    const mockMember: Member = {
+      id: "guest",
+      memberId: "guest",
+      name: name,
+      firstName: name.split(" ")[0],
+      lastName: name.split(" ").slice(1).join(" "),
+      phone: phone,
+      status: "active",
+      // Add other required fields with dummy values
+      email: "",
+      gender: "male",
+      createdAt: new Date().toISOString(),
+    } as Member;
+
+    setWhatsAppMember(mockMember);
+    setIsWhatsAppDialogOpen(true);
   };
 
   const filteredSales = sales?.filter((sale) => {
@@ -307,15 +364,45 @@ export default function Sales() {
               <tbody>
                 {filteredSales && filteredSales.length > 0 ? (
                   filteredSales.map((sale) => (
-                    <tr key={sale.id} className="border-b last:border-0 hover-elevate" data-testid={`row-sale-${sale.id}`}>
+                    <tr
+                      key={sale.id}
+                      className="border-b last:border-0 hover-elevate cursor-pointer"
+                      data-testid={`row-sale-${sale.id}`}
+                      onClick={() => setSelectedTransaction(sale)}
+                    >
                       <td className="py-3 px-3 font-medium text-right">{sale.productName}</td>
                       <td className="py-3 px-3 text-right">
                         {(() => {
                           const member = members?.find(m => m.id === sale.memberId);
-                          return member ? <Badge variant="outline">{member.memberId}</Badge> : "-";
+                          return member ? (
+                            <Badge
+                              variant="outline"
+                              className="cursor-pointer hover:bg-primary/10"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleMemberClick(sale.memberId, "finance");
+                              }}
+                            >
+                              {member.memberId}
+                            </Badge>
+                          ) : "-";
                         })()}
                       </td>
-                      <td className="py-3 px-3 text-muted-foreground text-right">{sale.buyerName || "-"}</td>
+                      <td className="py-3 px-3 text-muted-foreground text-right">
+                        {sale.memberId ? (
+                          <span
+                            className="cursor-pointer hover:underline text-primary"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMemberClick(sale.memberId, "finance");
+                            }}
+                          >
+                            {sale.buyerName || "-"}
+                          </span>
+                        ) : (
+                          sale.buyerName || "-"
+                        )}
+                      </td>
                       <td className="py-3 px-3 text-right">
                         {sale.receiptId ? <span className="font-mono text-xs">{sale.receiptId}</span> : "-"}
                       </td>
@@ -353,6 +440,17 @@ export default function Sales() {
                           title={t("sales.printReceipt")}
                         >
                           <Printer className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          title={t("finance.details")}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedTransaction(sale);
+                          }}
+                        >
+                          <ShoppingBag className="w-4 h-4" />
                         </Button>
                         {canUpdate && (
                           <Button
@@ -412,6 +510,114 @@ export default function Sales() {
             });
           }
         }}
+      />
+
+      <Dialog open={!!selectedTransaction} onOpenChange={(open) => !open && setSelectedTransaction(null)}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>{t('sales.receiptTitle')} - {t("common.details")}</DialogTitle>
+          </DialogHeader>
+
+          {selectedTransaction && (() => {
+            const member = members?.find(m => m.id === selectedTransaction.memberId);
+            const buyerName = member ? `${member.firstName} ${member.lastName}` : (selectedTransaction.buyerName || t("sales.defaultBuyer"));
+            const buyerPhone = member?.phone || selectedTransaction.buyerPhone;
+
+            return (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">{t("sales.buyer")}</Label>
+                    {member ? (
+                      <p
+                        className="font-medium text-base cursor-pointer hover:underline text-primary"
+                        onClick={() => {
+                          handleMemberClick(selectedTransaction.memberId, "finance");
+                        }}
+                      >
+                        {buyerName}
+                      </p>
+                    ) : (
+                      <p className="font-medium text-base">{buyerName}</p>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">{t("members.phone")}</Label>
+                    {buyerPhone ? (
+                      <div
+                        className="flex items-center gap-2 cursor-pointer text-primary hover:underline hover:text-primary/80 transition-colors bg-primary/5 p-1 px-2 rounded-md w-fit"
+                        onClick={() => handleWhatsAppClick(buyerPhone, buyerName, selectedTransaction.memberId)}
+                      >
+                        <MessageSquare className="h-4 w-4" />
+                        <p className="font-mono text-base font-medium" dir="ltr">{buyerPhone}</p>
+                      </div>
+                    ) : (
+                      <p className="text-muted-foreground">-</p>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">{t("sales.product")}</Label>
+                    <p className="font-medium text-base">{selectedTransaction.productName}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">{t("sales.quantity")}</Label>
+                    <p className="font-medium text-base">{selectedTransaction.quantity}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">{t("sales.total")}</Label>
+                    <p className="font-medium text-base text-green-600">{selectedTransaction.totalPrice.toFixed(2)} {t("common.currency")}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">{t("common.status")}</Label>
+                    <div>
+                      <Badge variant={selectedTransaction.paymentStatus === 'paid' ? 'default' : selectedTransaction.paymentStatus === 'pending' ? 'outline' : 'destructive'}>
+                        {t(`common.${selectedTransaction.paymentStatus}`) || selectedTransaction.paymentStatus}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">{t("nav.transactionDate")}</Label>
+                    <p className="font-medium">{new Date(selectedTransaction.date).toLocaleString(language === 'ar' ? 'ar-BH' : 'en-US')}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">{t("finance.paymentMethod")}</Label>
+                    <p className="font-medium">{selectedTransaction.paymentMethod ? (t(`finance.paymentMethods.${selectedTransaction.paymentMethod}`) || selectedTransaction.paymentMethod) : "-"}</p>
+                  </div>
+                  {selectedTransaction.receiptId && (
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">{t("sales.receiptTitle")}</Label>
+                      <p className="font-mono text-sm">{selectedTransaction.receiptId}</p>
+                    </div>
+                  )}
+                  <div className="space-y-1 col-span-2">
+                    <Label className="text-xs text-muted-foreground">{t("common.id")}</Label>
+                    <p className="font-mono text-xs text-muted-foreground">{selectedTransaction.id}</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
+      <WhatsAppTemplateDialog
+        isOpen={isWhatsAppDialogOpen}
+        onClose={() => {
+          setIsWhatsAppDialogOpen(false);
+          setWhatsAppMember(null);
+        }}
+        member={whatsAppMember}
+        onSend={() => {
+          setIsWhatsAppDialogOpen(false);
+          setWhatsAppMember(null);
+        }}
+        templates={whatsappTemplates}
+      />
+      <MemberDetailsDialog
+        member={detailsMember}
+        isOpen={isDetailsOpen}
+        onClose={() => setIsDetailsOpen(false)}
+        initialTab={detailsTab}
       />
     </div>
   );

@@ -31,6 +31,7 @@ import { PERMISSIONS } from "@/lib/permissions";
 import { endOfDay, isAfter, isBefore, parseISO, startOfDay } from "date-fns";
 import { printReceipt as fireReceipt } from "@/lib/receipt-printer";
 import { ReceiptTypeDialog } from "@/components/receipt-type-dialog";
+import { MemberDetailsDialog } from "@/components/member-details-dialog";
 
 export default function Subscriptions() {
   const { hasPermission, clubSettings, role } = useAuth();
@@ -47,6 +48,11 @@ export default function Subscriptions() {
   const [isReceiptTypeDialogOpen, setIsReceiptTypeDialogOpen] = useState(false);
   const [subToPrint, setSubToPrint] = useState<Subscription | null>(null);
   const [editingPackageId, setEditingPackageId] = useState<string | null>(null);
+
+  // Member Details Dialog State
+  const [detailsMember, setDetailsMember] = useState<Member | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [detailsTab, setDetailsTab] = useState("profile");
 
   const [editingSubId, setEditingSubId] = useState<string | null>(null);
 
@@ -226,6 +232,15 @@ export default function Subscriptions() {
 
   const resetPackageForm = () => {
     setPackageFormData({ name: "", price: 0, duration: 30 });
+  };
+
+  const handleMemberClick = (memberId: string) => {
+    const member = members?.find((m) => m.id === memberId);
+    if (member) {
+      setDetailsMember(member);
+      setDetailsTab("subscriptions");
+      setIsDetailsOpen(true);
+    }
   };
 
   const openCreatePackageDialog = () => {
@@ -472,7 +487,12 @@ export default function Subscriptions() {
                           return member ? member.memberId : "-";
                         })()}
                       </td>
-                      <td className="p-4 text-start font-medium text-foreground">{sub.memberName}</td>
+                      <td
+                        className="p-4 text-start font-medium text-foreground hover:underline cursor-pointer text-primary"
+                        onClick={() => handleMemberClick(sub.memberId)}
+                      >
+                        {sub.memberName}
+                      </td>
                       <td className="p-4 text-start">{sub.planName}</td>
                       <td className="p-4 font-bold text-start">{sub.amount} {t("common.currency")}</td>
                       <td className="p-4 text-xs text-muted-foreground text-start">
@@ -592,6 +612,12 @@ export default function Subscriptions() {
             });
           }
         }}
+      />
+      <MemberDetailsDialog
+        member={detailsMember}
+        isOpen={isDetailsOpen}
+        onClose={() => setIsDetailsOpen(false)}
+        initialTab={detailsTab}
       />
     </div >
   );
