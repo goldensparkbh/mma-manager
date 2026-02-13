@@ -378,6 +378,8 @@ export const translations = {
             allTransactions: "كل العمليات",
             invoice: "فاتورة",
 
+        },
+        store: {
             title: "المنتجات والمتجر",
             subtitle: "إدارة منتجات النادي وعمليات البيع",
             addProduct: "إضافة منتج",
