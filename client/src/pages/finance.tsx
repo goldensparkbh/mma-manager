@@ -69,6 +69,7 @@ export default function Finance() {
   const [ledgerSearch, setLedgerSearch] = useState("");
   const [ledgerFilter, setLedgerFilter] = useState("all");
   const [ledgerPage, setLedgerPage] = useState(1);
+  const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(null);
   const ITEMS_PER_PAGE = 50;
 
   const setMonthlyCycle = () => {
@@ -294,8 +295,23 @@ export default function Finance() {
       }),
       [],
       [t("finance.incomeDetailsSales")],
-      [t("common.date"), t("nav.transactionDate"), t("sales.product"), t("common.amount"), t("common.status")],
-      ...filteredSales.map(s => [s.date.split("T")[0], s.date.split("T")[0], s.productName, s.totalPrice, s.paymentStatus || 'paid'])
+      [t("common.date"), t("nav.transactionDate"), t("sales.buyer"), t("sales.product"), t("common.amount"), t("common.status")],
+      ...filteredSales.map(s => {
+        const member = members?.find(m => m.id === s.memberId);
+        const buyerDisplay = member ? `${member.firstName} ${member.lastName}` : (s.buyerName || t("sales.defaultBuyer"));
+        return [s.date.split("T")[0], s.date.split("T")[0], buyerDisplay, s.productName, s.totalPrice, s.paymentStatus || 'paid'];
+      }),
+      [],
+      [t("finance.details") || "Full Transaction Ledger"],
+      [t("common.date"), t("common.type"), t("members.name") + " / " + t("sales.buyer"), t("common.description"), t("common.amount"), t("common.status")],
+      ...allTransactions.map(tx => [
+        tx.date,
+        tx.type,
+        tx.memberName,
+        tx.description,
+        (tx.isExpense ? "-" : "") + tx.amount.toFixed(2),
+        tx.status
+      ])
     ].map(e => e.join(",")).join("\n");
 
     const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -306,6 +322,158 @@ export default function Finance() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const selectedTransaction = useMemo(() => {
+    if (!selectedTransactionId) return null;
+    const [type, idStr] = selectedTransactionId.split("-");
+    const id = parseInt(idStr);
+
+    if (type === "sub") {
+      const sub = subscriptions?.find(s => s.id === id);
+      if (!sub) return null;
+      return { type: "subscription" as const, data: sub };
+    }
+    if (type === "sale") {
+      const sale = sales?.find(s => s.id === id);
+      if (!sale) return null;
+      return { type: "sale" as const, data: sale };
+    }
+    if (type === "exp") {
+      const exp = expenses?.find(e => e.id === id);
+      if (!exp) return null;
+      return { type: "expense" as const, data: exp };
+    }
+    return null;
+  }, [selectedTransactionId, subscriptions, sales, expenses]);
+
+  const renderTransactionDetails = () => {
+    if (!selectedTransaction) return null;
+
+    if (selectedTransaction.type === "subscription") {
+      const sub = selectedTransaction.data;
+      return (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-muted-foreground">{t("subscriptions.member")}</Label>
+              <p className="font-medium text-lg">{sub.memberName}</p>
+            </div>
+            <div>
+              <Label className="text-muted-foreground">{t("subscriptions.plan")}</Label>
+              <p className="font-medium text-lg">{sub.planName}</p>
+            </div>
+            <div>
+              <Label className="text-muted-foreground">{t("common.amount")}</Label>
+              <p className="font-medium text-lg text-green-600">{sub.amount.toFixed(2)} {t("common.currency")}</p>
+            </div>
+            <div>
+              <Label className="text-muted-foreground">{t("common.status")}</Label>
+              <Badge variant={sub.paymentStatus === 'paid' ? 'default' : 'secondary'} className="mt-1">
+                {sub.paymentStatus === 'paid' ? t('common.paid') : t('common.unpaid')}
+              </Badge>
+            </div>
+            <div>
+              <Label className="text-muted-foreground">{t("subscriptions.startDate")}</Label>
+              <p className="font-medium">{formatDate(sub.startDate)}</p>
+            </div>
+            <div>
+              <Label className="text-muted-foreground">{t("subscriptions.endDate")}</Label>
+              <p className="font-medium">{formatDate(sub.endDate)}</p>
+            </div>
+            {sub.paymentMethod && (
+              <div>
+                <Label className="text-muted-foreground">{t("finance.paymentMethod")}</Label>
+                <p className="font-medium">{t(`finance.paymentMethods.${sub.paymentMethod}`) || sub.paymentMethod}</p>
+              </div>
+            )}
+            <div className="col-span-2">
+              <Label className="text-muted-foreground">{t("nav.transactionDate")}</Label>
+              <p className="font-medium">{sub.createdAt ? new Date(sub.createdAt).toLocaleString(language === 'ar' ? 'ar-BH' : 'en-US') : formatDate(sub.startDate)}</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (selectedTransaction.type === "sale") {
+      const sale = selectedTransaction.data;
+      const member = members?.find(m => m.id === sale.memberId);
+      return (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-muted-foreground">{t("sales.buyer")}</Label>
+              <p className="font-medium text-lg">{member ? `${member.firstName} ${member.lastName}` : (sale.buyerName || t("sales.defaultBuyer"))}</p>
+            </div>
+            <div>
+              <Label className="text-muted-foreground">{t("sales.product")}</Label>
+              <p className="font-medium text-lg">{sale.productName}</p>
+            </div>
+            <div>
+              <Label className="text-muted-foreground">{t("sales.quantity")}</Label>
+              <p className="font-medium">{sale.quantity}</p>
+            </div>
+            <div>
+              <Label className="text-muted-foreground">{t("sales.total")}</Label>
+              <p className="font-medium text-lg text-green-600">{sale.totalPrice.toFixed(2)} {t("common.currency")}</p>
+            </div>
+            <div>
+              <Label className="text-muted-foreground">{t("common.status")}</Label>
+              <Badge variant={sale.paymentStatus === 'paid' ? 'default' : 'secondary'} className="mt-1">
+                {sale.paymentStatus === 'paid' ? t('common.paid') : t('common.unpaid')}
+              </Badge>
+            </div>
+            <div>
+              <Label className="text-muted-foreground">{t("nav.transactionDate")}</Label>
+              <p className="font-medium">{new Date(sale.date).toLocaleString(language === 'ar' ? 'ar-BH' : 'en-US')}</p>
+            </div>
+            {sale.paymentMethod && (
+              <div>
+                <Label className="text-muted-foreground">{t("finance.paymentMethod")}</Label>
+                <p className="font-medium">{t(`finance.paymentMethods.${sale.paymentMethod}`) || sale.paymentMethod}</p>
+              </div>
+            )}
+            {sale.receiptId && (
+              <div>
+                <Label className="text-muted-foreground">{t("sales.receiptTitle")}</Label>
+                <p className="font-mono text-sm">{sale.receiptId}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    if (selectedTransaction.type === "expense") {
+      const exp = selectedTransaction.data;
+      return (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-muted-foreground">{t("finance.category")}</Label>
+              <p className="font-medium text-lg">{getCategoryLabel(exp.category)}</p>
+            </div>
+            <div>
+              <Label className="text-muted-foreground">{t("common.amount")}</Label>
+              <p className="font-medium text-lg text-red-600">{exp.amount.toFixed(2)} {t("common.currency")}</p>
+            </div>
+            <div className="col-span-2">
+              <Label className="text-muted-foreground">{t("common.description")}</Label>
+              <p className="font-medium">{exp.description || "-"}</p>
+            </div>
+            <div>
+              <Label className="text-muted-foreground">{t("common.date")}</Label>
+              <p className="font-medium">{formatDate(exp.date)}</p>
+            </div>
+            <div>
+              <Label className="text-muted-foreground">{t("common.id")}</Label>
+              <p className="font-mono text-sm">EXP-{exp.id}</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -690,7 +858,11 @@ export default function Finance() {
               <tbody>
                 {paginatedLedger.length > 0 ? (
                   paginatedLedger.map((tx) => (
-                    <tr key={tx.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
+                    <tr
+                      key={tx.id}
+                      className="border-b last:border-0 hover:bg-muted/50 transition-colors cursor-pointer"
+                      onClick={() => setSelectedTransactionId(tx.id)}
+                    >
                       <td className="p-4">{formatDate(tx.date)}</td>
                       <td className="p-4">
                         <Badge variant="outline">{tx.type}</Badge>
@@ -745,6 +917,15 @@ export default function Finance() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!selectedTransactionId} onOpenChange={(open) => !open && setSelectedTransactionId(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{t("finance.details")}</DialogTitle>
+          </DialogHeader>
+          {renderTransactionDetails()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

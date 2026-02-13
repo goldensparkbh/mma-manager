@@ -13,6 +13,7 @@ export const translations = {
             editEvent: "تعديل الحدث",
         },
         common: {
+            add: "إضافة",
             loading: "جاري التحميل...",
             actions: "إجراءات",
             save: "حفظ",
@@ -371,9 +372,12 @@ export const translations = {
             incomeDetailsSubscriptions: "تفاصيل دخل الاشتراكات",
             incomeDetailsSales: "تفاصيل دخل المبيعات",
             details: "التفاصيل",
-            expensesOnly: "المصروفات فقط"
-        },
-        store: {
+            expensesOnly: "المصروفات فقط",
+            incomeOnly: "الدخل فقط",
+            unpaidOnly: "غير المدفوع فقط",
+            allTransactions: "كل العمليات",
+            invoice: "فاتورة",
+
             title: "المنتجات والمتجر",
             subtitle: "إدارة منتجات النادي وعمليات البيع",
             addProduct: "إضافة منتج",
@@ -796,6 +800,7 @@ export const translations = {
             editEvent: "Edit Event",
         },
         common: {
+            add: "Add",
             loading: "Loading...",
             actions: "Actions",
             save: "Save",
@@ -1154,6 +1159,9 @@ export const translations = {
             incomeDetailsSales: "Sales income details",
             details: "Details",
             expensesOnly: "Expenses Only",
+            incomeOnly: "Income Only",
+            unpaidOnly: "Unpaid Only",
+            allTransactions: "All Transactions",
             invoice: "INVOICE",
             subtotal: "Subtotal",
             billTo: "Bill To",
