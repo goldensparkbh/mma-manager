@@ -55,6 +55,7 @@ export const applyWhatsAppTemplate = (
     .replace(/{startDate}/g, member.subscriptionStart || "")
     .replace(/{endDate}/g, member.subscriptionEnd || "")
     .replace(/{balance}/g, member.balance ? member.balance.toString() : "0")
+    .replace(/{debt}/g, (member as any).debt ? (member as any).debt.toString() : "0")
     .replace(
       /{status}/g,
       member.status === "active" ? t("common.active") : t("common.expired"),

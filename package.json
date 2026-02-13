@@ -8,7 +8,8 @@
     "build": "vite build",
     "start": "vite preview",
     "check": "tsc",
-    "migrate:firebase": "tsx script/migrate-to-firebase.ts"
+    "migrate:firebase": "tsx script/migrate-to-firebase.ts",
+    "seed:demo": "tsx script/seed-firebase-demo.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

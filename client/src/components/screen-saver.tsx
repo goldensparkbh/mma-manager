@@ -170,7 +170,7 @@ export function ScreenSaver() {
                 <div className="mt-8 flex justify-center items-center gap-6 text-[10px] text-white/20 uppercase tracking-widest">
                     <span>{new Date().toLocaleDateString(language === 'ar' ? 'ar-BH' : 'en-US', { hour: '2-digit', minute: '2-digit' })}</span>
                     <div className="w-1 h-1 rounded-full bg-white/10" />
-                    <span>Secure Mode Activity</span>
+                    <span>{t('finance.secureMode')}</span>
                 </div>
             </div>
         </div>

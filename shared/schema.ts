@@ -81,6 +81,7 @@ export interface Subscription {
   status: string;
   paymentStatus?: "paid" | "pending" | "unpaid";
   paymentMethod?: string | null;
+  createdAt?: string;
 }
 
 export type InsertSubscription = Omit<Subscription, "id">;
@@ -158,6 +159,19 @@ export interface ActivityLog {
 export type InsertActivityLog = Omit<ActivityLog, "id" | "createdAt"> & {
   createdAt?: string;
 };
+
+export interface Event {
+  id: string;
+  title: string;
+  description?: string | null;
+  startDate: string; // ISO string
+  endDate?: string | null; // ISO string
+  isAllDay?: boolean;
+  color?: string; // hex color
+  createdBy?: string;
+}
+
+export type InsertEvent = Omit<Event, "id">;
 
 export interface CartItem {
   product: Product;

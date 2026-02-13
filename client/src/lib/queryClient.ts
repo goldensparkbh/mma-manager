@@ -47,7 +47,11 @@ import {
   deleteRole,
   deleteUser,
   createUserWithRole,
-  type Role
+  type Role,
+  getEvents,
+  createEvent,
+  updateEvent,
+  deleteEvent
 } from "@/lib/firebaseData";
 
 import type {
@@ -60,6 +64,7 @@ import type {
   InsertSubscriptionPackage,
   InsertBelt,
   InsertMemberBelt,
+  InsertEvent,
 } from "@shared/schema";
 
 const jsonResponse = (payload?: unknown, status = 200) => {
@@ -100,6 +105,7 @@ const queryHandlers: Record<string, (queryKey: readonly unknown[]) => Promise<un
   },
   "/api/roles": () => getRoles(),
   "/api/users": () => getUsers(),
+  "/api/events": () => getEvents(),
 };
 
 export async function apiRequest(
@@ -314,6 +320,23 @@ export async function apiRequest(
   if (method === "DELETE" && route.startsWith("/api/roles/")) {
     const id = route.split("/")[3];
     await deleteRole(id);
+    return jsonResponse(undefined, 204);
+  }
+
+  if (method === "POST" && route === "/api/events") {
+    const result = await createEvent(data as InsertEvent);
+    return jsonResponse(result, 201);
+  }
+
+  if (method === "PATCH" && route.startsWith("/api/events/")) {
+    const id = route.split("/")[3];
+    await updateEvent(id, data as Partial<InsertEvent>);
+    return jsonResponse(undefined, 200);
+  }
+
+  if (method === "DELETE" && route.startsWith("/api/events/")) {
+    const id = route.split("/")[3];
+    await deleteEvent(id);
     return jsonResponse(undefined, 204);
   }
 

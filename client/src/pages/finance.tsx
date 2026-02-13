@@ -36,7 +36,7 @@ import {
   Filter
 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import type { FinanceReport, Expense, InsertExpense, Subscription, Sale } from "@shared/schema";
+import type { FinanceReport, Expense, InsertExpense, Subscription, Sale, Member } from "@shared/schema";
 import { useAuth } from "@/context/auth-context";
 import { useLanguage } from "@/context/language-context";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -99,6 +99,10 @@ export default function Finance() {
     queryKey: ["/api/sales"],
   });
 
+  const { data: members } = useQuery<Member[]>({
+    queryKey: ["/api/members"],
+  });
+
 
 
   const { data: expenses, isLoading: loadingExpenses } = useQuery<Expense[]>({
@@ -157,7 +161,7 @@ export default function Finance() {
   const allTransactions = useMemo(() => {
     const subs = filteredSubscriptions.map(s => {
       const sale = sales?.find(sale => sale.subscriptionId === s.id);
-      const date = sale ? sale.date.split("T")[0] : s.startDate;
+      const date = sale ? sale.date.split("T")[0] : (s.createdAt ? s.createdAt.split("T")[0] : s.startDate);
       return {
         id: `sub-${s.id}`,
         date: date,
@@ -165,19 +169,24 @@ export default function Finance() {
         description: `${s.memberName} - ${s.planName}`,
         amount: s.amount,
         status: s.paymentStatus || 'paid',
-        isExpense: false
+        isExpense: false,
+        memberName: s.memberName
       };
     });
 
-    const sls = filteredSales.map(s => ({
-      id: `sale-${s.id}`,
-      date: s.date.split("T")[0],
-      type: t("nav.sales"),
-      description: s.productName,
-      amount: s.totalPrice,
-      status: s.paymentStatus || 'paid',
-      isExpense: false
-    }));
+    const sls = filteredSales.map(s => {
+      const member = members?.find(m => m.id === s.memberId);
+      return {
+        id: `sale-${s.id}`,
+        date: s.date.split("T")[0],
+        type: t("nav.sales"),
+        description: s.productName,
+        amount: s.totalPrice,
+        status: s.paymentStatus || 'paid',
+        isExpense: false,
+        memberName: member ? `${member.firstName} ${member.lastName}` : (s.buyerName || t("sales.defaultBuyer"))
+      };
+    });
 
     const exps = filteredExpenses.map(e => ({
       id: `exp-${e.id}`,
@@ -186,11 +195,12 @@ export default function Finance() {
       description: `${getCategoryLabel(e.category)} - ${e.description}`,
       amount: e.amount,
       status: 'paid',
-      isExpense: true
+      isExpense: true,
+      memberName: "-"
     }));
 
     return [...subs, ...sls, ...exps].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [filteredSubscriptions, filteredSales, filteredExpenses, sales, t]);
+  }, [filteredSubscriptions, filteredSales, filteredExpenses, sales, t, members]);
 
   const filteredLedger = useMemo(() => {
     let result = allTransactions;
@@ -214,6 +224,43 @@ export default function Finance() {
 
     return result;
   }, [allTransactions, ledgerSearch, ledgerFilter, t]);
+
+  const unpaidItems = useMemo(() => {
+    const subs = filteredSubscriptions
+      .filter(s => s.paymentStatus !== 'paid')
+      .map(s => {
+        const sale = sales?.find(sale => sale.subscriptionId === s.id);
+        const transactionDate = sale ? sale.date.split("T")[0] : s.startDate;
+        return {
+          id: `sub-${s.id}`,
+          date: s.startDate,
+          transactionDate: transactionDate,
+          type: t("nav.subscriptions"),
+          description: s.planName,
+          memberName: s.memberName,
+          amount: s.amount,
+          status: s.paymentStatus || 'pending'
+        };
+      });
+
+    const sls = filteredSales
+      .filter(s => s.paymentStatus !== 'paid')
+      .map(s => {
+        const member = members?.find(m => m.id === s.memberId);
+        return {
+          id: `sale-${s.id}`,
+          date: s.date.split("T")[0],
+          transactionDate: s.date.split("T")[0],
+          type: t("nav.sales"),
+          description: s.productName,
+          memberName: member ? member.firstName + " " + member.lastName : (s.buyerName || t("sales.defaultBuyer")),
+          amount: s.totalPrice,
+          status: s.paymentStatus || 'pending'
+        };
+      });
+
+    return [...subs, ...sls].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [filteredSubscriptions, filteredSales, members, sales, t]);
 
   const totalPages = Math.ceil(filteredLedger.length / ITEMS_PER_PAGE);
 
@@ -401,46 +448,103 @@ export default function Finance() {
                   <tr className="border-b">
                     <th className="text-start py-2 px-2">{t('common.date')}</th>
                     <th className="text-start py-2 px-2">{t('nav.transactionDate')}</th>
+                    <th className="text-start py-2 px-2">{t('subscriptions.member')} / {t('sales.buyer')}</th>
                     <th className="text-start py-2 px-2">{t('sales.product')}</th>
                     <th className="text-start py-2 px-2">{t('common.amount')}</th>
                     <th className="text-start py-2 px-2">{t('common.status')}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredSales.map(sale => (
-                    <tr key={sale.id} className="border-b last:border-0 hover:bg-muted/50">
-                      <td className="py-2 px-2">{sale.date.split("T")[0]}</td>
-                      <td className="py-2 px-2">{sale.date.split("T")[0]}</td>
-                      <td className="py-2 px-2 font-medium">{sale.productName}</td>
-                      <td className="py-2 px-2">{sale.totalPrice.toFixed(2)}</td>
-                      <td className="py-2 px-2">
-                        <Badge variant={sale.paymentStatus === 'paid' ? 'default' : 'secondary'}>
-                          {sale.paymentStatus === 'paid' ? t('common.paid') : t('common.unpaid')}
-                        </Badge>
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredSales.map(sale => {
+                    const member = members?.find(m => m.id === sale.memberId);
+                    const buyerDisplay = member ? `${member.firstName} ${member.lastName}` : (sale.buyerName || t("sales.defaultBuyer"));
+
+                    return (
+                      <tr key={sale.id} className="border-b last:border-0 hover:bg-muted/50">
+                        <td className="py-2 px-2">{sale.date.split("T")[0]}</td>
+                        <td className="py-2 px-2">{sale.date.split("T")[0]}</td>
+                        <td className="py-2 px-2 font-medium">{buyerDisplay}</td>
+                        <td className="py-2 px-2 font-medium">{sale.productName}</td>
+                        <td className="py-2 px-2">{sale.totalPrice.toFixed(2)}</td>
+                        <td className="py-2 px-2">
+                          <Badge variant={sale.paymentStatus === 'paid' ? 'default' : 'secondary'}>
+                            {sale.paymentStatus === 'paid' ? t('common.paid') : t('common.unpaid')}
+                          </Badge>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
           </DialogContent>
         </Dialog>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 rounded-lg bg-yellow-100 dark:bg-yellow-900/30">
-                <Wallet className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">{t("subscriptions.unpaid")}</p>
-                <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
-                  {totalPending.toFixed(2)} {t("common.currency")}
-                </p>
-              </div>
+
+        <Dialog>
+          <DialogTrigger asChild>
+            <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 rounded-lg bg-yellow-100 dark:bg-yellow-900/30">
+                    <Wallet className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">{t("subscriptions.unpaid")}</p>
+                    <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
+                      {totalPending.toFixed(2)} {t("common.currency")}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </DialogTrigger>
+          <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
+            <DialogHeader>
+              <DialogTitle>{t('subscriptions.unpaid')} - {t("common.details")}</DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 overflow-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-background">
+                  <tr className="border-b">
+                    <th className="text-start py-2 px-2">{t('common.date')}</th>
+                    <th className="text-start py-2 px-2">{t('nav.transactionDate')}</th>
+                    <th className="text-start py-2 px-2">{t('common.type')}</th>
+                    <th className="text-start py-2 px-2">{t('members.name')} / {t('sales.buyer')}</th>
+                    <th className="text-start py-2 px-2">{t('common.description')}</th>
+                    <th className="text-start py-2 px-2">{t('common.amount')}</th>
+                    <th className="text-start py-2 px-2">{t('common.status')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {unpaidItems.length > 0 ? (
+                    unpaidItems.map(item => (
+                      <tr key={item.id} className="border-b last:border-0 hover:bg-muted/50">
+                        <td className="py-2 px-2">{item.date}</td>
+                        <td className="py-2 px-2">{item.transactionDate}</td>
+                        <td className="py-2 px-2"><Badge variant="outline">{item.type}</Badge></td>
+                        <td className="py-2 px-2 font-medium">{item.memberName}</td>
+                        <td className="py-2 px-2">{item.description}</td>
+                        <td className="py-2 px-2">{item.amount.toFixed(2)}</td>
+                        <td className="py-2 px-2">
+                          <Badge variant="secondary">
+                            {item.status === 'pending' ? t('common.pending') : t('common.unpaid')}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={7} className="p-8 text-center text-muted-foreground">
+                        {t("common.noResults")}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
-          </CardContent>
-        </Card>
+          </DialogContent>
+        </Dialog>
 
         <Card>
           <CardContent className="p-6">
@@ -577,6 +681,7 @@ export default function Finance() {
                 <tr className="border-b">
                   <th className="h-12 px-4 text-start font-medium text-muted-foreground">{t("common.date")}</th>
                   <th className="h-12 px-4 text-start font-medium text-muted-foreground">{t("common.type")}</th>
+                  <th className="h-12 px-4 text-start font-medium text-muted-foreground">{t("members.name")} / {t("sales.buyer")}</th>
                   <th className="h-12 px-4 text-start font-medium text-muted-foreground">{t("common.description")}</th>
                   <th className="h-12 px-4 text-start font-medium text-muted-foreground">{t("common.amount")}</th>
                   <th className="h-12 px-4 text-start font-medium text-muted-foreground">{t("common.status")}</th>
@@ -590,6 +695,7 @@ export default function Finance() {
                       <td className="p-4">
                         <Badge variant="outline">{tx.type}</Badge>
                       </td>
+                      <td className="p-4 font-medium">{tx.memberName || "-"}</td>
                       <td className="p-4 font-medium">{tx.description}</td>
                       <td className={`p-4 font-bold ${tx.isExpense ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"}`}>
                         {tx.isExpense ? "-" : "+"}{tx.amount.toFixed(2)} {t("common.currency")}

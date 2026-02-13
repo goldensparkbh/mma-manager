@@ -43,6 +43,8 @@ import type {
   MemberBelt,
   InsertMemberBelt,
   User,
+  Event,
+  InsertEvent,
 } from "@shared/schema";
 
 const normalizeTimestamp = (value: unknown) => {
@@ -588,7 +590,11 @@ export async function getSubscriptionsByMember(memberId: string): Promise<Subscr
 }
 
 export async function createSubscription(data: InsertSubscription): Promise<Subscription> {
-  const docRef = await addDoc(collection(db, "subscriptions"), data);
+  const payload = {
+    ...data,
+    createdAt: new Date().toISOString(),
+  };
+  const docRef = await addDoc(collection(db, "subscriptions"), payload);
   if (data.memberId) {
     await syncMemberSubscriptionStatus(data.memberId);
   }
@@ -604,7 +610,7 @@ export async function createSubscription(data: InsertSubscription): Promise<Subs
       endDate: data.endDate,
     }),
   });
-  return { id: docRef.id, ...data };
+  return { id: docRef.id, ...payload };
 }
 
 export async function getProducts(): Promise<Product[]> {
@@ -1434,5 +1440,42 @@ export async function deleteRole(id: string) {
     entityType: "role",
     entityId: id,
     description: "Role deleted",
+  });
+}
+
+export async function getEvents(): Promise<Event[]> {
+  const snapshots = await getDocs(collection(db, "events"));
+  return mapDocs<Event>(snapshots);
+}
+
+export async function createEvent(data: InsertEvent): Promise<Event> {
+  const docRef = await addDoc(collection(db, "events"), data);
+  await safeLogActivity({
+    action: "event.create",
+    entityType: "event",
+    entityId: docRef.id,
+    description: `Event created: ${data.title}`,
+  });
+  return { id: docRef.id, ...data } as Event;
+}
+
+export async function updateEvent(id: string, data: Partial<InsertEvent>) {
+  const docRef = doc(db, "events", id);
+  await setDoc(docRef, data, { merge: true });
+  await safeLogActivity({
+    action: "event.update",
+    entityType: "event",
+    entityId: id,
+    description: `Event updated: ${data.title || id}`,
+  });
+}
+
+export async function deleteEvent(id: string) {
+  await deleteDoc(doc(db, "events", id));
+  await safeLogActivity({
+    action: "event.delete",
+    entityType: "event",
+    entityId: id,
+    description: "Event deleted",
   });
 }

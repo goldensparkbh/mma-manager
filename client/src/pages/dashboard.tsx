@@ -20,6 +20,7 @@ import { useAuth } from "@/context/auth-context";
 import { useLanguage } from "@/context/language-context";
 import { applyWhatsAppTemplate } from "@/lib/whatsapp";
 import { TransactionDetailsDialog } from "@/components/transaction-details-dialog";
+import { CalendarWidget } from "@/components/dashboard/calendar-widget";
 
 export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -267,6 +268,10 @@ export default function Dashboard() {
         </Link>
       </div>
 
+      <div className="h-[500px]">
+        <CalendarWidget />
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <Card>
@@ -355,6 +360,7 @@ export default function Dashboard() {
                   <thead>
                     <tr className="border-b">
                       <th className="text-start py-3 px-2 font-medium text-muted-foreground">{t("common.date")}</th>
+                      <th className="text-start py-3 px-2 font-medium text-muted-foreground">{t("members.name")}</th>
                       <th className="text-start py-3 px-2 font-medium text-muted-foreground">{t("common.description")}</th>
                       <th className="text-start py-3 px-2 font-medium text-muted-foreground">{t("common.amount")}</th>
                       <th className="text-start py-3 px-2 font-medium text-muted-foreground">{t("members.status")}</th>
@@ -368,15 +374,13 @@ export default function Dashboard() {
                           <td className="py-3 px-2">
                             {format(new Date(tx.type === 'sale' ? tx.date : tx.startDate), "yyyy/MM/dd")}
                           </td>
+                          <td className="py-3 px-2 font-medium">
+                            {tx.type === 'sale' ? (tx.buyerName || t('sales.defaultBuyer')) : tx.memberName}
+                          </td>
                           <td className="py-3 px-2">
-                            <div className="flex flex-col">
-                              <span className="font-medium">
-                                {tx.type === 'sale' ? tx.productName : tx.planName}
-                              </span>
-                              <span className="text-xs text-muted-foreground">
-                                {tx.type === 'sale' ? (tx.buyerName || t('sales.defaultBuyer')) : tx.memberName}
-                              </span>
-                            </div>
+                            <span className="text-sm">
+                              {tx.type === 'sale' ? tx.productName : tx.planName}
+                            </span>
                           </td>
                           <td className="py-3 px-2 font-medium">
                             {(tx.type === 'sale' ? tx.totalPrice : tx.amount).toLocaleString()} {t("common.currency")}

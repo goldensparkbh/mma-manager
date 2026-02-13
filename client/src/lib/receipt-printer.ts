@@ -61,6 +61,10 @@ export const printReceipt = ({ type, data, settings, language, t, format }: Prin
                 <span class="font-mono font-bold">#${receiptId}</span>
               </div>
               <div class="flex justify-between items-center text-sm">
+                <span class="text-gray-500">${t("members.memberId")}:</span>
+                <span class="font-mono font-bold">${data.memberDisplayId || 'N/A'}</span>
+              </div>
+              <div class="flex justify-between items-center text-sm">
                 <span class="text-gray-500">${t("subscriptions.member")}:</span>
                 <span class="font-semibold text-gray-900">${data.memberName || data.buyerName || t("common.guest")}</span>
               </div>
@@ -221,7 +225,7 @@ export const printReceipt = ({ type, data, settings, language, t, format }: Prin
                       ` : '<div></div>'}
                     </div>
                     <div class="text-end">
-                      <h2 class="text-4xl font-extrabold text-gray-400 mb-2 tracking-tighter uppercase leading-none opacity-30">INVOICE</h2>
+                      <h2 class="text-4xl font-extrabold text-gray-400 mb-2 tracking-tighter uppercase leading-none opacity-30">${t("finance.invoice")}</h2>
                       <div class="flex flex-col items-end gap-1">
                         <span class="text-xs font-bold text-gray-400 uppercase tracking-widest">${t("subscriptions.receiptNumber")}</span>
                         <span class="text-lg font-mono font-bold text-gray-900">#${receiptId}</span>
@@ -235,7 +239,7 @@ export const printReceipt = ({ type, data, settings, language, t, format }: Prin
                     <div class="col-span-3 p-6 no-bg">
                       <h3 class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                         <div class="w-1 h-3 bg-primary rounded-full"></div>
-                        ${t("subscriptions.member")} / BILL TO
+                        ${t("subscriptions.member")} / ${t("finance.billTo")}
                       </h3>
                       <div class="text-2xl font-black text-gray-900 mb-1">${data.memberName || data.buyerName}</div>
                       <div class="flex gap-4 mt-2">
@@ -322,17 +326,17 @@ export const printReceipt = ({ type, data, settings, language, t, format }: Prin
                   <div class="flex justify-end mb-8 p-10 bg-gray-50/5 rounded-2xl">
                     <div class="w-80 space-y-4">
                       <div class="flex justify-between items-center text-xs">
-                        <span class="font-black text-gray-400 uppercase tracking-widest">Subtotal</span>
+                        <span class="font-black text-gray-400 uppercase tracking-widest">${t("finance.subtotal")}</span>
                         <span class="font-bold text-gray-600">${total} ${t("common.currency")}</span>
                       </div>
                       <div class="flex justify-between items-center border-t border-gray-100 pt-4 text-xs">
-                        <span class="font-black text-gray-400 uppercase tracking-widest leading-none">${t("subscriptions.paid")} / RECV</span>
+                        <span class="font-black text-gray-400 uppercase tracking-widest leading-none">${t("subscriptions.paid")} / ${t("finance.recv")}</span>
                         <span class="font-black text-green-600">${amountPaid} ${t("common.currency")}</span>
                       </div>
                       
                       ${!isPaid ? `
                         <div class="flex justify-between items-center p-4 border-2 border-red-100/30 rounded-xl">
-                          <span class="text-xs font-black text-red-600 uppercase tracking-widest">DUE / المتبقي</span>
+                          <span class="text-xs font-black text-red-600 uppercase tracking-widest">${t("finance.due")}</span>
                           <span class="text-xl font-black text-red-600">${balanceDue} ${t("common.currency")}</span>
                         </div>
                       ` : ''}

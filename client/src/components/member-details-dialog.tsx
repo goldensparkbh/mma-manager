@@ -44,6 +44,11 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
     const [activeTab, setActiveTab] = useState("profile");
     const [isEditing, setIsEditing] = useState(false);
 
+    // Report Preview State
+    const [showReportPreview, setShowReportPreview] = useState(false);
+    const [reportPreviewHtml, setReportPreviewHtml] = useState("");
+    const reportFrameRef = useRef<HTMLIFrameElement>(null);
+
     const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
     const getCurrentTime = () => {
         const now = new Date();
@@ -229,28 +234,50 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
         if (memberSubscriptions) {
             const unpaidSubs = memberSubscriptions
                 .filter(s => s.paymentStatus !== 'paid')
-                .reduce((sum, s) => sum + s.amount, 0);
+                .reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
             balance -= unpaidSubs;
         }
 
         // Subtract unpaid sales
         if (memberSales) {
             const unpaidSales = memberSales
-                .filter(s => s.paymentStatus === 'unpaid')
-                .reduce((sum, s) => sum + s.totalPrice, 0);
+                .filter(s => s.paymentStatus === 'unpaid' || s.paymentStatus === 'pending')
+                .reduce((sum, s) => sum + (Number(s.totalPrice) || 0), 0);
             balance -= unpaidSales;
         }
 
         return balance;
     }, [member, memberSubscriptions, memberSales]);
 
+    const calculatedDebt = useMemo(() => {
+        if (!member) return 0;
+        let debt = 0;
+
+        if (memberSubscriptions) {
+            const unpaidSubs = memberSubscriptions
+                .filter(s => s.paymentStatus !== 'paid')
+                .reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+            debt += unpaidSubs;
+        }
+
+        if (memberSales) {
+            const unpaidSales = memberSales
+                .filter(s => s.paymentStatus === 'unpaid' || s.paymentStatus === 'pending')
+                .reduce((sum, s) => sum + (Number(s.totalPrice) || 0), 0);
+            debt += unpaidSales;
+        }
+
+        return debt;
+    }, [member, memberSubscriptions, memberSales]);
+
     const memberForWhatsApp = useMemo(() => {
         if (!member) return null;
         return {
             ...member,
-            balance: calculatedBalance
+            balance: calculatedBalance,
+            debt: calculatedDebt
         };
-    }, [member, calculatedBalance]);
+    }, [member, calculatedBalance, calculatedDebt]);
 
     // Mutations
     const buyItemMutation = useMutation({
@@ -1624,29 +1651,25 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
 
     const handleGenerateReport = async () => {
         if (!member) return;
-        const reportWindow = window.open("", "", "width=900,height=1100");
-        if (!reportWindow) {
-            toast({ variant: "destructive", title: t('common.error'), description: "Pop-up blocked" });
-            return;
-        }
 
-        reportWindow.document.write(`<p style="font-family: Arial, sans-serif; padding: 24px;">${escapeHtml(t('common.loading'))}</p>`);
         setIsGeneratingReport(true);
 
         try {
-            const reportPayload = await buildMemberReport({ includePrintScript: true });
+            const reportPayload = await buildMemberReport({ includePrintScript: false });
             if (!reportPayload) return;
 
-            reportWindow.document.open();
-            reportWindow.document.write(reportPayload.reportHtml);
-            reportWindow.document.close();
+            setReportPreviewHtml(reportPayload.reportHtml);
+            setShowReportPreview(true);
         } catch (error: any) {
-            reportWindow.document.open();
-            reportWindow.document.write(`<p style="font-family: Arial, sans-serif; padding: 24px;">${escapeHtml(t('common.error'))}</p>`);
-            reportWindow.document.close();
             toast({ variant: "destructive", title: t('common.error'), description: error?.message || "Failed to generate report" });
         } finally {
             setIsGeneratingReport(false);
+        }
+    };
+
+    const handlePrintFromPreview = () => {
+        if (reportFrameRef.current && reportFrameRef.current.contentWindow) {
+            reportFrameRef.current.contentWindow.print();
         }
     };
 
@@ -2273,6 +2296,11 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                                                                             </>
                                                                         )}
                                                                     </div>
+                                                                    {activeSub.paymentStatus !== 'paid' && (
+                                                                        <div className="mt-1">
+                                                                            <Badge variant="destructive" className="text-[10px] h-5">{t('finance.unpaid')}</Badge>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                                 <div className="flex flex-col items-end gap-2 text-end">
                                                                     <div className={`text-xl font-bold ${isExpired ? 'text-destructive' :
@@ -2286,7 +2314,10 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                                                                             className="h-8 w-8 text-muted-foreground hover:text-primary"
                                                                             onClick={() => {
                                                                                 setPrintType('subscription');
-                                                                                setPrintData(activeSub);
+                                                                                setPrintData({
+                                                                                    ...activeSub,
+                                                                                    memberDisplayId: member.memberId
+                                                                                });
                                                                                 setIsReceiptTypeDialogOpen(true);
                                                                             }}
                                                                         >
@@ -2348,6 +2379,11 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                                                                     <div className="text-sm text-muted-foreground text-start">
                                                                         {sub.startDate} - {sub.endDate}
                                                                     </div>
+                                                                    {sub.paymentStatus !== 'paid' && (
+                                                                        <div className="mt-1">
+                                                                            <Badge variant="destructive" className="text-[10px] h-5">{t('finance.unpaid')}</Badge>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                                 <div className="flex items-center gap-2">
                                                                     <div className="text-end">
@@ -2366,7 +2402,10 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                                                                             className="h-8 w-8 text-muted-foreground hover:text-primary"
                                                                             onClick={() => {
                                                                                 setPrintType('subscription');
-                                                                                setPrintData(sub);
+                                                                                setPrintData({
+                                                                                    ...sub,
+                                                                                    memberDisplayId: member.memberId
+                                                                                });
                                                                                 setIsReceiptTypeDialogOpen(true);
                                                                             }}
                                                                         >
@@ -2930,6 +2969,32 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                     member={member}
                 />
             )}
+
+            {/* Report Preview Dialog */}
+            <Dialog open={showReportPreview} onOpenChange={setShowReportPreview}>
+                <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
+                    <DialogHeader>
+                        <DialogTitle>{t('members.report')}</DialogTitle>
+                    </DialogHeader>
+                    <div className="flex-1 w-full border rounded-md overflow-hidden bg-white">
+                        <iframe
+                            ref={reportFrameRef}
+                            srcDoc={reportPreviewHtml}
+                            className="w-full h-full"
+                            title={t('members.reportPreview')}
+                        />
+                    </div>
+                    <div className="flex justify-end gap-2 mt-4">
+                        <Button variant="outline" onClick={() => setShowReportPreview(false)}>
+                            {t('common.close')}
+                        </Button>
+                        <Button onClick={handlePrintFromPreview}>
+                            <Printer className="w-4 h-4 me-2" />
+                            {t('common.print')}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
 
             <WhatsAppTemplateDialog
                 member={memberForWhatsApp}
