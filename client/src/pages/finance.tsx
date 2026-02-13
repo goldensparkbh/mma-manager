@@ -326,21 +326,26 @@ export default function Finance() {
 
   const selectedTransaction = useMemo(() => {
     if (!selectedTransactionId) return null;
-    const [type, idStr] = selectedTransactionId.split("-");
-    const id = parseInt(idStr);
+
+    // Split by first hyphen to separate type from ID, which might contain hyphens (UUID)
+    const firstHyphenIndex = selectedTransactionId.indexOf("-");
+    if (firstHyphenIndex === -1) return null;
+
+    const type = selectedTransactionId.substring(0, firstHyphenIndex);
+    const id = selectedTransactionId.substring(firstHyphenIndex + 1);
 
     if (type === "sub") {
-      const sub = subscriptions?.find(s => s.id === id);
+      const sub = subscriptions?.find(s => String(s.id) === id);
       if (!sub) return null;
       return { type: "subscription" as const, data: sub };
     }
     if (type === "sale") {
-      const sale = sales?.find(s => s.id === id);
+      const sale = sales?.find(s => String(s.id) === id);
       if (!sale) return null;
       return { type: "sale" as const, data: sale };
     }
     if (type === "exp") {
-      const exp = expenses?.find(e => e.id === id);
+      const exp = expenses?.find(e => String(e.id) === id);
       if (!exp) return null;
       return { type: "expense" as const, data: exp };
     }
@@ -353,43 +358,47 @@ export default function Finance() {
     if (selectedTransaction.type === "subscription") {
       const sub = selectedTransaction.data;
       return (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label className="text-muted-foreground">{t("subscriptions.member")}</Label>
-              <p className="font-medium text-lg">{sub.memberName}</p>
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">{t("subscriptions.member")}</Label>
+              <p className="font-medium text-base">{sub.memberName}</p>
             </div>
-            <div>
-              <Label className="text-muted-foreground">{t("subscriptions.plan")}</Label>
-              <p className="font-medium text-lg">{sub.planName}</p>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">{t("subscriptions.plan")}</Label>
+              <p className="font-medium text-base">{sub.planName}</p>
             </div>
-            <div>
-              <Label className="text-muted-foreground">{t("common.amount")}</Label>
-              <p className="font-medium text-lg text-green-600">{sub.amount.toFixed(2)} {t("common.currency")}</p>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">{t("common.amount")}</Label>
+              <p className="font-medium text-base text-green-600">{sub.amount.toFixed(2)} {t("common.currency")}</p>
             </div>
-            <div>
-              <Label className="text-muted-foreground">{t("common.status")}</Label>
-              <Badge variant={sub.paymentStatus === 'paid' ? 'default' : 'secondary'} className="mt-1">
-                {sub.paymentStatus === 'paid' ? t('common.paid') : t('common.unpaid')}
-              </Badge>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">{t("common.status")}</Label>
+              <div>
+                <Badge variant={sub.paymentStatus === 'paid' ? 'default' : sub.paymentStatus === 'pending' ? 'outline' : 'destructive'}>
+                  {t(`common.${sub.paymentStatus}`) || sub.paymentStatus}
+                </Badge>
+              </div>
             </div>
-            <div>
-              <Label className="text-muted-foreground">{t("subscriptions.startDate")}</Label>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">{t("subscriptions.startDate")}</Label>
               <p className="font-medium">{formatDate(sub.startDate)}</p>
             </div>
-            <div>
-              <Label className="text-muted-foreground">{t("subscriptions.endDate")}</Label>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">{t("subscriptions.endDate")}</Label>
               <p className="font-medium">{formatDate(sub.endDate)}</p>
             </div>
-            {sub.paymentMethod && (
-              <div>
-                <Label className="text-muted-foreground">{t("finance.paymentMethod")}</Label>
-                <p className="font-medium">{t(`finance.paymentMethods.${sub.paymentMethod}`) || sub.paymentMethod}</p>
-              </div>
-            )}
-            <div className="col-span-2">
-              <Label className="text-muted-foreground">{t("nav.transactionDate")}</Label>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">{t("finance.paymentMethod")}</Label>
+              <p className="font-medium">{sub.paymentMethod ? (t(`finance.paymentMethods.${sub.paymentMethod}`) || sub.paymentMethod) : "-"}</p>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">{t("nav.transactionDate")}</Label>
               <p className="font-medium">{sub.createdAt ? new Date(sub.createdAt).toLocaleString(language === 'ar' ? 'ar-BH' : 'en-US') : formatDate(sub.startDate)}</p>
+            </div>
+            <div className="space-y-1 col-span-2">
+              <Label className="text-xs text-muted-foreground">{t("common.id")}</Label>
+              <p className="font-mono text-xs text-muted-foreground">{sub.id}</p>
             </div>
           </div>
         </div>
@@ -400,46 +409,50 @@ export default function Finance() {
       const sale = selectedTransaction.data;
       const member = members?.find(m => m.id === sale.memberId);
       return (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label className="text-muted-foreground">{t("sales.buyer")}</Label>
-              <p className="font-medium text-lg">{member ? `${member.firstName} ${member.lastName}` : (sale.buyerName || t("sales.defaultBuyer"))}</p>
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">{t("sales.buyer")}</Label>
+              <p className="font-medium text-base">{member ? `${member.firstName} ${member.lastName}` : (sale.buyerName || t("sales.defaultBuyer"))}</p>
             </div>
-            <div>
-              <Label className="text-muted-foreground">{t("sales.product")}</Label>
-              <p className="font-medium text-lg">{sale.productName}</p>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">{t("sales.product")}</Label>
+              <p className="font-medium text-base">{sale.productName}</p>
             </div>
-            <div>
-              <Label className="text-muted-foreground">{t("sales.quantity")}</Label>
-              <p className="font-medium">{sale.quantity}</p>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">{t("sales.quantity")}</Label>
+              <p className="font-medium text-base">{sale.quantity}</p>
             </div>
-            <div>
-              <Label className="text-muted-foreground">{t("sales.total")}</Label>
-              <p className="font-medium text-lg text-green-600">{sale.totalPrice.toFixed(2)} {t("common.currency")}</p>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">{t("sales.total")}</Label>
+              <p className="font-medium text-base text-green-600">{sale.totalPrice.toFixed(2)} {t("common.currency")}</p>
             </div>
-            <div>
-              <Label className="text-muted-foreground">{t("common.status")}</Label>
-              <Badge variant={sale.paymentStatus === 'paid' ? 'default' : 'secondary'} className="mt-1">
-                {sale.paymentStatus === 'paid' ? t('common.paid') : t('common.unpaid')}
-              </Badge>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">{t("common.status")}</Label>
+              <div>
+                <Badge variant={sale.paymentStatus === 'paid' ? 'default' : sale.paymentStatus === 'pending' ? 'outline' : 'destructive'}>
+                  {t(`common.${sale.paymentStatus}`) || sale.paymentStatus}
+                </Badge>
+              </div>
             </div>
-            <div>
-              <Label className="text-muted-foreground">{t("nav.transactionDate")}</Label>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">{t("nav.transactionDate")}</Label>
               <p className="font-medium">{new Date(sale.date).toLocaleString(language === 'ar' ? 'ar-BH' : 'en-US')}</p>
             </div>
-            {sale.paymentMethod && (
-              <div>
-                <Label className="text-muted-foreground">{t("finance.paymentMethod")}</Label>
-                <p className="font-medium">{t(`finance.paymentMethods.${sale.paymentMethod}`) || sale.paymentMethod}</p>
-              </div>
-            )}
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">{t("finance.paymentMethod")}</Label>
+              <p className="font-medium">{sale.paymentMethod ? (t(`finance.paymentMethods.${sale.paymentMethod}`) || sale.paymentMethod) : "-"}</p>
+            </div>
             {sale.receiptId && (
-              <div>
-                <Label className="text-muted-foreground">{t("sales.receiptTitle")}</Label>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">{t("sales.receiptTitle")}</Label>
                 <p className="font-mono text-sm">{sale.receiptId}</p>
               </div>
             )}
+            <div className="space-y-1 col-span-2">
+              <Label className="text-xs text-muted-foreground">{t("common.id")}</Label>
+              <p className="font-mono text-xs text-muted-foreground">{sale.id}</p>
+            </div>
           </div>
         </div>
       );
@@ -448,27 +461,27 @@ export default function Finance() {
     if (selectedTransaction.type === "expense") {
       const exp = selectedTransaction.data;
       return (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label className="text-muted-foreground">{t("finance.category")}</Label>
-              <p className="font-medium text-lg">{getCategoryLabel(exp.category)}</p>
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">{t("finance.category")}</Label>
+              <p className="font-medium text-base">{getCategoryLabel(exp.category)}</p>
             </div>
-            <div>
-              <Label className="text-muted-foreground">{t("common.amount")}</Label>
-              <p className="font-medium text-lg text-red-600">{exp.amount.toFixed(2)} {t("common.currency")}</p>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">{t("common.amount")}</Label>
+              <p className="font-medium text-base text-red-600">{exp.amount.toFixed(2)} {t("common.currency")}</p>
             </div>
-            <div className="col-span-2">
-              <Label className="text-muted-foreground">{t("common.description")}</Label>
-              <p className="font-medium">{exp.description || "-"}</p>
+            <div className="space-y-1 col-span-2">
+              <Label className="text-xs text-muted-foreground">{t("common.description")}</Label>
+              <p className="font-medium text-base">{exp.description || "-"}</p>
             </div>
-            <div>
-              <Label className="text-muted-foreground">{t("common.date")}</Label>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">{t("common.date")}</Label>
               <p className="font-medium">{formatDate(exp.date)}</p>
             </div>
-            <div>
-              <Label className="text-muted-foreground">{t("common.id")}</Label>
-              <p className="font-mono text-sm">EXP-{exp.id}</p>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">{t("common.id")}</Label>
+              <p className="font-mono text-xs text-muted-foreground">EXP-{exp.id}</p>
             </div>
           </div>
         </div>
