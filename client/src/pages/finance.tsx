@@ -33,12 +33,14 @@ import {
   Trash2,
   Calendar as CalendarIcon,
   Download,
-  Filter
+  Filter,
+  MessageSquare
 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { FinanceReport, Expense, InsertExpense, Subscription, Sale, Member } from "@shared/schema";
 import { useAuth } from "@/context/auth-context";
 import { useLanguage } from "@/context/language-context";
+import { WhatsAppTemplateDialog } from "@/components/whatsapp-template-dialog";
 import { PERMISSIONS } from "@/lib/permissions";
 
 const expenseCategories = [
@@ -52,9 +54,12 @@ const expenseCategories = [
 ];
 
 export default function Finance() {
-  const { hasPermission } = useAuth();
+  const { hasPermission, clubSettings } = useAuth();
   const { toast } = useToast();
   const { t, language } = useLanguage();
+  const whatsappTemplates = clubSettings?.whatsappTemplates ?? [];
+  const [whatsAppMember, setWhatsAppMember] = useState<Member | null>(null);
+  const [isWhatsAppDialogOpen, setIsWhatsAppDialogOpen] = useState(false);
 
 
 
@@ -352,17 +357,62 @@ export default function Finance() {
     return null;
   }, [selectedTransactionId, subscriptions, sales, expenses]);
 
+  const handleWhatsAppClick = (phone: string, name: string, memberId?: string) => {
+    // Determine if we have a real member or need a mock
+    if (memberId) {
+      const realMember = members?.find(m => m.id === memberId);
+      if (realMember) {
+        setWhatsAppMember(realMember);
+        setIsWhatsAppDialogOpen(true);
+        return;
+      }
+    }
+
+    // Mock member for guest / missing member
+    const mockMember: Member = {
+      id: "guest",
+      memberId: "guest",
+      name: name,
+      firstName: name.split(" ")[0],
+      lastName: name.split(" ").slice(1).join(" "),
+      phone: phone,
+      status: "active",
+      // Add other required fields with dummy values
+      email: "",
+      gender: "male",
+      createdAt: new Date().toISOString(),
+    } as Member;
+
+    setWhatsAppMember(mockMember);
+    setIsWhatsAppDialogOpen(true);
+  };
+
   const renderTransactionDetails = () => {
     if (!selectedTransaction) return null;
 
     if (selectedTransaction.type === "subscription") {
       const sub = selectedTransaction.data;
+      const member = members?.find(m => m.id === sub.memberId);
       return (
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">{t("subscriptions.member")}</Label>
               <p className="font-medium text-base">{sub.memberName}</p>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">{t("members.phone")}</Label>
+              {member?.phone ? (
+                <div
+                  className="flex items-center gap-2 cursor-pointer text-primary hover:underline hover:text-primary/80 transition-colors bg-primary/5 p-1 px-2 rounded-md w-fit"
+                  onClick={() => handleWhatsAppClick(member.phone, sub.memberName, sub.memberId)}
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  <p className="font-mono text-base font-medium" dir="ltr">{member.phone}</p>
+                </div>
+              ) : (
+                <p className="text-muted-foreground">-</p>
+              )}
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">{t("subscriptions.plan")}</Label>
@@ -408,12 +458,29 @@ export default function Finance() {
     if (selectedTransaction.type === "sale") {
       const sale = selectedTransaction.data;
       const member = members?.find(m => m.id === sale.memberId);
+      const buyerName = member ? `${member.firstName} ${member.lastName}` : (sale.buyerName || t("sales.defaultBuyer"));
+      const buyerPhone = member?.phone || sale.buyerPhone;
+
       return (
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">{t("sales.buyer")}</Label>
-              <p className="font-medium text-base">{member ? `${member.firstName} ${member.lastName}` : (sale.buyerName || t("sales.defaultBuyer"))}</p>
+              <p className="font-medium text-base">{buyerName}</p>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">{t("members.phone")}</Label>
+              {buyerPhone ? (
+                <div
+                  className="flex items-center gap-2 cursor-pointer text-primary hover:underline hover:text-primary/80 transition-colors bg-primary/5 p-1 px-2 rounded-md w-fit"
+                  onClick={() => handleWhatsAppClick(buyerPhone, buyerName, sale.memberId)}
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  <p className="font-mono text-base font-medium" dir="ltr">{buyerPhone}</p>
+                </div>
+              ) : (
+                <p className="text-muted-foreground">-</p>
+              )}
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">{t("sales.product")}</Label>
@@ -581,7 +648,11 @@ export default function Finance() {
                     const sale = sales?.find(s => s.subscriptionId === sub.id);
                     const transactionDate = sale ? sale.date.split("T")[0] : sub.startDate;
                     return (
-                      <tr key={sub.id} className="border-b last:border-0 hover:bg-muted/50">
+                      <tr
+                        key={sub.id}
+                        className="border-b last:border-0 hover:bg-muted/50 cursor-pointer"
+                        onClick={() => setSelectedTransactionId(`sub-${sub.id}`)}
+                      >
                         <td className="py-2 px-2">{sub.startDate}</td>
                         <td className="py-2 px-2">{transactionDate}</td>
                         <td className="py-2 px-2 font-medium">{sub.memberName}</td>
@@ -641,7 +712,11 @@ export default function Finance() {
                     const buyerDisplay = member ? `${member.firstName} ${member.lastName}` : (sale.buyerName || t("sales.defaultBuyer"));
 
                     return (
-                      <tr key={sale.id} className="border-b last:border-0 hover:bg-muted/50">
+                      <tr
+                        key={sale.id}
+                        className="border-b last:border-0 hover:bg-muted/50 cursor-pointer"
+                        onClick={() => setSelectedTransactionId(`sale-${sale.id}`)}
+                      >
                         <td className="py-2 px-2">{sale.date.split("T")[0]}</td>
                         <td className="py-2 px-2">{sale.date.split("T")[0]}</td>
                         <td className="py-2 px-2 font-medium">{buyerDisplay}</td>
@@ -700,7 +775,11 @@ export default function Finance() {
                 <tbody>
                   {unpaidItems.length > 0 ? (
                     unpaidItems.map(item => (
-                      <tr key={item.id} className="border-b last:border-0 hover:bg-muted/50">
+                      <tr
+                        key={item.id}
+                        className="border-b last:border-0 hover:bg-muted/50 cursor-pointer"
+                        onClick={() => setSelectedTransactionId(item.id)}
+                      >
                         <td className="py-2 px-2">{item.date}</td>
                         <td className="py-2 px-2">{item.transactionDate}</td>
                         <td className="py-2 px-2"><Badge variant="outline">{item.type}</Badge></td>
@@ -939,6 +1018,17 @@ export default function Finance() {
           {renderTransactionDetails()}
         </DialogContent>
       </Dialog>
+      <WhatsAppTemplateDialog
+        member={whatsAppMember}
+        open={isWhatsAppDialogOpen}
+        onOpenChange={(open) => {
+          setIsWhatsAppDialogOpen(open);
+          if (!open) {
+            setWhatsAppMember(null);
+          }
+        }}
+        templates={whatsappTemplates}
+      />
     </div>
   );
 }
