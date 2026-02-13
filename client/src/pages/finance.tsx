@@ -41,6 +41,7 @@ import type { FinanceReport, Expense, InsertExpense, Subscription, Sale, Member 
 import { useAuth } from "@/context/auth-context";
 import { useLanguage } from "@/context/language-context";
 import { WhatsAppTemplateDialog } from "@/components/whatsapp-template-dialog";
+import { MemberDetailsDialog } from "@/components/member-details-dialog";
 import { PERMISSIONS } from "@/lib/permissions";
 
 const expenseCategories = [
@@ -60,6 +61,11 @@ export default function Finance() {
   const whatsappTemplates = clubSettings?.whatsappTemplates ?? [];
   const [whatsAppMember, setWhatsAppMember] = useState<Member | null>(null);
   const [isWhatsAppDialogOpen, setIsWhatsAppDialogOpen] = useState(false);
+
+  // Member Details Dialog State
+  const [detailsMember, setDetailsMember] = useState<Member | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [detailsTab, setDetailsTab] = useState("profile");
 
 
 
@@ -387,6 +393,15 @@ export default function Finance() {
     setIsWhatsAppDialogOpen(true);
   };
 
+  const handleMemberClick = (memberId: string, tabValue: string) => {
+    const member = members?.find((m) => m.id === memberId);
+    if (member) {
+      setDetailsMember(member);
+      setDetailsTab(tabValue);
+      setIsDetailsOpen(true);
+    }
+  };
+
   const renderTransactionDetails = () => {
     if (!selectedTransaction) return null;
 
@@ -398,7 +413,15 @@ export default function Finance() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">{t("subscriptions.member")}</Label>
-              <p className="font-medium text-base">{sub.memberName}</p>
+              <p
+                className="font-medium text-base cursor-pointer hover:underline text-primary"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleMemberClick(sub.memberId, "subscriptions");
+                }}
+              >
+                {sub.memberName}
+              </p>
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">{t("members.phone")}</Label>
@@ -466,7 +489,19 @@ export default function Finance() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">{t("sales.buyer")}</Label>
-              <p className="font-medium text-base">{buyerName}</p>
+              {member ? (
+                <p
+                  className="font-medium text-base cursor-pointer hover:underline text-primary"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleMemberClick(sale.memberId, "finance");
+                  }}
+                >
+                  {buyerName}
+                </p>
+              ) : (
+                <p className="font-medium text-base">{buyerName}</p>
+              )}
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">{t("members.phone")}</Label>
@@ -655,7 +690,15 @@ export default function Finance() {
                       >
                         <td className="py-2 px-2">{sub.startDate}</td>
                         <td className="py-2 px-2">{transactionDate}</td>
-                        <td className="py-2 px-2 font-medium">{sub.memberName}</td>
+                        <td
+                          className="py-2 px-2 font-medium cursor-pointer hover:underline text-primary"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleMemberClick(sub.memberId, "subscriptions");
+                          }}
+                        >
+                          {sub.memberName}
+                        </td>
                         <td className="py-2 px-2">{sub.planName}</td>
                         <td className="py-2 px-2">{sub.amount.toFixed(2)}</td>
                         <td className="py-2 px-2">
@@ -719,7 +762,21 @@ export default function Finance() {
                       >
                         <td className="py-2 px-2">{sale.date.split("T")[0]}</td>
                         <td className="py-2 px-2">{sale.date.split("T")[0]}</td>
-                        <td className="py-2 px-2 font-medium">{buyerDisplay}</td>
+                        <td className="py-2 px-2 font-medium">
+                          {member ? (
+                            <span
+                              className="cursor-pointer hover:underline text-primary"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleMemberClick(sale.memberId, "finance");
+                              }}
+                            >
+                              {buyerDisplay}
+                            </span>
+                          ) : (
+                            buyerDisplay
+                          )}
+                        </td>
                         <td className="py-2 px-2 font-medium">{sale.productName}</td>
                         <td className="py-2 px-2">{sale.totalPrice.toFixed(2)}</td>
                         <td className="py-2 px-2">
@@ -1028,6 +1085,12 @@ export default function Finance() {
           }
         }}
         templates={whatsappTemplates}
+      />
+      <MemberDetailsDialog
+        member={detailsMember}
+        isOpen={isDetailsOpen}
+        onClose={() => setIsDetailsOpen(false)}
+        initialTab={detailsTab}
       />
     </div>
   );

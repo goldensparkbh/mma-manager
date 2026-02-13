@@ -35,14 +35,22 @@ interface MemberDetailsDialogProps {
     isOpen: boolean;
     onClose: () => void;
     onAddSubscription?: () => void;
+    initialTab?: string;
 }
 
-export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription }: MemberDetailsDialogProps) {
+export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription, initialTab }: MemberDetailsDialogProps) {
     const { t, language, dir } = useLanguage();
     const { hasPermission, clubSettings } = useAuth();
     const { toast } = useToast();
     const [activeTab, setActiveTab] = useState("profile");
     const [isEditing, setIsEditing] = useState(false);
+
+    // Effect to set initial tab when dialog opens
+    useEffect(() => {
+        if (isOpen) {
+            setActiveTab(initialTab || "profile");
+        }
+    }, [isOpen, initialTab]);
 
     // Report Preview State
     const [showReportPreview, setShowReportPreview] = useState(false);
