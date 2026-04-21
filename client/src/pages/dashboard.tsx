@@ -107,7 +107,9 @@ export default function Dashboard() {
     } else if (diffDays <= 7) {
       return (
         <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300 text-xs">
-          {t("dashboard.expiresInDays").replace("{count}", diffDays.toString())}
+          {t("dashboard.expiresInDays")
+            .replace("{days}", String(diffDays))
+            .replace("{count}", String(diffDays))}
         </Badge>
       );
     }

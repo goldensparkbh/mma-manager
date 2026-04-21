@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,12 @@ import { WhatsAppTemplateDialog } from "@/components/whatsapp-template-dialog";
 import { useAuth } from "@/context/auth-context";
 import { useLanguage } from "@/context/language-context";
 import { PERMISSIONS } from "@/lib/permissions";
+import {
+  getEffectiveMemberSubscriptionStatus,
+  memberHasFutureStartingSubscription,
+  resolvePrimarySubscription,
+  formatLocalDate,
+} from "@/lib/memberSubscriptionStatus";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
@@ -61,6 +67,21 @@ export default function Members() {
   const { data: members, isLoading } = useQuery<Member[]>({
     queryKey: ["/api/members"],
   });
+
+  const { data: allSubscriptions } = useQuery<Subscription[]>({
+    queryKey: ["/api/subscriptions"],
+  });
+
+  const subsByMemberId = useMemo(() => {
+    const m = new Map<string, Subscription[]>();
+    if (!allSubscriptions) return m;
+    for (const s of allSubscriptions) {
+      const arr = m.get(s.memberId) ?? [];
+      arr.push(s);
+      m.set(s.memberId, arr);
+    }
+    return m;
+  }, [allSubscriptions]);
 
   const { data: belts } = useQuery<Belt[]>({
     queryKey: ["/api/belts"],
@@ -248,76 +269,47 @@ export default function Members() {
 
       if (!matchesSearch) return false;
 
-      // Status Filters
+      // Status Filters (subscription-aware: same priority as profile / sync)
       if (activeTab === "all") return true;
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
+      const todayStr = formatLocalDate(today);
+      const subs = subsByMemberId.get(member.id);
+      const status = getEffectiveMemberSubscriptionStatus(member, subs);
 
-      // Determine status on the fly for 100% accuracy, fallback to member.status IF it's "upcoming"
-      let status = "inactive";
-      if (member.subscriptionEnd) {
-        const start = member.subscriptionStart ? new Date(member.subscriptionStart) : null;
-        const end = new Date(member.subscriptionEnd);
-
-        if (start) start.setHours(0, 0, 0, 0);
-        end.setHours(0, 0, 0, 0);
-
-        if (start && today < start) {
-          status = "upcoming";
-        } else if (today > end) {
-          status = "expired";
-        } else {
-          status = "active";
-        }
-      } else if (member.status === "upcoming") {
-        // Only trust DB status if it's "upcoming" and we have no dates yet
-        status = "upcoming";
-      }
-
-      if (activeTab === "active") return status === "active";
+      if (activeTab === "active") return status === "active" || status === "aboutToExpire";
       if (activeTab === "inactive") return status === "inactive";
       if (activeTab === "expired") return status === "expired";
       if (activeTab === "upcoming") return status === "upcoming";
 
       if (activeTab === "soon") {
-        if (!member.subscriptionEnd) return false;
-        const end = new Date(member.subscriptionEnd);
-        const diffTime = end.getTime() - today.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        return diffDays >= 0 && diffDays <= 7; // Expiring in next 7 days
+        if (memberHasFutureStartingSubscription(member.id, allSubscriptions, todayStr)) return false;
+        if (status !== "active" && status !== "aboutToExpire") return false;
+        const primary = resolvePrimarySubscription(member, subs);
+        if (!primary?.endDate) return false;
+        const end = new Date(primary.endDate);
+        end.setHours(0, 0, 0, 0);
+        const diffDays = Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        return diffDays >= 0 && diffDays <= 7;
       }
       return true;
     }
   );
 
   const getStatusBadge = (member: Member) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    // Determine status on the fly for 100% accuracy, fallback to member.status IF it's "upcoming"
-    let status = "inactive";
-    if (member.subscriptionEnd) {
-      const start = member.subscriptionStart ? new Date(member.subscriptionStart) : null;
-      const end = new Date(member.subscriptionEnd);
-
-      if (start) start.setHours(0, 0, 0, 0);
-      end.setHours(0, 0, 0, 0);
-
-      if (start && today < start) {
-        status = "upcoming";
-      } else if (today > end) {
-        status = "expired";
-      } else {
-        status = "active";
-      }
-    } else if (member.status === "upcoming") {
-      status = "upcoming";
-    }
+    const subs = subsByMemberId.get(member.id);
+    const status = getEffectiveMemberSubscriptionStatus(member, subs);
 
     switch (status) {
       case "active":
         return <Badge className="bg-green-100 text-green-800 dark:bg-green-900/10 dark:text-green-300">{t('common.active')}</Badge>;
+      case "aboutToExpire":
+        return (
+          <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">
+            {t("common.aboutToExpire")}
+          </Badge>
+        );
       case "inactive":
         return <Badge className="bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300">{t('common.inactive')}</Badge>;
       case "upcoming":

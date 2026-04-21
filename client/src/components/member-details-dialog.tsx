@@ -29,6 +29,7 @@ import { addMonths, addDays, isWithinInterval, parseISO, startOfDay, endOfDay, d
 import { pdf } from "@react-pdf/renderer";
 import { saveAs } from "file-saver";
 import { MemberReportPdf, type MemberReportData } from "@/components/member-report-pdf";
+import { getEffectiveMemberSubscriptionStatus } from "@/lib/memberSubscriptionStatus";
 
 interface MemberDetailsDialogProps {
     member: Member | null;
@@ -432,38 +433,8 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
 
     const memberSubscriptionStatus = useMemo(() => {
         if (!member) return null;
-
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        // Fallback to member.status ONLY IF it's "upcoming"
-        if (!member.subscriptionEnd) {
-            if (member.status === "upcoming") {
-                return "upcoming";
-            }
-            return "inactive";
-        }
-
-        const end = new Date(member.subscriptionEnd);
-        const start = member.subscriptionStart ? new Date(member.subscriptionStart) : null;
-
-        if (Number.isNaN(end.getTime())) {
-            return member.status === "upcoming" ? "upcoming" : "inactive";
-        }
-
-        end.setHours(0, 0, 0, 0);
-        if (start) start.setHours(0, 0, 0, 0);
-
-        if (start && today < start) {
-            return "upcoming";
-        }
-
-        const diffDays = Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-
-        if (diffDays < 0) return "expired";
-        if (diffDays <= 10) return "aboutToExpire";
-        return "active";
-    }, [member]);
+        return getEffectiveMemberSubscriptionStatus(member, memberSubscriptions);
+    }, [member, memberSubscriptions]);
 
     const createSubscriptionMutation = useMutation({
         mutationFn: async (data: any) => {

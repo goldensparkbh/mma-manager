@@ -46,6 +46,7 @@ import type {
   Event,
   InsertEvent,
 } from "@shared/schema";
+import { memberHasFutureStartingSubscription } from "./memberSubscriptionStatus";
 
 const normalizeTimestamp = (value: unknown) => {
   if (!value) return "";
@@ -1003,7 +1004,12 @@ export async function getDashboardStats(startDate?: string, endDate?: string): P
     if (m.subscriptionEnd < todayStr) return false;
 
     // Check if in 10 day window
-    return m.subscriptionEnd <= next10DaysStr;
+    if (m.subscriptionEnd > next10DaysStr) return false;
+
+    // Renewal already booked (not started): do not treat as expiring soon
+    if (memberHasFutureStartingSubscription(m.id, subscriptions, todayStr)) return false;
+
+    return true;
   });
 
   const recentSalesInPeriod = sales
