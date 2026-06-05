@@ -10,7 +10,7 @@
     "build": "vite build",
     "start": "NODE_ENV=production tsx server/index.ts",
     "check": "tsc",
-    "db:migrate": "tsx -e \"import { runMigrations, seedDefaults, pool } from './server/db/index.ts'; runMigrations().then(seedDefaults).then(() => pool.end())\""
+    "db:migrate": "tsx script/migrate.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

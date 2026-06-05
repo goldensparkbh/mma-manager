@@ -1,3 +1,4 @@
+import "../load-env.js";
 import pg from "pg";
 import { readFile } from "fs/promises";
 import path from "path";
@@ -5,9 +6,18 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+const rawDatabaseUrl = process.env.DATABASE_URL || "";
+const useSsl =
+  process.env.DATABASE_SSL === "true" ||
+  rawDatabaseUrl.includes("sslmode=") ||
+  rawDatabaseUrl.includes("ondigitalocean.com");
+
+// Strip sslmode from URL so pg uses our ssl config (avoids cert chain errors on DO)
+const databaseUrl = rawDatabaseUrl.replace(/[?&]sslmode=[^&]+/, "").replace(/\?$/, "");
+
 export const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_SSL === "true" ? { rejectUnauthorized: false } : undefined,
+  connectionString: databaseUrl,
+  ssl: useSsl ? { rejectUnauthorized: false } : undefined,
 });
 
 export async function query<T extends pg.QueryResultRow = pg.QueryResultRow>(
@@ -36,7 +46,7 @@ export async function seedDefaults() {
 
   const admins = await query("SELECT id FROM platform_admins LIMIT 1");
   if (admins.rows.length === 0 && process.env.PLATFORM_ADMIN_EMAIL && process.env.PLATFORM_ADMIN_PASSWORD) {
-    const bcrypt = await import("bcryptjs");
+    const bcrypt = (await import("bcryptjs")).default;
     const hash = await bcrypt.hash(process.env.PLATFORM_ADMIN_PASSWORD, 12);
     await query(
       "INSERT INTO platform_admins (email, password_hash, display_name) VALUES ($1, $2, $3)",

@@ -3,7 +3,6 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +24,6 @@ import { PERMISSIONS } from "@/lib/permissions";
 import { ReceiptTypeDialog } from "@/components/receipt-type-dialog";
 import { MemberDetailsDialog } from "@/components/member-details-dialog";
 import { WhatsAppTemplateDialog } from "@/components/whatsapp-template-dialog";
-import { MessageSquare } from "lucide-react";
 
 export default function Sales() {
   const { hasPermission, clubSettings, role } = useAuth();
