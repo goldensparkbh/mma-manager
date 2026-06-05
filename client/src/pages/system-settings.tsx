@@ -11,8 +11,7 @@ import { apiJson, apiFetch } from "@/lib/api";
 import {
     Settings, UserCog, Building2, Save, ImageIcon, Loader2,
     Package, Plus, Trash2, Download, Upload, Database,
-    AlertTriangle, Languages, RefreshCcw, Github, Info,
-    CheckCircle, Zap, ShieldCheck, Key, Sparkles
+    AlertTriangle
 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { getSubscriptionPackages } from "@/lib/apiData";
@@ -35,10 +34,6 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { APP_VERSION } from "@/lib/app-version";
-import { compareVersions } from "@/lib/utils"; // I'll need to create or verify this. Actually I'll use a simple string compare if needed or add it.
-
-
 import { Badge } from "@/components/ui/badge";
 import { PERMISSIONS } from "@/lib/permissions";
 
@@ -57,7 +52,6 @@ type ClubProfile = {
         website?: string;
     };
     whatsappTemplates: WhatsAppTemplate[];
-    githubToken: string;
     receiptType: 'thermal' | 'a4';
     receiptLogoThermal: string;
     receiptA4Design: string;
@@ -105,7 +99,6 @@ export default function SystemSettings() {
             website: "",
         },
         whatsappTemplates: [],
-        githubToken: "",
         receiptType: 'thermal',
         receiptLogoThermal: "",
         receiptA4Design: "",
@@ -118,13 +111,6 @@ export default function SystemSettings() {
         newPassword: "",
         confirmPassword: "",
     });
-
-    // Update States
-    const [checkingUpdate, setCheckingUpdate] = useState(false);
-    const [latestVersion, setLatestVersion] = useState<any>(null);
-    const [isUpdating, setIsUpdating] = useState(false);
-    const [updateStatus, setUpdateStatus] = useState("");
-
 
     useEffect(() => {
         fetchSettings();
@@ -156,7 +142,6 @@ export default function SystemSettings() {
                     twitter: socials.twitter || "",
                     socialLinks: { instagram: socials.instagram || "", facebook: socials.facebook || "", website: "" },
                     whatsappTemplates: templates,
-                    githubToken: (data.githubToken as string) || "",
                     receiptType: (data.receiptType as 'thermal' | 'a4') || 'thermal',
                     receiptLogoThermal: (data.receiptLogoThermal as string) || "",
                     receiptA4Design: (data.receiptA4Design as string) || "",
@@ -208,7 +193,6 @@ export default function SystemSettings() {
                     },
                     whatsappTemplate: clubProfile.whatsappTemplates[0]?.body || "",
                     whatsappTemplates: clubProfile.whatsappTemplates,
-                    githubToken: clubProfile.githubToken || "",
                     receiptType: clubProfile.receiptType,
                     receiptLogoThermal: finalThermalLogoUrl,
                     receiptA4Design: finalA4DesignUrl,
@@ -407,83 +391,6 @@ export default function SystemSettings() {
     const CLEAR_CONFIRM_WORD = "DELETE";
     const clearConfirmMatches = clearConfirmText.trim().toLowerCase() === CLEAR_CONFIRM_WORD.toLowerCase();
 
-    const checkUpdates = async () => {
-        setCheckingUpdate(true);
-        try {
-            const headers: Record<string, string> = {};
-            if (clubProfile.githubToken) {
-                headers['Authorization'] = `token ${clubProfile.githubToken}`;
-            }
-
-            const response = await fetch(`https://api.github.com/repos/${APP_VERSION.repo}/releases/latest`, {
-                headers: headers
-            });
-            if (response.ok) {
-                const data = await response.json();
-                setLatestVersion({
-                    number: data.tag_name.replace('v', ''),
-                    date: data.published_at.split('T')[0],
-                    name: data.name,
-                    notes: data.body,
-                    url: data.html_url
-                });
-            } else {
-                // Fallback or error
-                toast({ variant: "destructive", title: t("settings.update.updateError") });
-            }
-        } catch (error) {
-            console.error("Failed to check for updates", error);
-            toast({ variant: "destructive", title: t("settings.update.updateError") });
-        } finally {
-            setCheckingUpdate(false);
-        }
-    };
-
-    const handleUpdate = async () => {
-        setIsUpdating(true);
-        setUpdateStatus(t("settings.update.updating"));
-
-        try {
-            // 1. Trigger the GitHub Action to redeploy
-            if (clubProfile.githubToken) {
-                const response = await fetch(`https://api.github.com/repos/${APP_VERSION.repo}/actions/workflows/deploy.yml/dispatches`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `token ${clubProfile.githubToken}`,
-                        'Accept': 'application/vnd.github.v3+json',
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        ref: 'main', // Or your default branch
-                    })
-                });
-
-                if (!response.ok) {
-                    const error = await response.json();
-                    console.error("GitHub Action Trigger Failed:", error);
-                    // We continue anyway so the UI feels responsive, 
-                    // but we log it for debugging.
-                }
-            }
-
-            // 2. Wait for a simulated build time (usually takes a few minutes for real)
-            // For better UX, we'll wait a bit longer now that it's doing a real trigger
-            await new Promise(resolve => setTimeout(resolve, 5000));
-
-            toast({ title: t("common.success"), description: t("settings.update.updateSuccess") });
-
-            setTimeout(() => {
-                // Force a hard reload by appending a timestamp to bypass browser cache
-                window.location.href = window.location.origin + window.location.pathname + '?update=' + Date.now();
-            }, 1500);
-        } catch (error) {
-            toast({ variant: "destructive", title: t("settings.update.updateError") });
-            setIsUpdating(false);
-        }
-    };
-
-    const isNearerVersion = latestVersion && compareVersions(latestVersion.number, APP_VERSION.number) > 0;
-
     return (
         <div className="space-y-6 max-w-5xl mx-auto" dir={dir}>
             <div className="flex items-center gap-4 text-start justify-start">
@@ -501,7 +408,6 @@ export default function SystemSettings() {
                         <TabsTrigger value="receipts" className="px-6">{t("settings.tabs.receipts")}</TabsTrigger>
                         <TabsTrigger value="admin" className="px-6">{t("settings.tabs.admin")}</TabsTrigger>
                         <TabsTrigger value="backup" className="px-6">{t("settings.tabs.backup")}</TabsTrigger>
-                        <TabsTrigger value="update" className="px-6">{t("settings.tabs.update")}</TabsTrigger>
                     </TabsList>
                 </div>
 
@@ -1058,160 +964,6 @@ export default function SystemSettings() {
                                 )}
                             </CardContent>
                         </Card>
-                    </div>
-                </TabsContent>
-                {/* Update Tab */}
-                <TabsContent value="update">
-                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
-                        {/* Hero Status Section */}
-                        <div className={`relative overflow-hidden rounded-3xl border p-8 transition-all duration-500 ${isNearerVersion ? 'bg-gradient-to-br from-primary via-primary/90 to-primary/80 border-primary text-white shadow-2xl shadow-primary/30' : 'bg-white border-gray-100 shadow-sm'}`}>
-                            {/* Decorative Background Icon */}
-                            <div className="absolute top-[-20px] right-[-20px] opacity-10 rotate-12">
-                                {isNearerVersion ? <Download className="w-64 h-64" /> : <ShieldCheck className="w-64 h-64 text-green-500" />}
-                            </div>
-
-                            <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
-                                <div className="space-y-4 text-center md:text-start flex-1">
-                                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20">
-                                        <div className={`w-2 h-2 rounded-full animate-pulse ${isNearerVersion ? 'bg-white' : 'bg-green-400'}`}></div>
-                                        <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${isNearerVersion ? 'text-white' : 'text-gray-500'}`}>
-                                            {isNearerVersion ? t("settings.update.newVersionAvailable") : t("settings.update.upToDate")}
-                                        </span>
-                                    </div>
-
-                                    <h2 className={`text-4xl md:text-5xl font-black tracking-tighter ${isNearerVersion ? 'text-white' : 'text-gray-900'}`}>
-                                        {isNearerVersion ? `Version ${latestVersion?.number} is ready.` : "You're all set."}
-                                    </h2>
-
-                                    <p className={`text-sm md:text-lg font-medium max-w-xl leading-relaxed ${isNearerVersion ? 'text-white/80' : 'text-gray-500'}`}>
-                                        {isNearerVersion
-                                            ? `Our latest release ${latestVersion?.name} brings significant improvements and new features to your platform.`
-                                            : "Your Club Management System is running the latest version with all security patches and features enabled."}
-                                    </p>
-                                </div>
-
-                                <div className="flex flex-col gap-4 w-full md:w-auto shrink-0">
-                                    {isNearerVersion ? (
-                                        <Button
-                                            onClick={handleUpdate}
-                                            disabled={isUpdating}
-                                            size="lg"
-                                            className="h-16 px-10 bg-white text-primary hover:bg-gray-50 font-black text-sm uppercase tracking-widest shadow-xl transition-all hover:scale-105 active:scale-95"
-                                        >
-                                            {isUpdating ? <Loader2 className="w-5 h-5 animate-spin me-2" /> : <Zap className="w-5 h-5 me-2" />}
-                                            {t("settings.update.updateNow")}
-                                        </Button>
-                                    ) : (
-                                        <Button
-                                            onClick={checkUpdates}
-                                            disabled={checkingUpdate || isUpdating}
-                                            variant="outline"
-                                            size="lg"
-                                            className="h-16 px-10 border-gray-200 hover:border-primary hover:text-primary font-bold text-sm uppercase tracking-widest transition-all"
-                                        >
-                                            {checkingUpdate ? <Loader2 className="w-5 h-5 animate-spin me-2" /> : <RefreshCcw className="w-5 h-5 me-2" />}
-                                            {t("settings.update.checkUpdates")}
-                                        </Button>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Progress Overlay when Updating */}
-                            {isUpdating && (
-                                <div className="absolute inset-0 z-20 bg-primary flex flex-col items-center justify-center p-8 animate-in fade-in duration-300">
-                                    <div className="w-full max-w-md space-y-6">
-                                        <div className="flex justify-between items-end mb-2">
-                                            <div className="space-y-1">
-                                                <h3 className="text-2xl font-black text-white uppercase tracking-tight">Updating System</h3>
-                                                <p className="text-xs text-white/60 font-medium uppercase tracking-widest animate-pulse">{updateStatus}</p>
-                                            </div>
-                                            <span className="text-4xl font-black text-white/20">65%</span>
-                                        </div>
-                                        <div className="h-4 w-full bg-white/10 rounded-full overflow-hidden border border-white/10 p-0.5">
-                                            <div className="h-full bg-white animate-progress-flow w-[65%] rounded-full shadow-[0_0_20px_rgba(255,255,255,0.5)]"></div>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Details & Config Grid */}
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                            {/* Version Info Cards */}
-                            <div className="lg:col-span-2 space-y-6">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="p-6 rounded-2xl border bg-white shadow-sm hover:border-primary/20 transition-colors group">
-                                        <div className="flex items-center gap-3 mb-4">
-                                            <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center group-hover:bg-primary/5 transition-colors">
-                                                <Info className="w-5 h-5 text-gray-400 group-hover:text-primary transition-colors" />
-                                            </div>
-                                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t("settings.update.currentVersion")}</span>
-                                        </div>
-                                        <div className="flex items-end gap-2">
-                                            <span className="text-3xl font-black text-gray-900">{APP_VERSION.number}</span>
-                                            <span className="text-[10px] font-bold text-gray-400 pb-1.5">{APP_VERSION.date}</span>
-                                        </div>
-                                        <div className="mt-2 text-xs font-semibold text-gray-500 px-2 py-1 bg-gray-50 rounded-md inline-block">
-                                            {APP_VERSION.name}
-                                        </div>
-                                    </div>
-
-                                    <div className="p-6 rounded-2xl border bg-white shadow-sm hover:border-primary/20 transition-colors group">
-                                        <div className="flex items-center gap-3 mb-4">
-                                            <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center group-hover:bg-primary/5 transition-colors">
-                                                <Github className="w-5 h-5 text-gray-400 group-hover:text-primary transition-colors" />
-                                            </div>
-                                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t("settings.update.releaseNotes")}</span>
-                                        </div>
-                                        <div className="h-[100px] overflow-y-auto text-[11px] leading-relaxed text-gray-600 font-medium custom-scrollbar pr-2 whitespace-pre-wrap">
-                                            {latestVersion?.notes || "No release notes available. Check for updates to fetch the latest changelog."}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Feature Highlight (Mock) */}
-                                <div className="p-6 rounded-2xl border border-dashed border-gray-200 bg-gray-50/30">
-                                    <div className="flex items-center gap-2 mb-4">
-                                        <Sparkles className="w-4 h-4 text-yellow-500" />
-                                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Platform Integrity</span>
-                                    </div>
-                                    <p className="text-xs text-gray-500 leading-relaxed font-medium">
-                                        Every update goes through rigorous automated testing to ensure the stability of your membership records, financial data, and attendance tracking systems.
-                                        We recommend keeping the system up to date to benefit from the latest security improvements.
-                                    </p>
-                                </div>
-                            </div>
-
-                            {/* Configuration Sidebar */}
-                            <div className="space-y-6">
-                                <Card className="rounded-2xl border shadow-sm h-full overflow-hidden">
-                                    <CardHeader className="bg-gray-50/50 border-b pb-4">
-                                        <CardTitle className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">{t("settings.update.githubToken")}</CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="p-6 space-y-4">
-                                        <div className="space-y-2">
-                                            <Label className="text-[10px] font-bold text-gray-500 uppercase">Personal Access Token</Label>
-                                            <div className="relative group">
-                                                <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-primary transition-colors" />
-                                                <Input
-                                                    type="password"
-                                                    value={clubProfile.githubToken}
-                                                    onChange={(e) => setClubProfile({ ...clubProfile, githubToken: e.target.value })}
-                                                    placeholder="ghp_xxxxxxxxxxxx"
-                                                    className="pl-10 h-11 border-gray-200 focus:ring-primary focus:border-primary font-mono text-xs rounded-xl"
-                                                />
-                                            </div>
-                                        </div>
-                                        <div className="p-4 rounded-xl bg-blue-50 border border-blue-100 flex gap-3">
-                                            <Info className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
-                                            <p className="text-[10px] leading-tight text-blue-700 font-medium">
-                                                The Github token is required to securely fetch system updates and release notes directly from our repository.
-                                            </p>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            </div>
-                        </div>
                     </div>
                 </TabsContent>
             </Tabs>

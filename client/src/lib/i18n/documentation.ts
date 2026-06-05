@@ -185,7 +185,6 @@ Club Profile: Update your club name, address, and contact info.
 Receipt Customization: Configure your printing format (Thermal vs A4). Upload a special logo for thermal printers or a full-page A4 background design for professional invoices.
 Screensaver: Enable the system screensaver to protect your data. Set a custom timeout for the lock screen to activate when the system is idle.
 Backups: Safeguard your data by creating manual or scheduled backups.
-System Updates: Keep the platform up to date with the latest features and security patches.
             `,
             ar: `
 تخصيص المنصة حسب احتياجاتك:
@@ -193,7 +192,6 @@ System Updates: Keep the platform up to date with the latest features and securi
 تخصيص الإيصالات: قم بتكوين تنسيق الطباعة (حراري مقابل A4). ارفع شعاراً خاصاً للطابعات الحرارية أو تصميماً لخلفية A4 كاملة للفواتير الاحترافية.
 شاشة التوقف: تفعيل شاشة التوقف للنظام لحماية بياناتك. قم بتعيين مهلة زمنية مخصصة لشاشة القفل لتفعيلها عند خمول النظام.
 النسخ الاحتياطي: حافظ على بياناتك من خلال إنشاء نسخ احتياطية يدوية أو مجدولة.
-تحديثات النظام: حافظ على المنصة محدثة بأحدث الميزات والإصلاحات الأمنية.
             `
         }
     }
