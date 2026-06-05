@@ -18,10 +18,10 @@ async function main() {
   app.use(cors({ origin: process.env.CORS_ORIGIN || true, credentials: true }));
   app.use(express.json({ limit: "10mb" }));
 
-  app.use("/uploads", express.static(getUploadDir()));
-  app.use(router);
-
   const distPath = path.resolve(__dirname, "..", "dist");
+
+  // Serve static assets and SPA before API router (router auth would block GET /)
+  app.use("/uploads", express.static(getUploadDir()));
   app.use(express.static(distPath));
   app.get("*", (req, res, next) => {
     if (req.path.startsWith("/api") || req.path.startsWith("/uploads")) return next();
@@ -29,6 +29,8 @@ async function main() {
       if (err) next();
     });
   });
+
+  app.use(router);
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on port ${PORT}`);

@@ -27,6 +27,7 @@ export async function comparePassword(password: string, hash: string): Promise<b
 }
 
 export function authMiddleware(req: Request, res: Response, next: NextFunction) {
+  if (!req.path.startsWith("/api")) return next();
   const header = req.headers.authorization;
   if (!header?.startsWith("Bearer ")) {
     return res.status(401).json({ error: "Unauthorized" });
