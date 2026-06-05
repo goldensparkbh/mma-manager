@@ -27,7 +27,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ImagePlus, Plus, Search, Trash2, UserPlus, Award, Printer, X, Pencil, Download, FileText, LayoutGrid, LayoutList, CreditCard, Loader2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { getAllAttendance, getSubscriptionsByMember } from "@/lib/firebaseData";
+import { getAllAttendance, getSubscriptionsByMember } from "@/lib/apiData";
 import type { Member, InsertMember, Belt, MemberBelt, InsertMemberBelt, Attendance, Subscription, SubscriptionPackage } from "@shared/schema";
 import { MemberDetailsDialog } from "@/components/member-details-dialog";
 import { WhatsAppTemplateDialog } from "@/components/whatsapp-template-dialog";

@@ -7,10 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/auth-context";
-import { db, storage } from "@/lib/firebase";
-import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
-import { updatePassword, updateEmail } from "firebase/auth";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { apiJson, apiFetch } from "@/lib/api";
 import {
     Settings, UserCog, Building2, Save, ImageIcon, Loader2,
     Package, Plus, Trash2, Download, Upload, Database,
@@ -18,12 +15,11 @@ import {
     CheckCircle, Zap, ShieldCheck, Key, Sparkles
 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { getSubscriptionPackages } from "@/lib/firebaseData";
+import { getSubscriptionPackages } from "@/lib/apiData";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { SubscriptionPackage } from "@shared/schema";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { collection, getDocs, writeBatch } from "firebase/firestore";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useLanguage } from "@/context/language-context";
 import { clearDatabase, exportFullDatabase, importFullDatabase } from "@/lib/backup-utils";
@@ -142,35 +138,30 @@ export default function SystemSettings() {
 
     const fetchSettings = async () => {
         try {
-            const docRef = doc(db, "settings", "general");
-            const snap = await getDoc(docRef);
-            if (snap.exists()) {
-                const data = snap.data();
+            const data = await apiJson<Record<string, unknown>>("/api/settings");
+            if (data && Object.keys(data).length > 0) {
+                const socials = (data.socials as Record<string, string>) || {};
                 const templates = normalizeWhatsAppTemplates(
-                    data.whatsappTemplates,
-                    data.whatsappTemplate,
+                    data.whatsappTemplates as WhatsAppTemplate[] | undefined,
+                    data.whatsappTemplate as string | undefined,
                 );
                 setClubProfile({
-                    name: data.name || "",
-                    logoUrlLight: data.logoUrlLight || data.logoUrl || "",
-                    logoUrlDark: data.logoUrlDark || "",
-                    phone: data.phone || "",
-                    location: data.location || "",
-                    facebook: data.socials?.facebook || "",
-                    instagram: data.socials?.instagram || "",
-                    twitter: data.socials?.twitter || "",
-                    socialLinks: {
-                        instagram: data.socials?.instagram || "",
-                        facebook: data.socials?.facebook || "",
-                        website: data.socialLinks?.website || "",
-                    },
+                    name: (data.name as string) || "",
+                    logoUrlLight: (data.logoUrlLight as string) || "",
+                    logoUrlDark: (data.logoUrlDark as string) || "",
+                    phone: (data.phone as string) || "",
+                    location: (data.location as string) || "",
+                    facebook: socials.facebook || "",
+                    instagram: socials.instagram || "",
+                    twitter: socials.twitter || "",
+                    socialLinks: { instagram: socials.instagram || "", facebook: socials.facebook || "", website: "" },
                     whatsappTemplates: templates,
-                    githubToken: data.githubToken || "",
-                    receiptType: data.receiptType || 'thermal',
-                    receiptLogoThermal: data.receiptLogoThermal || "",
-                    receiptA4Design: data.receiptA4Design || "",
-                    screensaverEnabled: data.screensaverEnabled ?? false,
-                    screensaverTimeout: data.screensaverTimeout ?? 60,
+                    githubToken: (data.githubToken as string) || "",
+                    receiptType: (data.receiptType as 'thermal' | 'a4') || 'thermal',
+                    receiptLogoThermal: (data.receiptLogoThermal as string) || "",
+                    receiptA4Design: (data.receiptA4Design as string) || "",
+                    screensaverEnabled: (data.screensaverEnabled as boolean) ?? false,
+                    screensaverTimeout: (data.screensaverTimeout as number) ?? 60,
                 });
                 setSelectedTemplateId(templates[0]?.id || null);
             }
@@ -179,64 +170,52 @@ export default function SystemSettings() {
         }
     };
 
+    const uploadSettingFile = async (file: File, category: string) => {
+        const form = new FormData();
+        form.append("file", file);
+        form.append("category", category);
+        const res = await apiFetch("/api/settings/upload", { method: "POST", body: form });
+        const data = await res.json();
+        return data.url as string;
+    };
+
     const handleSaveProfile = async () => {
         setLoading(true);
         try {
             let finalLogoUrlLight = clubProfile.logoUrlLight;
             let finalLogoUrlDark = clubProfile.logoUrlDark;
-
-            if (logoFileLight) {
-                const logoRef = ref(storage, "club/logo_light");
-                await uploadBytes(logoRef, logoFileLight);
-                finalLogoUrlLight = await getDownloadURL(logoRef);
-            }
-
-            if (logoFileDark) {
-                const logoRef = ref(storage, "club/logo_dark");
-                await uploadBytes(logoRef, logoFileDark);
-                finalLogoUrlDark = await getDownloadURL(logoRef);
-            }
+            if (logoFileLight) finalLogoUrlLight = await uploadSettingFile(logoFileLight, "logo_light");
+            if (logoFileDark) finalLogoUrlDark = await uploadSettingFile(logoFileDark, "logo_dark");
 
             let finalThermalLogoUrl = clubProfile.receiptLogoThermal;
             let finalA4DesignUrl = clubProfile.receiptA4Design;
-
-            if (thermalLogoFile) {
-                const logoRef = ref(storage, "club/receipt_thermal_logo");
-                await uploadBytes(logoRef, thermalLogoFile);
-                finalThermalLogoUrl = await getDownloadURL(logoRef);
-            }
-
-            if (a4DesignFile) {
-                const designRef = ref(storage, "club/receipt_a4_design");
-                await uploadBytes(designRef, a4DesignFile);
-                finalA4DesignUrl = await getDownloadURL(designRef);
-            }
+            if (thermalLogoFile) finalThermalLogoUrl = await uploadSettingFile(thermalLogoFile, "receipt_thermal_logo");
+            if (a4DesignFile) finalA4DesignUrl = await uploadSettingFile(a4DesignFile, "receipt_a4_design");
 
             const socialLinks = clubProfile.socialLinks ?? {};
-            await setDoc(doc(db, "settings", "general"), {
-                name: clubProfile.name,
-                logoUrlLight: finalLogoUrlLight,
-                logoUrlDark: finalLogoUrlDark,
-                logoUrl: finalLogoUrlLight, // Backward compatibility
-                phone: clubProfile.phone,
-                location: clubProfile.location,
-                socials: {
-                    facebook: socialLinks.facebook || clubProfile.facebook,
-                    instagram: socialLinks.instagram || clubProfile.instagram,
-                    twitter: clubProfile.twitter
-                },
-                socialLinks: {
-                    website: socialLinks.website || "",
-                },
-                whatsappTemplate: clubProfile.whatsappTemplates[0]?.body || "",
-                whatsappTemplates: clubProfile.whatsappTemplates,
-                githubToken: clubProfile.githubToken || "",
-                receiptType: clubProfile.receiptType,
-                receiptLogoThermal: finalThermalLogoUrl,
-                receiptA4Design: finalA4DesignUrl,
-                screensaverEnabled: clubProfile.screensaverEnabled,
-                screensaverTimeout: clubProfile.screensaverTimeout,
-            }, { merge: true });
+            await apiJson("/api/settings", {
+                method: "PATCH",
+                body: JSON.stringify({
+                    name: clubProfile.name,
+                    logoUrlLight: finalLogoUrlLight,
+                    logoUrlDark: finalLogoUrlDark,
+                    phone: clubProfile.phone,
+                    location: clubProfile.location,
+                    socials: {
+                        facebook: socialLinks.facebook || clubProfile.facebook,
+                        instagram: socialLinks.instagram || clubProfile.instagram,
+                        twitter: clubProfile.twitter,
+                    },
+                    whatsappTemplate: clubProfile.whatsappTemplates[0]?.body || "",
+                    whatsappTemplates: clubProfile.whatsappTemplates,
+                    githubToken: clubProfile.githubToken || "",
+                    receiptType: clubProfile.receiptType,
+                    receiptLogoThermal: finalThermalLogoUrl,
+                    receiptA4Design: finalA4DesignUrl,
+                    screensaverEnabled: clubProfile.screensaverEnabled,
+                    screensaverTimeout: clubProfile.screensaverTimeout,
+                }),
+            });
 
             await refreshClubSettings();
             toast({ title: t("common.success"), description: t("settings.profileSaveSuccess") });
@@ -252,30 +231,26 @@ export default function SystemSettings() {
         setLoading(true);
         try {
             if (credForm.email !== user.email) {
-                await updateEmail(user, credForm.email);
-
-                // Sync with Firestore
-                await updateDoc(doc(db, "users", user.uid), {
-                    email: credForm.email
+                await apiJson("/api/auth/email", {
+                    method: "PATCH",
+                    body: JSON.stringify({ email: credForm.email, password: credForm.newPassword || credForm.confirmPassword }),
                 });
-
-                // Update managerEmail reference in settings
-                await updateDoc(doc(db, "settings", "general"), {
-                    managerEmail: credForm.email
-                });
-
+                await apiJson("/api/settings", { method: "PATCH", body: JSON.stringify({ managerEmail: credForm.email }) });
                 toast({ title: t("common.success"), description: t("settings.emailUpdateSuccess") });
             }
             if (credForm.newPassword) {
                 if (credForm.newPassword !== credForm.confirmPassword) {
                     throw new Error(t("settings.passwordMismatch"));
                 }
-                await updatePassword(user, credForm.newPassword);
+                await apiJson("/api/auth/password", {
+                    method: "PATCH",
+                    body: JSON.stringify({ currentPassword: credForm.confirmPassword, newPassword: credForm.newPassword }),
+                });
                 setCredForm(prev => ({ ...prev, newPassword: "", confirmPassword: "" }));
                 toast({ title: t("common.success"), description: t("settings.passwordUpdateSuccess") });
             }
-        } catch (error: any) {
-            toast({ variant: "destructive", title: t("common.error"), description: error.message });
+        } catch (error: unknown) {
+            toast({ variant: "destructive", title: t("common.error"), description: (error as Error).message });
         } finally {
             setLoading(false);
         }
@@ -382,66 +357,22 @@ export default function SystemSettings() {
     const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
-
         if (!confirm(t("settings.importConfirm"))) {
-            event.target.value = ""; // Reset input
+            event.target.value = "";
             return;
         }
-
         setLoading(true);
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-            try {
-                const json = JSON.parse(e.target?.result as string);
-                if (!json.data) throw new Error("Invalid backup format");
-
-                const batch = writeBatch(db);
-                let operationCount = 0;
-                const BATCH_LIMIT = 450; // Firestore limit is 500
-
-                const commitBatch = async () => {
-                    if (operationCount > 0) {
-                        await batch.commit();
-                        operationCount = 0;
-                        // We can't reuse batch after commit in recent SDKs easily without creating new one, 
-                        // but actually writeBatch returns a new batch object. 
-                        // However, strictly loop logic: we should create new batch if we were splitting.
-                        // Ideally we commit and create new.
-                    }
-                };
-
-                // Since writeBatch instance is single, we can't 'reset' it. 
-                // We need to loop and process in chunks or strictly careful.
-                // Simple approach: Iterate data, build batches.
-
-                // Refactor to function to handle batching properly is complex in one go.
-                // Let's do a simple approach: Process collection by collection, creating batches as needed.
-
-                for (const [colName, docs] of Object.entries(json.data)) {
-                    if (Array.isArray(docs)) {
-                        for (const docData of docs) {
-                            // @ts-ignore
-                            const { id, ...data } = docData;
-                            if (id) {
-                                await setDoc(doc(db, colName, id), data, { merge: true });
-                                // Direct setDoc allows individual writes. Slower but safer for large datasets without complex batching logic here.
-                                // Or use small batches if performance is key.
-                            }
-                        }
-                    }
-                }
-
-                toast({ title: t("common.success"), description: t("settings.importSuccess") });
-                window.location.reload();
-            } catch (error) {
-                console.error(error);
-                toast({ variant: "destructive", title: t("common.error"), description: t("settings.importError") });
-            } finally {
-                setLoading(false);
-                event.target.value = "";
-            }
-        };
-        reader.readAsText(file);
+        try {
+            await importFullDatabase(file, null, (status) => setProgressStatus(status));
+            toast({ title: t("common.success"), description: t("settings.importSuccess") });
+            window.location.reload();
+        } catch (error) {
+            console.error(error);
+            toast({ variant: "destructive", title: t("common.error"), description: t("settings.importError") });
+        } finally {
+            setLoading(false);
+            event.target.value = "";
+        }
     };
 
     const handleClearDatabase = async () => {

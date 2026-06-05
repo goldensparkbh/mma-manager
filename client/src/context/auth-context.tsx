@@ -1,16 +1,24 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { onAuthStateChanged, signOut, type User } from "firebase/auth";
-import { doc, getDoc, setDoc, getDocs, collection, query, where, deleteDoc, limit } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
+import { apiJson, setToken, clearToken, getToken } from "@/lib/api";
 import { normalizeWhatsAppTemplates, type WhatsAppTemplate } from "@/lib/whatsapp";
-import type { UserRole } from "@shared/schema";
+import type { User, Tenant, TenantSubscription } from "@shared/schema";
+
+type AuthUser = {
+  id: string;
+  email: string;
+  displayName?: string | null;
+  role: string;
+  tenantId?: string | null;
+  isPlatformAdmin?: boolean;
+};
 
 type AuthContextValue = {
-  user: User | null;
+  user: AuthUser | null;
+  tenant: Tenant | null;
+  subscription: TenantSubscription | null;
   role: string | null;
   permissions: string[];
   loading: boolean;
-  setupRequired: boolean; // Add this
   clubSettings: {
     name: string;
     logoUrl: string;
@@ -21,259 +29,192 @@ type AuthContextValue = {
     whatsappTemplates?: WhatsAppTemplate[];
     phone: string;
     location: string;
-    receiptType?: 'thermal' | 'a4';
+    receiptType?: "thermal" | "a4";
     receiptLogoThermal?: string;
     receiptA4Design?: string;
     screensaverEnabled?: boolean;
     screensaverTimeout?: number;
-    socials: {
-      facebook: string;
-      instagram: string;
-      twitter: string;
-    };
+    socials: { facebook: string; instagram: string; twitter: string };
   } | null;
-  signOutUser: () => Promise<void>;
+  signOutUser: () => void;
   hasPermission: (permission: string) => boolean;
   refreshClubSettings: () => Promise<void>;
-  refreshSetupStatus: () => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
+  register: (data: {
+    clubName: string;
+    email: string;
+    password: string;
+    adminName: string;
+    phone?: string;
+    planSlug?: string;
+  }) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-async function fetchUserRole(userId: string): Promise<string | null> {
-  try {
-    const docRef = doc(db, "users", userId);
-    const snapshot = await getDoc(docRef);
-    if (!snapshot.exists()) return null;
-    const data = snapshot.data();
-    return data.role ?? null;
-  } catch (error) {
-    console.error("Error fetching user role:", error);
-    return null;
-  }
-}
-
-async function fetchRolePermissions(roleId: string): Promise<string[]> {
-  if (roleId === 'admin') return ['*'];
-  try {
-    const docRef = doc(db, "roles", roleId);
-    const snapshot = await getDoc(docRef);
-    if (!snapshot.exists()) return [];
-    return snapshot.data().permissions || [];
-  } catch (error) {
-    console.error("Error fetching role settings:", error);
-    return [];
-  }
+function mapClubSettings(data: Record<string, unknown>) {
+  const templates = normalizeWhatsAppTemplates(
+    data.whatsappTemplates as WhatsAppTemplate[] | undefined,
+    data.whatsappTemplate as string | undefined,
+  );
+  const socials = (data.socials as Record<string, string>) || {};
+  return {
+    name: (data.name as string) || "Club Manager",
+    logoUrl: (data.logoUrlDark as string) || (data.logoUrlLight as string) || "/logo_dark_icon.svg",
+    logoUrlLight: (data.logoUrlLight as string) || "",
+    logoUrlDark: (data.logoUrlDark as string) || "",
+    managerEmail: (data.managerEmail as string) || "",
+    whatsappTemplate: (data.whatsappTemplate as string) || "",
+    whatsappTemplates: templates,
+    phone: (data.phone as string) || "",
+    location: (data.location as string) || "",
+    receiptType: (data.receiptType as "thermal" | "a4") || "thermal",
+    receiptLogoThermal: (data.receiptLogoThermal as string) || "",
+    receiptA4Design: (data.receiptA4Design as string) || "",
+    screensaverEnabled: (data.screensaverEnabled as boolean) ?? false,
+    screensaverTimeout: (data.screensaverTimeout as number) ?? 60,
+    socials: {
+      facebook: socials.facebook || "",
+      instagram: socials.instagram || "",
+      twitter: socials.twitter || "",
+    },
+  };
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [tenant, setTenant] = useState<Tenant | null>(null);
+  const [subscription, setSubscription] = useState<TenantSubscription | null>(null);
   const [role, setRole] = useState<string | null>(null);
   const [permissions, setPermissions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [setupRequired, setSetupRequired] = useState(false);
-  const [clubSettings, setClubSettings] = useState<AuthContextValue['clubSettings']>(null);
+  const [clubSettings, setClubSettings] = useState<AuthContextValue["clubSettings"]>(null);
 
-  const fetchClubSettings = async () => {
+  const fetchClubSettings = useCallback(async () => {
     try {
-      const docRef = doc(db, "settings", "general");
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        const data = snap.data();
-        const templates = normalizeWhatsAppTemplates(
-          data.whatsappTemplates,
-          data.whatsappTemplate,
-        );
-        setClubSettings({
-          name: data.name || "Club Manager",
-          logoUrl: data.logoUrl || "/logo_dark_icon.svg",
-          logoUrlLight: data.logoUrlLight || "",
-          logoUrlDark: data.logoUrlDark || "",
-          managerEmail: data.managerEmail || "",
-          whatsappTemplate: data.whatsappTemplate || "",
-          whatsappTemplates: templates,
-          phone: data.phone || "",
-          location: data.location || "",
-          receiptType: data.receiptType || 'thermal',
-          receiptLogoThermal: data.receiptLogoThermal || "",
-          receiptA4Design: data.receiptA4Design || "",
-          screensaverEnabled: data.screensaverEnabled ?? false,
-          screensaverTimeout: data.screensaverTimeout ?? 60,
-          socials: {
-            facebook: data.socials?.facebook || "",
-            instagram: data.socials?.instagram || "",
-            twitter: data.socials?.twitter || "",
-          }
-        });
-      } else {
-        setClubSettings({
-          name: "Club Manager",
-          logoUrl: "/logo_dark_icon.svg",
-          managerEmail: "",
-          whatsappTemplate: "", // Add this
-          whatsappTemplates: [],
-          phone: "",
-          location: "",
-          socials: { facebook: "", instagram: "", twitter: "" }
-        });
+      const data = await apiJson<Record<string, unknown>>("/api/settings");
+      if (data && Object.keys(data).length > 0) {
+        setClubSettings(mapClubSettings(data));
       }
-    } catch (error) {
-      console.error("Error fetching club settings:", error);
+    } catch {
+      try {
+        const pub = await apiJson<Record<string, unknown>>("/api/settings/public");
+        if (pub) setClubSettings(mapClubSettings(pub));
+      } catch {
+        // no settings yet
+      }
     }
-  };
-
-  const checkSetupStatus = async () => {
-    try {
-      const q = query(collection(db, "users"), where("role", "==", "admin"), limit(1));
-      const snap = await getDocs(q);
-      setSetupRequired(snap.empty);
-    } catch (error) {
-      console.error("Error checking setup status:", error);
-      // Fallback to localStorage if Firestore check fails (e.g. permission denied)
-      setSetupRequired(localStorage.getItem("system_setup_complete") !== "true");
-    }
-  };
-
-  useEffect(() => {
-    const init = async () => {
-      await Promise.all([
-        fetchClubSettings(),
-        checkSetupStatus()
-      ]);
-
-      const unsubscribe = onAuthStateChanged(auth, async (authUser) => {
-        setUser(authUser);
-        if (!authUser) {
-          setRole(null);
-          setPermissions([]);
-          setLoading(false);
-          return;
-        }
-
-        try {
-          let userRole = await fetchUserRole(authUser.uid);
-          let userDisplayName = authUser.displayName;
-
-          if (!userRole && authUser.email) {
-            const q = query(collection(db, "user_invites"), where("email", "==", authUser.email));
-            const inviteSnap = await getDocs(q);
-            if (!inviteSnap.empty) {
-              const inviteDoc = inviteSnap.docs[0];
-              const inviteData = inviteDoc.data();
-              userRole = inviteData.role;
-              userDisplayName = inviteData.name;
-              await deleteDoc(doc(db, "user_invites", inviteDoc.id));
-            }
-          }
-
-          if (!userRole) {
-            const localAdminEmail =
-              typeof window !== "undefined"
-                ? localStorage.getItem("system_setup_admin_email")
-                : null;
-            if (localAdminEmail && authUser.email && localAdminEmail === authUser.email) {
-              userRole = "admin";
-              if (!userDisplayName) userDisplayName = "Admin";
-              if (typeof window !== "undefined") {
-                localStorage.removeItem("system_setup_admin_email");
-              }
-            }
-          }
-
-          if (!userRole) {
-            const managerEmail = await (async () => {
-              try {
-                const settingsSnap = await getDoc(doc(db, "settings", "general"));
-                if (!settingsSnap.exists()) return null;
-                return settingsSnap.data().managerEmail || null;
-              } catch {
-                return null;
-              }
-            })();
-
-            if (managerEmail && authUser.email && managerEmail === authUser.email) {
-              userRole = "admin";
-              if (!userDisplayName) userDisplayName = "Admin";
-            } else {
-              try {
-                const adminSnap = await getDocs(
-                  query(collection(db, "users"), where("role", "==", "admin"), limit(1))
-                );
-                if (adminSnap.empty) {
-                  userRole = "admin";
-                  if (!userDisplayName) userDisplayName = "Admin";
-                }
-              } catch {
-                // Ignore bootstrap role errors
-              }
-            }
-          }
-
-          await setDoc(doc(db, "users", authUser.uid), {
-            email: authUser.email,
-            displayName: userDisplayName || authUser.displayName,
-            photoURL: authUser.photoURL,
-            lastLogin: new Date().toISOString(),
-            role: userRole || "staff"
-          }, { merge: true });
-
-          userRole = userRole || "staff";
-          setRole(userRole);
-          const perms = await fetchRolePermissions(userRole);
-          setPermissions(perms);
-
-        } catch (error) {
-          console.error("Auth error:", error);
-          setRole("staff");
-          setPermissions([]);
-        }
-        setLoading(false);
-      });
-
-      return unsubscribe;
-    };
-
-    const unsubscribePromise = init();
-
-    return () => {
-      unsubscribePromise.then(unsubscribe => unsubscribe && unsubscribe());
-    };
   }, []);
 
-  const signOutUser = async () => {
-    await signOut(auth);
+  const hydrateSession = useCallback(async () => {
+    const token = getToken();
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+    try {
+      const data = await apiJson<{
+        user: AuthUser;
+        tenant?: Tenant;
+        subscription?: TenantSubscription;
+        permissions?: string[];
+      }>("/api/auth/me");
+      setUser(data.user);
+      setTenant(data.tenant || null);
+      setSubscription(data.subscription || null);
+      setRole(data.user.role);
+      setPermissions(data.permissions || (data.user.role === "admin" ? ["*"] : []));
+      if (!data.user.isPlatformAdmin) await fetchClubSettings();
+    } catch {
+      clearToken();
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchClubSettings]);
+
+  useEffect(() => {
+    hydrateSession();
+  }, [hydrateSession]);
+
+  const login = async (email: string, password: string) => {
+    const data = await apiJson<{
+      token: string;
+      user: AuthUser;
+      tenant?: Tenant;
+    }>("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
+    setToken(data.token);
+    setUser(data.user);
+    setTenant(data.tenant || null);
+    setRole(data.user.role);
+    if (!data.user.isPlatformAdmin) {
+      const me = await apiJson<{ permissions?: string[]; subscription?: TenantSubscription }>("/api/auth/me");
+      setPermissions(me.permissions || (data.user.role === "admin" ? ["*"] : []));
+      setSubscription(me.subscription || null);
+      await fetchClubSettings();
+    } else {
+      setPermissions(["*"]);
+    }
+  };
+
+  const register = async (params: {
+    clubName: string;
+    email: string;
+    password: string;
+    adminName: string;
+    phone?: string;
+    planSlug?: string;
+  }) => {
+    const data = await apiJson<{
+      token: string;
+      user: AuthUser;
+      tenant: Tenant;
+    }>("/api/auth/register", { method: "POST", body: JSON.stringify(params) });
+    setToken(data.token);
+    setUser(data.user);
+    setTenant(data.tenant);
+    setRole("admin");
+    setPermissions(["*"]);
+    await fetchClubSettings();
+  };
+
+  const signOutUser = () => {
+    clearToken();
+    setUser(null);
+    setTenant(null);
+    setSubscription(null);
+    setRole(null);
+    setPermissions([]);
+    setClubSettings(null);
   };
 
   const hasPermission = (permission: string) => {
     if (!role) return false;
-    if (permissions.includes('*')) return true;
+    if (permissions.includes("*")) return true;
     if (permissions.includes(permission)) return true;
-
-    // Backward compatibility for granular permissions
-    // If checking for module.add, module.edit, or module.delete, 
-    // also return true if user has the legacy module.modify permission.
-    if (permission.endsWith('.add') || permission.endsWith('.edit') || permission.endsWith('.delete')) {
-      const base = permission.split('.')[0];
+    if (permission.endsWith(".add") || permission.endsWith(".edit") || permission.endsWith(".delete")) {
+      const base = permission.split(".")[0];
       if (permissions.includes(`${base}.modify`)) return true;
     }
-
     return false;
   };
 
   const value = useMemo(
     () => ({
       user,
+      tenant,
+      subscription,
       role,
       permissions,
       loading,
-      setupRequired,
       clubSettings,
       signOutUser,
       hasPermission,
       refreshClubSettings: fetchClubSettings,
-      refreshSetupStatus: checkSetupStatus,
+      login,
+      register,
     }),
-    [user, role, permissions, loading, setupRequired, clubSettings]
+    [user, tenant, subscription, role, permissions, loading, clubSettings, fetchClubSettings],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -281,8 +222,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within AuthProvider");
-  }
+  if (!context) throw new Error("useAuth must be used within AuthProvider");
   return context;
 }

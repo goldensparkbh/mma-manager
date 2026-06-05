@@ -13,7 +13,7 @@ import { queryClient } from "@/lib/queryClient";
 import { useLanguage } from "@/context/language-context";
 import { useToast } from "@/hooks/use-toast";
 import { Product, InsertSale, Member } from "@shared/schema";
-import { createSale } from "@/lib/firebaseData";
+import { createSale } from "@/lib/apiData";
 import { Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, Package, X, Loader2, Printer, CheckCircle2 } from "lucide-react";
 import { printReceipt } from "@/lib/receipt-printer";
 import { useAuth } from "@/context/auth-context";

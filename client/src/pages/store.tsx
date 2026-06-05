@@ -29,8 +29,7 @@ import type { Product, InsertProduct, CartItem, InsertSale } from "@shared/schem
 import { useAuth } from "@/context/auth-context";
 import { useLanguage } from "@/context/language-context";
 import { PERMISSIONS } from "@/lib/permissions";
-import { db } from "@/lib/firebase";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { apiJson } from "@/lib/api";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const defaultProductForm: Partial<InsertProduct> = {
@@ -90,8 +89,8 @@ export default function Store() {
   useEffect(() => {
     const loadCategories = async () => {
       try {
-        const snap = await getDoc(doc(db, "settings", "general"));
-        const stored = snap.exists() ? snap.data().productCategories : null;
+        const settings = await apiJson<{ productCategories?: string[] }>("/api/settings");
+        const stored = settings?.productCategories;
         if (Array.isArray(stored) && stored.length > 0) {
           setCategories(stored);
           return;
@@ -135,7 +134,7 @@ export default function Store() {
   const saveCategories = async (nextCategories: string[]) => {
     setIsSavingCategories(true);
     try {
-      await setDoc(doc(db, "settings", "general"), { productCategories: nextCategories }, { merge: true });
+      await apiJson("/api/settings", { method: "PATCH", body: JSON.stringify({ productCategories: nextCategories }) });
       setCategories(nextCategories);
       toast({ title: t('common.success'), description: t('common.save') });
     } catch {

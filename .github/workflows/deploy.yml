@@ -1,35 +1,28 @@
-name: Deploy to Firebase Hosting on Release
+name: Deploy to DigitalOcean
+
 on:
+  push:
+    branches: [main]
   release:
     types: [published]
-  workflow_dispatch: # Allows manual triggering from the UI
+
 jobs:
-  build_and_deploy:
+  deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
+          cache: npm
 
-      - name: Install dependencies
-        run: npm ci
+      - run: npm ci
+      - run: npm run build
+      - run: npm run check
 
-      - name: Build project
-        run: npm run build
-        env:
-          # If your build requires environment variables, add them here
-          # You should also add these to your GitHub Repo Secrets
-          NODE_ENV: production
-
-      - name: Deploy to Firebase Hosting
-        uses: FirebaseExtended/action-hosting-deploy@v0
+      - name: Deploy to DigitalOcean App Platform
+        uses: digitalocean/app_action@v2
         with:
-          repoToken: '${{ secrets.GITHUB_TOKEN }}'
-          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_CLUBMANAGER_0 }}'
-          projectId: kumitecombat
-          channelId: live
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+          app_name: mma-manager

@@ -4,6 +4,7 @@ import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
 const port = process.env.PORT ? Number(process.env.PORT) : 5173;
+const apiPort = process.env.API_PORT ? Number(process.env.API_PORT) : 3000;
 
 export default defineConfig({
   plugins: [
@@ -37,6 +38,10 @@ export default defineConfig({
   server: {
     port,
     strictPort: true,
+    proxy: {
+      "/api": { target: `http://localhost:${apiPort}`, changeOrigin: true },
+      "/uploads": { target: `http://localhost:${apiPort}`, changeOrigin: true },
+    },
     fs: {
       strict: true,
       deny: ["**/.*"],

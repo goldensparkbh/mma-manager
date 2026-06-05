@@ -5,8 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { LogOut, Unlock, Loader2, KeyRound } from "lucide-react";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { apiJson } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
 export function ScreenSaver() {
@@ -56,7 +55,7 @@ export function ScreenSaver() {
 
         setIsUnlocking(true);
         try {
-            await signInWithEmailAndPassword(auth, user.email, password);
+            await apiJson("/api/auth/verify-password", { method: "POST", body: JSON.stringify({ password }) });
             setIsLocked(false);
             localStorage.removeItem("system_locked");
             setPassword("");

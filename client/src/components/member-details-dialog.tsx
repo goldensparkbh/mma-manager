@@ -21,7 +21,7 @@ import { printReceipt } from "@/lib/receipt-printer";
 import { ReceiptTypeDialog } from "./receipt-type-dialog";
 import { useAuth } from "@/context/auth-context";
 import { PERMISSIONS } from "@/lib/permissions";
-import { updateMemberDocuments, deleteMemberDocument, assignBeltToMember, getSubscriptionPackages, createSubscription, getSubscriptionsByMember, getMemberBelts, revokeMemberBelt, getSalesByMember, payReceipt, deleteReceipt, deleteSale, createAttendance, deleteAttendance, deleteSubscription, getAttendanceByMember, syncMemberSubscriptionStatus } from "@/lib/firebaseData";
+import { updateMemberDocuments, deleteMemberDocument, assignBeltToMember, getSubscriptionPackages, createSubscription, getSubscriptionsByMember, getMemberBelts, revokeMemberBelt, getSalesByMember, payReceipt, deleteReceipt, deleteSale, createAttendance, deleteAttendance, deleteSubscription, getAttendanceByMember, syncMemberSubscriptionStatus, createSale } from "@/lib/apiData";
 import { POSDialog } from "./pos-dialog";
 import { WhatsAppTemplateDialog } from "@/components/whatsapp-template-dialog";
 import { FileText, Trash2, Upload, AlertCircle, CheckCircle2, Pencil, Plus, History, ShoppingCart, Loader2, Package, Calendar, X, Printer, Download } from "lucide-react";

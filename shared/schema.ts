@@ -1,12 +1,69 @@
-export type UserRole = "admin" | "staff";
+export type UserRole = "admin" | "staff" | "platform_admin";
 
 export interface User {
   id: string;
   email: string;
   displayName?: string | null;
   photoURL?: string | null;
-  role: UserRole;
+  role: UserRole | string;
+  tenantId?: string | null;
+  isPlatformAdmin?: boolean;
   createdAt?: string;
+}
+
+export interface Tenant {
+  id: string;
+  name: string;
+  slug: string;
+  email: string;
+  phone?: string | null;
+  status: "active" | "suspended" | "trial" | "cancelled";
+  planId?: string | null;
+  planName?: string | null;
+  trialEndsAt?: string | null;
+  memberCount?: number;
+  userCount?: number;
+  subscriptionStatus?: string | null;
+  currentPeriodEnd?: string | null;
+  billingCycle?: string | null;
+  createdAt?: string;
+}
+
+export interface PlatformSubscriptionPlan {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  priceMonthly: number;
+  priceYearly: number;
+  maxMembers: number;
+  maxUsers: number;
+  features: string[];
+  isActive: boolean;
+  sortOrder?: number;
+}
+
+export interface TenantSubscription {
+  id: string;
+  tenantId: string;
+  planId: string;
+  planName?: string;
+  status: "active" | "past_due" | "cancelled" | "trialing";
+  billingCycle: "monthly" | "yearly";
+  currentPeriodStart?: string;
+  currentPeriodEnd?: string;
+  priceMonthly?: number;
+  priceYearly?: number;
+  maxMembers?: number;
+  maxUsers?: number;
+  features?: string[];
+}
+
+export interface Role {
+  id: string;
+  name: string;
+  permissions?: string[];
+  isSystem?: boolean;
 }
 
 export interface Member {

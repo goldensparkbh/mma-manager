@@ -23,7 +23,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { User } from "@shared/schema";
 import { useAuth } from "@/context/auth-context";
 import { useLanguage } from "@/context/language-context";
-import { Role } from "@/lib/firebaseData";
+import type { Role } from "@shared/schema";
 import { PERMISSION_GROUPS, PERMISSIONS } from "@/lib/permissions";
 
 export default function Users() {

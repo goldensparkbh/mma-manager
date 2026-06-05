@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { ShieldAlert, Loader2 } from "lucide-react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
@@ -21,13 +21,13 @@ import Finance from "@/pages/finance";
 import Expenses from "@/pages/expenses";
 import Logs from "@/pages/logs";
 import Login from "@/pages/login";
+import Register from "@/pages/register";
 import Belts from "@/pages/belts";
 import Users from "@/pages/users";
 import SystemSettings from "@/pages/system-settings";
-import SetupWizard from "@/pages/setup-wizard";
+import Billing from "@/pages/billing";
+import PlatformAdmin from "@/pages/platform-admin";
 import { ScreenSaver } from "@/components/screen-saver";
-
-import { useLocation } from "wouter";
 import { useEffect } from "react";
 import { PERMISSIONS } from "@/lib/permissions";
 
@@ -42,17 +42,9 @@ function AccessDenied() {
   );
 }
 
-function RequirePermission({
-  permission,
-  children,
-}: {
-  permission: string;
-  children: React.ReactNode;
-}) {
+function RequirePermission({ permission, children }: { permission: string; children: React.ReactNode }) {
   const { hasPermission } = useAuth();
-  if (!hasPermission(permission)) {
-    return <AccessDenied />;
-  }
+  if (!hasPermission(permission)) return <AccessDenied />;
   return <>{children}</>;
 }
 
@@ -60,87 +52,55 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
-
       <Route path="/members">
-        <RequirePermission permission={PERMISSIONS.MEMBERS_VIEW}>
-          <Members />
-        </RequirePermission>
+        <RequirePermission permission={PERMISSIONS.MEMBERS_VIEW}><Members /></RequirePermission>
       </Route>
-
       <Route path="/attendance">
-        <RequirePermission permission={PERMISSIONS.ATTENDANCE_VIEW}>
-          <AttendancePage />
-        </RequirePermission>
+        <RequirePermission permission={PERMISSIONS.ATTENDANCE_VIEW}><AttendancePage /></RequirePermission>
       </Route>
-
       <Route path="/subscriptions">
-        <RequirePermission permission={PERMISSIONS.SUBSCRIPTIONS_VIEW}>
-          <Subscriptions />
-        </RequirePermission>
+        <RequirePermission permission={PERMISSIONS.SUBSCRIPTIONS_VIEW}><Subscriptions /></RequirePermission>
       </Route>
-
       <Route path="/store">
-        <RequirePermission permission={PERMISSIONS.STORE_VIEW}>
-          <Store />
-        </RequirePermission>
+        <RequirePermission permission={PERMISSIONS.STORE_VIEW}><Store /></RequirePermission>
       </Route>
-
       <Route path="/sales">
-        <RequirePermission permission={PERMISSIONS.SALES_VIEW}>
-          <Sales />
-        </RequirePermission>
+        <RequirePermission permission={PERMISSIONS.SALES_VIEW}><Sales /></RequirePermission>
       </Route>
-
       <Route path="/belts">
-        <RequirePermission permission={PERMISSIONS.MEMBERS_VIEW}>
-          <Belts />
-        </RequirePermission>
+        <RequirePermission permission={PERMISSIONS.MEMBERS_VIEW}><Belts /></RequirePermission>
       </Route>
-
       <Route path="/finance">
-        <RequirePermission permission={PERMISSIONS.FINANCE_VIEW}>
-          <Finance />
-        </RequirePermission>
+        <RequirePermission permission={PERMISSIONS.FINANCE_VIEW}><Finance /></RequirePermission>
       </Route>
-
       <Route path="/expenses">
-        <RequirePermission permission={PERMISSIONS.FINANCE_VIEW}>
-          <Expenses />
-        </RequirePermission>
+        <RequirePermission permission={PERMISSIONS.FINANCE_VIEW}><Expenses /></RequirePermission>
       </Route>
-
       <Route path="/users">
-        <RequirePermission permission={PERMISSIONS.USERS_VIEW}>
-          <Users />
-        </RequirePermission>
+        <RequirePermission permission={PERMISSIONS.USERS_VIEW}><Users /></RequirePermission>
       </Route>
-
       <Route path="/logs">
-        <RequirePermission permission={PERMISSIONS.LOGS_VIEW}>
-          <Logs />
-        </RequirePermission>
+        <RequirePermission permission={PERMISSIONS.LOGS_VIEW}><Logs /></RequirePermission>
       </Route>
-
       <Route path="/system-settings">
-        <RequirePermission permission={PERMISSIONS.SETTINGS_VIEW}>
-          <SystemSettings />
-        </RequirePermission>
+        <RequirePermission permission={PERMISSIONS.SETTINGS_VIEW}><SystemSettings /></RequirePermission>
       </Route>
-
+      <Route path="/billing" component={Billing} />
       <Route component={NotFound} />
     </Switch>
   );
 }
 
-function AppShell() {
-  const { user, loading, clubSettings, setupRequired } = useAuth();
-  const { t, language } = useLanguage();
-  const style = {
-    "--sidebar-width": "17rem",
-    "--sidebar-width-icon": "4rem",
-  };
-
+function PublicRoutes() {
   const [location] = useLocation();
+  if (location === "/register") return <Register />;
+  return <Login />;
+}
+
+function AppShell() {
+  const { user, loading, clubSettings, tenant } = useAuth();
+  const { t, language } = useLanguage();
+  const style = { "--sidebar-width": "17rem", "--sidebar-width-icon": "4rem" };
 
   if (loading) {
     return (
@@ -151,18 +111,9 @@ function AppShell() {
     );
   }
 
-  if (setupRequired) {
-    return (
-      <>
-        <SetupWizard />
-        <Toaster />
-      </>
-    );
-  }
+  if (!user) return <PublicRoutes />;
 
-  if (!user) {
-    return <Login />;
-  }
+  if (user.isPlatformAdmin) return <PlatformAdmin />;
 
   return (
     <ThemeProvider defaultTheme="light" storageKey="club-theme">
@@ -179,19 +130,20 @@ function AppShell() {
                     <p className="text-xs text-muted-foreground">{t("common.todayDate")}</p>
                     <p className="text-sm font-medium">
                       {new Intl.DateTimeFormat(language === "ar" ? "ar-BH" : "en-US", {
-                        weekday: "long",
-                        year: "numeric",
-                        month: "long",
-                        day: "numeric",
+                        weekday: "long", year: "numeric", month: "long", day: "numeric",
                       }).format(new Date())}
                     </p>
                   </div>
-                  {/* Mobile Club Name */}
                   <div className="sm:hidden font-bold truncate max-w-[150px]">
-                    {clubSettings?.name || t("common.appName")}
+                    {clubSettings?.name || tenant?.name || t("common.appName")}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  {tenant?.status === "trial" && (
+                    <span className="hidden sm:inline text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+                      Trial
+                    </span>
+                  )}
                   <div className="hidden xs:flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted text-xs font-mono">
                     <span className="text-muted-foreground uppercase opacity-70">{t("common.currency")}</span>
                   </div>
@@ -204,8 +156,8 @@ function AppShell() {
             </div>
           </div>
         </SidebarProvider>
-        <Toaster />
       </TooltipProvider>
+      <Toaster />
     </ThemeProvider>
   );
 }

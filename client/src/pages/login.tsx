@@ -1,19 +1,15 @@
 import { useState } from "react";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { auth } from "@/lib/firebase";
-
-import { useLocation } from "wouter";
-
 import { useAuth } from "@/context/auth-context";
 import { useLanguage } from "@/context/language-context";
 
 export default function Login() {
   const { toast } = useToast();
-  const { clubSettings } = useAuth();
+  const { clubSettings, login } = useAuth();
   const { t } = useLanguage();
   const [, setLocation] = useLocation();
   const [email, setEmail] = useState("");
@@ -22,23 +18,15 @@ export default function Login() {
 
   const handleEmailLogin = async () => {
     if (!email || !password) {
-      toast({
-        title: t("common.error"),
-        description: t("login.errorMissing"),
-        variant: "destructive",
-      });
+      toast({ title: t("common.error"), description: t("login.errorMissing"), variant: "destructive" });
       return;
     }
     try {
       setIsSubmitting(true);
-      await signInWithEmailAndPassword(auth, email, password);
+      await login(email, password);
       setLocation("/");
-    } catch (error) {
-      toast({
-        title: t("common.error"),
-        description: t("login.errorFailed"),
-        variant: "destructive",
-      });
+    } catch {
+      toast({ title: t("common.error"), description: t("login.errorFailed"), variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
@@ -46,13 +34,11 @@ export default function Login() {
 
   return (
     <div className="grid min-h-screen w-full lg:grid-cols-[1.5fr_1fr]">
-      {/* Background/Logo Column */}
       <div className="hidden lg:flex relative flex-col items-center justify-center bg-muted/40 p-12 overflow-hidden">
         <div className="absolute inset-0 z-0 bg-[url('/back.png')] bg-cover bg-center" />
-        <div className="absolute inset-0 z-10 bg-black/60" /> {/* Darker Overlay */}
+        <div className="absolute inset-0 z-10 bg-black/60" />
       </div>
 
-      {/* Login Form Column */}
       <div className="flex flex-col items-center justify-center p-8 bg-background">
         {(clubSettings?.logoUrlLight || clubSettings?.logoUrlDark) ? (
           <img
@@ -86,6 +72,7 @@ export default function Login() {
                 className="h-11"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleEmailLogin()}
                 data-testid="input-login-password"
               />
               <Button
@@ -96,6 +83,12 @@ export default function Login() {
               >
                 {isSubmitting ? t("login.loading") : t("login.button")}
               </Button>
+              <p className="text-center text-sm text-muted-foreground">
+                Don't have an account?{" "}
+                <Link href="/register" className="text-primary hover:underline font-medium">
+                  Register your club
+                </Link>
+              </p>
             </div>
           </CardContent>
         </Card>

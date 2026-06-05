@@ -15,7 +15,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 import type { Belt, InsertBelt } from "@shared/schema";
-import { getBelts, createBelt, updateBelt, deleteBelt as deleteBeltData } from "@/lib/firebaseData";
+import { getBelts, createBelt, updateBelt, deleteBelt as deleteBeltData } from "@/lib/apiData";
 import { useLanguage } from "@/context/language-context";
 import { useAuth } from "@/context/auth-context";
 import { PERMISSIONS } from "@/lib/permissions";

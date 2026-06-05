@@ -268,6 +268,19 @@ export function AppSidebar() {
               )}
               <SidebarMenuItem>
                 <SidebarMenuButton
+                  asChild
+                  isActive={isActive("/billing")}
+                  tooltip="Subscription"
+                  className="text-white hover:text-white hover:bg-white/10 data-[active=true]:bg-white/20 data-[active=true]:text-white"
+                >
+                  <Link href="/billing">
+                    <CreditCard className="w-4 h-4" />
+                    <span className="flex-1 ltr:text-left rtl:text-right">Subscription</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
                   onClick={() => setGuideOpen(true)}
                   tooltip={t("nav.guide")}
                   className="text-white hover:text-white hover:bg-white/10 data-[active=true]:bg-white/20 data-[active=true]:text-white"
