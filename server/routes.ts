@@ -86,9 +86,6 @@ router.post("/api/auth/login", async (req, res) => {
     const valid = await comparePassword(password, row.password_hash);
     if (!valid) return res.status(401).json({ error: "Invalid credentials" });
 
-    const access = await data.checkTenantAccess(row.tenant_id);
-    if (!access.allowed) return res.status(403).json({ error: access.reason });
-
     await query("UPDATE users SET last_login = NOW() WHERE id = $1", [row.id]);
     const user = toCamelCase(row);
     const token = signToken({
@@ -98,10 +95,18 @@ router.post("/api/auth/login", async (req, res) => {
       role: row.role,
       isPlatformAdmin: false,
     });
+    const subscription = await data.getTenantSubscription(row.tenant_id);
     res.json({
       token,
       user: { id: user.id, email: user.email, displayName: user.displayName, role: user.role, tenantId: user.tenantId },
-      tenant: { id: user.tenantId, name: user.tenantName, slug: user.tenantSlug, status: user.tenantStatus },
+      tenant: {
+        id: user.tenantId,
+        name: user.tenantName,
+        slug: user.tenantSlug,
+        status: user.tenantStatus,
+        trialEndsAt: user.trialEndsAt ? String(user.trialEndsAt) : null,
+      },
+      subscription,
     });
   } catch (err) {
     console.error("Login error:", err);
@@ -122,7 +127,8 @@ router.get("/api/auth/me", async (req, res) => {
     return res.json({ user: { ...user, role: "platform_admin", isPlatformAdmin: true } });
   }
   const result = await query(
-    `SELECT u.id, u.email, u.display_name, u.role, u.tenant_id, t.name as tenant_name, t.slug, t.status as tenant_status
+    `SELECT u.id, u.email, u.display_name, u.role, u.tenant_id,
+            t.name as tenant_name, t.slug, t.status as tenant_status, t.trial_ends_at
      FROM users u JOIN tenants t ON u.tenant_id = t.id WHERE u.id = $1`,
     [auth.userId],
   );
@@ -130,7 +136,21 @@ router.get("/api/auth/me", async (req, res) => {
   const user = toCamelCase(result.rows[0]);
   const subscription = await data.getTenantSubscription(auth.tenantId!);
   const permissions = user.role === "admin" ? ["*"] : await getRolePermissions(auth.tenantId!, user.role as string);
-  res.json({ user, tenant: { id: user.tenantId, name: user.tenantName, slug: user.slug, status: user.tenantStatus }, subscription, permissions });
+  const access = await data.checkTenantAccess(auth.tenantId!);
+  res.json({
+    user,
+    tenant: {
+      id: user.tenantId,
+      name: user.tenantName,
+      slug: user.slug,
+      status: user.tenantStatus,
+      trialEndsAt: user.trialEndsAt ? String(user.trialEndsAt) : null,
+    },
+    subscription,
+    permissions,
+    subscriptionActive: access.allowed,
+    subscriptionBlockReason: access.allowed ? null : access.code,
+  });
 });
 
 router.patch("/api/auth/password", requireTenant, async (req, res) => {
@@ -176,14 +196,21 @@ async function getRolePermissions(tenantId: string, roleId: string): Promise<str
   return typeof perms === "string" ? JSON.parse(perms) : perms;
 }
 
-// Tenant access middleware
+// Tenant access middleware — block app APIs when subscription inactive (billing endpoints still work)
+const BILLING_PATHS_WHEN_INACTIVE = ["/tenant/subscription"];
+
 async function tenantAccess(req: Request, res: Response, next: () => void) {
   const auth = getAuth(req);
   if (auth.isPlatformAdmin) return next();
   if (!auth.tenantId) return res.status(403).json({ error: "No tenant" });
   const access = await data.checkTenantAccess(auth.tenantId);
-  if (!access.allowed) return res.status(403).json({ error: access.reason });
-  next();
+  if (access.allowed) return next();
+  if (req.method === "GET" && BILLING_PATHS_WHEN_INACTIVE.includes(req.path)) return next();
+  return res.status(403).json({
+    error: access.reason,
+    code: access.code,
+    subscriptionRequired: true,
+  });
 }
 
 // ─── Platform Admin ──────────────────────────────────────────────────────────

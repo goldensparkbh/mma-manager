@@ -28,6 +28,7 @@ import SystemSettings from "@/pages/system-settings";
 import Billing from "@/pages/billing";
 import PlatformAdmin from "@/pages/platform-admin";
 import { ScreenSaver } from "@/components/screen-saver";
+import { SubscriptionGate } from "@/components/subscription-gate";
 import { useEffect } from "react";
 import { PERMISSIONS } from "@/lib/permissions";
 
@@ -116,6 +117,7 @@ function AppShell() {
   if (user.isPlatformAdmin) return <PlatformAdmin />;
 
   return (
+    <SubscriptionGate>
     <ThemeProvider defaultTheme="light" storageKey="club-theme">
       <ScreenSaver />
       <TooltipProvider>
@@ -159,6 +161,7 @@ function AppShell() {
       </TooltipProvider>
       <Toaster />
     </ThemeProvider>
+    </SubscriptionGate>
   );
 }
 

@@ -23,8 +23,8 @@ export default function Login() {
     }
     try {
       setIsSubmitting(true);
-      await login(email, password);
-      setLocation("/");
+      const { redirectTo } = await login(email, password);
+      setLocation(redirectTo);
     } catch (err) {
       toast({
         title: t("common.error"),

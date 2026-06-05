@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState, useCallback } 
 import { apiJson, setToken, clearToken, getToken } from "@/lib/api";
 import { normalizeWhatsAppTemplates, type WhatsAppTemplate } from "@/lib/whatsapp";
 import type { User, Tenant, TenantSubscription } from "@shared/schema";
+import { getTenantSubscriptionStatus } from "@/lib/tenantSubscription";
 
 type AuthUser = {
   id: string;
@@ -39,7 +40,7 @@ type AuthContextValue = {
   signOutUser: () => void;
   hasPermission: (permission: string) => boolean;
   refreshClubSettings: () => Promise<void>;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<{ redirectTo: string }>;
   register: (data: {
     clubName: string;
     email: string;
@@ -124,7 +125,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSubscription(data.subscription || null);
       setRole(data.user.role);
       setPermissions(data.permissions || (data.user.role === "admin" ? ["*"] : []));
-      if (!data.user.isPlatformAdmin) await fetchClubSettings();
+      if (!data.user.isPlatformAdmin) {
+        const subStatus = getTenantSubscriptionStatus(data.tenant || null);
+        if (subStatus.active) await fetchClubSettings();
+      }
     } catch {
       clearToken();
       setUser(null);
@@ -137,24 +141,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     hydrateSession();
   }, [hydrateSession]);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<{ redirectTo: string }> => {
     const data = await apiJson<{
       token: string;
       user: AuthUser;
       tenant?: Tenant;
+      subscription?: TenantSubscription;
     }>("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
     setToken(data.token);
     setUser(data.user);
     setTenant(data.tenant || null);
     setRole(data.user.role);
-    if (!data.user.isPlatformAdmin) {
-      const me = await apiJson<{ permissions?: string[]; subscription?: TenantSubscription }>("/api/auth/me");
-      setPermissions(me.permissions || (data.user.role === "admin" ? ["*"] : []));
-      setSubscription(me.subscription || null);
-      await fetchClubSettings();
-    } else {
+    if (data.user.isPlatformAdmin) {
       setPermissions(["*"]);
+      return { redirectTo: "/" };
     }
+    setSubscription(data.subscription || null);
+    const me = await apiJson<{ permissions?: string[]; subscription?: TenantSubscription }>("/api/auth/me");
+    setPermissions(me.permissions || (data.user.role === "admin" ? ["*"] : []));
+    if (me.subscription) setSubscription(me.subscription);
+    const subStatus = getTenantSubscriptionStatus(data.tenant || null);
+    if (subStatus.active) await fetchClubSettings();
+    return { redirectTo: subStatus.active ? "/" : "/billing" };
   };
 
   const register = async (params: {

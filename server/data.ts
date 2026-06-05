@@ -817,13 +817,22 @@ export async function getTenantSubscription(tenantId: string) {
   return result.rows[0] ? toCamelCase(result.rows[0]) : null;
 }
 
-export async function checkTenantAccess(tenantId: string): Promise<{ allowed: boolean; reason?: string }> {
+export async function checkTenantAccess(tenantId: string): Promise<{
+  allowed: boolean;
+  reason?: string;
+  code?: "subscription_suspended" | "subscription_cancelled" | "trial_expired";
+}> {
   const tenant = await query("SELECT status, trial_ends_at FROM tenants WHERE id = $1", [tenantId]);
-  if (!tenant.rows[0]) return { allowed: false, reason: "Tenant not found" };
+  if (!tenant.rows[0]) return { allowed: false, reason: "Tenant not found", code: "subscription_suspended" };
   const { status, trial_ends_at } = tenant.rows[0];
-  if (status === "suspended" || status === "cancelled") return { allowed: false, reason: "Subscription suspended" };
+  if (status === "suspended") {
+    return { allowed: false, reason: "Subscription suspended", code: "subscription_suspended" };
+  }
+  if (status === "cancelled") {
+    return { allowed: false, reason: "Subscription cancelled", code: "subscription_cancelled" };
+  }
   if (status === "trial" && trial_ends_at && new Date(trial_ends_at) < new Date()) {
-    return { allowed: false, reason: "Trial expired" };
+    return { allowed: false, reason: "Trial expired", code: "trial_expired" };
   }
   return { allowed: true };
 }

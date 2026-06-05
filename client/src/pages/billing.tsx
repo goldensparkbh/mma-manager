@@ -3,11 +3,16 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
+import { useLanguage } from "@/context/language-context";
 import { apiJson } from "@/lib/api";
+import { getTenantSubscriptionStatus } from "@/lib/tenantSubscription";
 import type { TenantSubscription, PlatformSubscriptionPlan } from "@shared/schema";
 import { CreditCard, Calendar, Users, Shield, AlertTriangle } from "lucide-react";
+
 export default function Billing() {
   const { tenant, subscription } = useAuth();
+  const { t } = useLanguage();
+  const { active, reason } = getTenantSubscriptionStatus(tenant);
 
   const { data: plans = [] } = useQuery<PlatformSubscriptionPlan[]>({
     queryKey: ["/api/plans"],
@@ -17,26 +22,35 @@ export default function Billing() {
   const { data: currentSub } = useQuery<TenantSubscription>({
     queryKey: ["/api/tenant/subscription"],
     queryFn: () => apiJson("/api/tenant/subscription"),
+    enabled: !!tenant,
   });
 
   const sub = currentSub || subscription;
   const isTrial = tenant?.status === "trial";
-  const isExpired = isTrial && tenant?.trialEndsAt && new Date(tenant.trialEndsAt) < new Date();
+
+  const alertKey =
+    reason === "trial_expired"
+      ? "trialExpired"
+      : reason === "subscription_cancelled"
+        ? "cancelled"
+        : reason === "subscription_suspended"
+          ? "suspended"
+          : null;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Subscription & Billing</h1>
-        <p className="text-muted-foreground">Manage your platform subscription</p>
+        <h1 className="text-2xl font-bold">{t("billing.title")}</h1>
+        <p className="text-muted-foreground">{t("billing.subtitle")}</p>
       </div>
 
-      {isExpired && (
+      {!active && alertKey && (
         <Card className="border-destructive">
           <CardContent className="pt-6 flex items-center gap-4 text-destructive">
-            <AlertTriangle className="h-8 w-8" />
+            <AlertTriangle className="h-8 w-8 shrink-0" />
             <div>
-              <p className="font-semibold">Your trial has expired</p>
-              <p className="text-sm">Please upgrade to continue using the platform.</p>
+              <p className="font-semibold">{t(`billing.alerts.${alertKey}`)}</p>
+              <p className="text-sm">{t(`billing.alerts.${alertKey}Desc`)}</p>
             </div>
           </CardContent>
         </Card>
@@ -45,7 +59,7 @@ export default function Billing() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <CreditCard className="h-5 w-5" /> Current Plan
+            <CreditCard className="h-5 w-5" /> {t("billing.currentPlan")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -57,7 +71,10 @@ export default function Billing() {
               </Badge>
             </div>
             {sub?.priceMonthly && (
-              <p className="text-3xl font-bold">${sub.priceMonthly}<span className="text-sm font-normal text-muted-foreground">/mo</span></p>
+              <p className="text-3xl font-bold">
+                ${sub.priceMonthly}
+                <span className="text-sm font-normal text-muted-foreground">/mo</span>
+              </p>
             )}
           </div>
           <div className="grid gap-4 sm:grid-cols-3 text-sm">
@@ -65,26 +82,32 @@ export default function Billing() {
               <Calendar className="h-4 w-4 text-muted-foreground" />
               <span>
                 {isTrial && tenant?.trialEndsAt
-                  ? `Trial ends ${new Date(tenant.trialEndsAt).toLocaleDateString()}`
+                  ? t("billing.trialEnds").replace(
+                      "{date}",
+                      new Date(tenant.trialEndsAt).toLocaleDateString(),
+                    )
                   : sub?.currentPeriodEnd
-                    ? `Renews ${new Date(sub.currentPeriodEnd).toLocaleDateString()}`
+                    ? t("billing.renews").replace(
+                        "{date}",
+                        new Date(sub.currentPeriodEnd).toLocaleDateString(),
+                      )
                     : "—"}
               </span>
             </div>
             <div className="flex items-center gap-2">
               <Users className="h-4 w-4 text-muted-foreground" />
-              <span>Up to {sub?.maxMembers || 100} members</span>
+              <span>{t("billing.membersLimit").replace("{count}", String(sub?.maxMembers || 100))}</span>
             </div>
             <div className="flex items-center gap-2">
               <Shield className="h-4 w-4 text-muted-foreground" />
-              <span>{sub?.maxUsers || 3} staff users</span>
+              <span>{t("billing.staffLimit").replace("{count}", String(sub?.maxUsers || 3))}</span>
             </div>
           </div>
         </CardContent>
       </Card>
 
       <div>
-        <h2 className="text-lg font-semibold mb-4">Available Plans</h2>
+        <h2 className="text-lg font-semibold mb-4">{t("billing.availablePlans")}</h2>
         <div className="grid gap-4 md:grid-cols-3">
           {plans.map((plan) => (
             <Card key={plan.id} className={sub?.planName === plan.name ? "ring-2 ring-primary" : ""}>
@@ -93,21 +116,22 @@ export default function Billing() {
                 <CardDescription>{plan.description}</CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-3xl font-bold mb-4">${plan.priceMonthly}<span className="text-sm font-normal">/mo</span></p>
+                <p className="text-3xl font-bold mb-4">
+                  ${plan.priceMonthly}
+                  <span className="text-sm font-normal">/mo</span>
+                </p>
                 <ul className="text-sm space-y-1 text-muted-foreground mb-4">
-                  <li>{plan.maxMembers} members</li>
-                  <li>{plan.maxUsers} users</li>
+                  <li>{t("billing.membersLimit").replace("{count}", String(plan.maxMembers))}</li>
+                  <li>{t("billing.staffLimit").replace("{count}", String(plan.maxUsers))}</li>
                 </ul>
                 <Button className="w-full" variant={sub?.planName === plan.name ? "secondary" : "default"} disabled>
-                  {sub?.planName === plan.name ? "Current Plan" : "Contact Admin to Upgrade"}
+                  {sub?.planName === plan.name ? t("billing.currentPlanButton") : t("billing.upgradeButton")}
                 </Button>
               </CardContent>
             </Card>
           ))}
         </div>
-        <p className="text-sm text-muted-foreground mt-4 text-center">
-          Payment integration coming soon. Contact platform admin to change your plan.
-        </p>
+        <p className="text-sm text-muted-foreground mt-4 text-center">{t("billing.paymentNote")}</p>
       </div>
     </div>
   );
