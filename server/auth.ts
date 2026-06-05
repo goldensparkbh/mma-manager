@@ -1,13 +1,17 @@
 import jwt from "jsonwebtoken";
-import bcrypt from "bcryptjs";
+import bcryptPkg from "bcryptjs";
+
+const bcrypt = (bcryptPkg as typeof bcryptPkg & { default?: typeof bcryptPkg }).default ?? bcryptPkg;
 import type { Request, Response, NextFunction } from "express";
 import type { AuthPayload } from "./utils.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-in-production";
-const JWT_EXPIRES = process.env.JWT_EXPIRES || "7d";
+const JWT_EXPIRES = /^(\d+[smhdw]|[1-9]\d*\s*(ms|seconds?|minutes?|hours?|days?|weeks?))$/i.test(process.env.JWT_EXPIRES || "")
+  ? process.env.JWT_EXPIRES!
+  : "7d";
 
 export function signToken(payload: AuthPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES });
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES as jwt.SignOptions["expiresIn"] });
 }
 
 export function verifyToken(token: string): AuthPayload | null {

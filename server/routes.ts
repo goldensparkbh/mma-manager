@@ -35,7 +35,7 @@ router.post("/api/auth/register", async (req, res) => {
     }
     if (password.length < 6) return res.status(400).json({ error: "Password must be at least 6 characters" });
 
-    const existing = await query("SELECT id FROM users u JOIN tenants t ON u.tenant_id = t.id WHERE u.email = $1", [email]);
+    const existing = await query("SELECT u.id FROM users u WHERE u.email = $1", [email]);
     if (existing.rows.length > 0) return res.status(409).json({ error: "Email already registered" });
 
     const { tenant, user } = await data.provisionTenant({ clubName, email, password, adminName, phone, planSlug });
