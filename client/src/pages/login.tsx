@@ -25,8 +25,12 @@ export default function Login() {
       setIsSubmitting(true);
       await login(email, password);
       setLocation("/");
-    } catch {
-      toast({ title: t("common.error"), description: t("login.errorFailed"), variant: "destructive" });
+    } catch (err) {
+      toast({
+        title: t("common.error"),
+        description: (err as Error).message || t("login.errorFailed"),
+        variant: "destructive",
+      });
     } finally {
       setIsSubmitting(false);
     }

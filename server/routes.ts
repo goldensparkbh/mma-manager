@@ -58,21 +58,20 @@ router.post("/api/auth/login", async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: "Email and password required" });
 
-    // Platform admin login
+    // Platform admin login (checked before tenant users)
     const adminResult = await query("SELECT * FROM platform_admins WHERE email = $1", [email]);
     if (adminResult.rows[0]) {
       const valid = await comparePassword(password, adminResult.rows[0].password_hash);
-      if (valid) {
-        const admin = toCamelCase(adminResult.rows[0]);
-        const token = signToken({
-          userId: admin.id as string,
-          tenantId: null,
-          email: admin.email as string,
-          role: "platform_admin",
-          isPlatformAdmin: true,
-        });
-        return res.json({ token, user: { id: admin.id, email: admin.email, displayName: admin.displayName, role: "platform_admin", isPlatformAdmin: true } });
-      }
+      if (!valid) return res.status(401).json({ error: "Invalid credentials" });
+      const admin = toCamelCase(adminResult.rows[0]);
+      const token = signToken({
+        userId: admin.id as string,
+        tenantId: null,
+        email: admin.email as string,
+        role: "platform_admin",
+        isPlatformAdmin: true,
+      });
+      return res.json({ token, user: { id: admin.id, email: admin.email, displayName: admin.displayName, role: "platform_admin", isPlatformAdmin: true } });
     }
 
     // Tenant user login
