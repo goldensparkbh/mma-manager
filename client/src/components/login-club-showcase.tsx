@@ -2,12 +2,14 @@ import { getAllClubTypeImages } from "@/lib/clubTypeImages";
 
 const CLUB_IMAGES = getAllClubTypeImages();
 const COLS = 5;
+const COL_REPEAT = 3;
 const ROWS_PER_BLOCK = 8;
+const TOTAL_COLS = COLS * COL_REPEAT;
 
 function buildTileRows(rowCount: number) {
   return Array.from({ length: rowCount }, (_, row) =>
-    Array.from({ length: COLS }, (_, col) => {
-      const img = CLUB_IMAGES[(row * COLS + col) % CLUB_IMAGES.length];
+    Array.from({ length: TOTAL_COLS }, (_, col) => {
+      const img = CLUB_IMAGES[(row * COLS + (col % COLS)) % CLUB_IMAGES.length];
       return { key: `r${row}-c${col}`, ...img };
     }),
   );
@@ -19,7 +21,11 @@ function TileWall({ suffix }: { suffix: string }) {
   return (
     <div className="flex flex-col">
       {rows.map((row, rowIdx) => (
-        <div key={`${suffix}-row-${rowIdx}`} className="grid grid-cols-5">
+        <div
+          key={`${suffix}-row-${rowIdx}`}
+          className="grid"
+          style={{ gridTemplateColumns: `repeat(${TOTAL_COLS}, minmax(0, 1fr))` }}
+        >
           {row.map((tile) => (
             <div key={`${suffix}-${tile.key}-${tile.id}`} className="login-club-tile aspect-square overflow-hidden">
               <img
