@@ -38,7 +38,7 @@ function TileWall({ suffix }: { suffix: string }) {
 
 function ScrollHalf({ id }: { id: string }) {
   return (
-    <div className="flex flex-col">
+    <div className="login-club-scroll-panel overflow-hidden">
       <TileWall suffix={`${id}-1`} />
       <TileWall suffix={`${id}-2`} />
       <TileWall suffix={`${id}-3`} />
@@ -53,11 +53,13 @@ export function LoginClubShowcase() {
       className="relative h-full w-full overflow-hidden bg-slate-950"
       aria-hidden
     >
-      <div className="login-club-parallax-scene absolute inset-0">
+      <div className="login-club-parallax-scene absolute inset-0 overflow-hidden">
         <div className="login-club-parallax-plane">
           <div className="login-club-scroll-track">
             <ScrollHalf id="a" />
             <ScrollHalf id="b" />
+            <ScrollHalf id="c" />
+            <ScrollHalf id="d" />
           </div>
         </div>
       </div>
