@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/auth-context";
 import { useLanguage } from "@/context/language-context";
+import { LoginClubShowcase } from "@/components/login-club-showcase";
 
 export default function Login() {
   const { toast } = useToast();
@@ -38,9 +39,8 @@ export default function Login() {
 
   return (
     <div className="grid min-h-screen w-full lg:grid-cols-[1.5fr_1fr]">
-      <div className="hidden lg:flex relative flex-col items-center justify-center bg-muted/40 p-12 overflow-hidden">
-        <div className="absolute inset-0 z-0 bg-[url('/back.png')] bg-cover bg-center" />
-        <div className="absolute inset-0 z-10 bg-black/60" />
+      <div className="hidden lg:block relative min-h-screen">
+        <LoginClubShowcase />
       </div>
 
       <div className="flex flex-col items-center justify-center p-8 bg-background">

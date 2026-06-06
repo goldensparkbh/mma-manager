@@ -19,3 +19,9 @@ export function getClubTypeImageUrl(id: string): string | undefined {
 export function hasClubTypeImage(id: string): boolean {
   return !!getClubTypeImageUrl(id);
 }
+
+export function getAllClubTypeImages(): { id: string; url: string }[] {
+  return Object.entries(CLUB_TYPE_IMAGE_URLS)
+    .filter((entry): entry is [string, string] => !!entry[1])
+    .map(([id, url]) => ({ id, url }));
+}
