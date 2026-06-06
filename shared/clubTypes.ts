@@ -13,7 +13,6 @@ export type ClubTypeId =
   | "capoeira"
   | "general_gym"
   | "crossfit"
-  | "yoga_pilates"
   | "parkour"
   | "climbing"
   | "hybrid";
@@ -396,18 +395,6 @@ export const CLUB_TYPE_TEMPLATES: ClubTypeTemplate[] = [
     defaultPackages: SESSION_PACKAGES,
   },
   {
-    id: "yoga_pilates",
-    nameEn: "Yoga / Pilates",
-    nameAr: "يوغا / بيلاتس",
-    descriptionEn: "Class-based session packs",
-    descriptionAr: "باقات حصص",
-    category: "fitness",
-    progressionConfig: { ...DEFAULT_PROGRESSION, enabled: false, mode: "none" },
-    moduleConfig: { progression: false, store: true, belts: false },
-    memberFieldConfig: { beltSize: false, suitSize: false, weight: false, height: false, bloodType: false, healthNotes: true, customFields: [] },
-    defaultPackages: SESSION_PACKAGES,
-  },
-  {
     id: "parkour",
     nameEn: "Parkour / Freerunning",
     nameAr: "باركور",
@@ -470,7 +457,8 @@ export const CLUB_TYPE_TEMPLATES: ClubTypeTemplate[] = [
 ];
 
 export function getClubTypeTemplate(id: string): ClubTypeTemplate {
-  return CLUB_TYPE_TEMPLATES.find((t) => t.id === id) ?? CLUB_TYPE_TEMPLATES.find((t) => t.id === "hybrid")!;
+  const normalized = id === "yoga_pilates" ? "hybrid" : id;
+  return CLUB_TYPE_TEMPLATES.find((t) => t.id === normalized) ?? CLUB_TYPE_TEMPLATES.find((t) => t.id === "hybrid")!;
 }
 
 export function getAllClubTypes(): ClubTypeTemplate[] {

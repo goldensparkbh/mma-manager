@@ -275,3 +275,4 @@ ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS package_type VARCHAR(20) DEFA
 ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS sessions_total INTEGER;
 ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS sessions_remaining INTEGER;
 ALTER TABLE member_belts ADD COLUMN IF NOT EXISTS stripes INTEGER DEFAULT 0;
+UPDATE tenant_settings SET club_type = 'hybrid' WHERE club_type = 'yoga_pilates';

@@ -8,7 +8,6 @@ import {
   Box,
   Dumbbell,
   Flame,
-  Flower2,
   Footprints,
   Grip,
   LayoutGrid,
@@ -100,11 +99,6 @@ export const CLUB_TYPE_VISUALS: Record<ClubTypeId, ClubTypeVisual> = {
     icon: Activity,
     tileClass: "bg-gradient-to-br from-orange-100 to-red-200 text-orange-800 dark:from-orange-950 dark:to-red-900 dark:text-orange-300",
     accentClass: "ring-orange-600",
-  },
-  yoga_pilates: {
-    icon: Flower2,
-    tileClass: "bg-gradient-to-br from-pink-100 to-rose-200 text-pink-800 dark:from-pink-950 dark:to-rose-900 dark:text-pink-300",
-    accentClass: "ring-pink-500",
   },
   parkour: {
     icon: ArrowUpRight,
