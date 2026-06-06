@@ -10,7 +10,7 @@ import { useAuth } from "@/context/auth-context";
 import { useLanguage } from "@/context/language-context";
 import { apiJson } from "@/lib/api";
 import { ClubTypePicker, type ClubTypeOption } from "@/components/club-type-picker";
-import { getClubTypeVisual } from "@/lib/clubTypeIcons";
+import { ClubTypeImage } from "@/components/club-type-image";
 import type { PlatformSubscriptionPlan } from "@shared/schema";
 import { Building2, Check, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 
@@ -43,8 +43,6 @@ export default function Register() {
   });
 
   const selectedType = clubTypes.find((c) => c.id === form.clubType);
-  const selectedVisual = getClubTypeVisual(form.clubType);
-  const SelectedIcon = selectedVisual.icon;
 
   const handleSubmit = async () => {
     if (!form.clubName || !form.adminName || !form.email || !form.password) {
@@ -133,24 +131,29 @@ export default function Register() {
         </Button>
 
         {selectedType && (
-          <Card className="border-primary/20 bg-primary/5">
-            <CardContent className="flex items-center gap-4 p-4">
-              <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-xl ${selectedVisual.tileClass}`}>
-                <SelectedIcon className="h-7 w-7" strokeWidth={1.75} />
+          <Card className="overflow-hidden border-primary/30">
+            <div className="flex flex-col sm:flex-row">
+              <div className="relative sm:w-48 md:w-56 shrink-0 aspect-[4/3] sm:aspect-auto sm:min-h-[140px] bg-muted">
+                <ClubTypeImage
+                  clubTypeId={form.clubType}
+                  alt={language === "ar" ? selectedType.nameAr : selectedType.nameEn}
+                />
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wide">{t("register.selectedClubType")}</p>
-                <p className="font-semibold text-lg">
-                  {language === "ar" ? selectedType.nameAr : selectedType.nameEn}
-                </p>
-                <p className="text-sm text-muted-foreground line-clamp-1">
-                  {language === "ar" ? selectedType.descriptionAr : selectedType.descriptionEn}
-                </p>
-              </div>
-              <Button variant="outline" size="sm" className="ms-auto shrink-0" onClick={() => setStep(1)}>
-                {t("register.change")}
-              </Button>
-            </CardContent>
+              <CardContent className="flex flex-1 items-center gap-4 p-4">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">{t("register.selectedClubType")}</p>
+                  <p className="font-bold text-xl mt-1">
+                    {language === "ar" ? selectedType.nameAr : selectedType.nameEn}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                    {language === "ar" ? selectedType.descriptionAr : selectedType.descriptionEn}
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" className="shrink-0" onClick={() => setStep(1)}>
+                  {t("register.change")}
+                </Button>
+              </CardContent>
+            </div>
           </Card>
         )}
 
