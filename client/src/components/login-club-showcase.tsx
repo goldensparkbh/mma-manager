@@ -1,8 +1,8 @@
 import { getAllClubTypeImages } from "@/lib/clubTypeImages";
 
 const CLUB_IMAGES = getAllClubTypeImages();
-const COLS = 3;
-const ROWS_PER_BLOCK = 6;
+const COLS = 5;
+const ROWS_PER_BLOCK = 8;
 
 function buildTileRows(rowCount: number) {
   return Array.from({ length: rowCount }, (_, row) =>
@@ -19,9 +19,9 @@ function TileWall({ suffix }: { suffix: string }) {
   return (
     <div className="flex flex-col">
       {rows.map((row, rowIdx) => (
-        <div key={`${suffix}-row-${rowIdx}`} className="grid grid-cols-3">
+        <div key={`${suffix}-row-${rowIdx}`} className="grid grid-cols-5">
           {row.map((tile) => (
-            <div key={`${suffix}-${tile.key}-${tile.id}`} className="aspect-square overflow-hidden">
+            <div key={`${suffix}-${tile.key}-${tile.id}`} className="login-club-tile aspect-square overflow-hidden">
               <img
                 src={tile.url}
                 alt=""
@@ -42,6 +42,7 @@ function ScrollHalf({ id }: { id: string }) {
       <TileWall suffix={`${id}-1`} />
       <TileWall suffix={`${id}-2`} />
       <TileWall suffix={`${id}-3`} />
+      <TileWall suffix={`${id}-4`} />
     </div>
   );
 }
@@ -61,7 +62,7 @@ export function LoginClubShowcase() {
         </div>
       </div>
 
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-slate-950/80 via-transparent to-slate-950/90" />
+      <div className="login-club-highlight-layer pointer-events-none absolute inset-0" />
     </div>
   );
 }
