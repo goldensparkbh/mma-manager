@@ -22,6 +22,10 @@ type AuthContextValue = {
   loading: boolean;
   clubSettings: {
     name: string;
+    clubType?: string;
+    progressionConfig?: import("@shared/clubTypes").ProgressionConfig;
+    memberFieldConfig?: import("@shared/clubTypes").MemberFieldConfig;
+    moduleConfig?: import("@shared/clubTypes").ModuleConfig;
     logoUrl: string;
     logoUrlLight?: string;
     logoUrlDark?: string;
@@ -48,6 +52,7 @@ type AuthContextValue = {
     adminName: string;
     phone?: string;
     planSlug?: string;
+    clubType?: string;
   }) => Promise<void>;
 };
 
@@ -61,6 +66,10 @@ function mapClubSettings(data: Record<string, unknown>) {
   const socials = (data.socials as Record<string, string>) || {};
   return {
     name: (data.name as string) || "Club Manager",
+    clubType: (data.clubType as string) || "hybrid",
+    progressionConfig: data.progressionConfig as import("@shared/clubTypes").ProgressionConfig | undefined,
+    memberFieldConfig: data.memberFieldConfig as import("@shared/clubTypes").MemberFieldConfig | undefined,
+    moduleConfig: data.moduleConfig as import("@shared/clubTypes").ModuleConfig | undefined,
     logoUrl: (data.logoUrlDark as string) || (data.logoUrlLight as string) || "/logo_dark_icon.svg",
     logoUrlLight: (data.logoUrlLight as string) || "",
     logoUrlDark: (data.logoUrlDark as string) || "",
@@ -172,6 +181,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     adminName: string;
     phone?: string;
     planSlug?: string;
+    clubType?: string;
   }) => {
     const data = await apiJson<{
       token: string;

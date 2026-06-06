@@ -69,7 +69,7 @@ function Router() {
         <RequirePermission permission={PERMISSIONS.SALES_VIEW}><Sales /></RequirePermission>
       </Route>
       <Route path="/belts">
-        <RequirePermission permission={PERMISSIONS.MEMBERS_VIEW}><Belts /></RequirePermission>
+        <RequirePermission permission={PERMISSIONS.BELTS_VIEW}><Belts /></RequirePermission>
       </Route>
       <Route path="/finance">
         <RequirePermission permission={PERMISSIONS.FINANCE_VIEW}><Finance /></RequirePermission>

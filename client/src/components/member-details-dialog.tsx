@@ -30,6 +30,8 @@ import { pdf } from "@react-pdf/renderer";
 import { saveAs } from "file-saver";
 import { MemberReportPdf, type MemberReportData } from "@/components/member-report-pdf";
 import { getEffectiveMemberSubscriptionStatus } from "@/lib/memberSubscriptionStatus";
+import { useClubConfig } from "@/lib/clubConfig";
+import { MemberCustomFields } from "@/components/member-custom-fields";
 
 interface MemberDetailsDialogProps {
     member: Member | null;
@@ -42,6 +44,7 @@ interface MemberDetailsDialogProps {
 export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription, initialTab }: MemberDetailsDialogProps) {
     const { t, language, dir } = useLanguage();
     const { hasPermission, clubSettings } = useAuth();
+    const { progressionEnabled, progressionLabel, memberFields } = useClubConfig();
     const { toast } = useToast();
     const [activeTab, setActiveTab] = useState("profile");
     const [isEditing, setIsEditing] = useState(false);
@@ -89,6 +92,7 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
         healthNotes: "",
         status: "active",
         balance: 0,
+        customFields: {},
     });
 
     // States
@@ -553,6 +557,7 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                     healthNotes: member.healthNotes || "",
                     status: member.status,
                     balance: member.balance || 0,
+                    customFields: member.customFields || {},
                 });
                 setImagePreview(member.imageUrl || null);
                 setIsEditing(false);
@@ -576,6 +581,7 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                     healthNotes: "",
                     status: "active",
                     balance: 0,
+                    customFields: {},
                 });
                 setImagePreview(null);
                 setIsEditing(true);
@@ -593,6 +599,10 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
             setIsWhatsAppDialogOpen(false);
         }
     }, [isOpen, member]);
+
+    useEffect(() => {
+        if (!progressionEnabled && activeTab === "belts") setActiveTab("profile");
+    }, [progressionEnabled, activeTab]);
 
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -1764,7 +1774,9 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                             {member && (
                                 <>
                                     <TabsTrigger value="subscriptions" className="data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full px-6 bg-transparent text-start">{t('nav.subscriptions')}</TabsTrigger>
-                                    <TabsTrigger value="belts" className="data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full px-6 bg-transparent text-start">{t('nav.belts')}</TabsTrigger>
+                                    {progressionEnabled && (
+                                      <TabsTrigger value="belts" className="data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full px-6 bg-transparent text-start">{progressionLabel}</TabsTrigger>
+                                    )}
                                     <TabsTrigger value="attendance" className="data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full px-6 bg-transparent text-start">{t('nav.attendance')}</TabsTrigger>
                                     <TabsTrigger value="finance" className="data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full px-6 bg-transparent text-start">{t('nav.finance')}</TabsTrigger>
                                 </>
@@ -1867,17 +1879,23 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                                         </CardContent>
                                     </Card>
 
+                                    {(memberFields.height || memberFields.weight || memberFields.bloodType || memberFields.suitSize || memberFields.beltSize) && (
                                     <Card>
                                         <CardHeader><CardTitle className="text-start">{t('members.measurements')}</CardTitle></CardHeader>
                                         <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                            {memberFields.height && (
                                             <div className="space-y-2">
                                                 <Label>{t('members.height')} (cm)</Label>
                                                 <Input value={formData.height || ""} onChange={e => setFormData({ ...formData, height: e.target.value })} />
                                             </div>
+                                            )}
+                                            {memberFields.weight && (
                                             <div className="space-y-2">
                                                 <Label>{t('members.weight')} (kg)</Label>
                                                 <Input value={formData.weight || ""} onChange={e => setFormData({ ...formData, weight: e.target.value })} />
                                             </div>
+                                            )}
+                                            {memberFields.bloodType && (
                                             <div className="space-y-2">
                                                 <Label>{t('members.bloodType')}</Label>
                                                 <Select value={formData.bloodType || ""} onValueChange={v => setFormData({ ...formData, bloodType: v })}>
@@ -1887,21 +1905,46 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                                                     </SelectContent>
                                                 </Select>
                                             </div>
+                                            )}
                                             <div className="space-y-2">
                                                 <Label>{t('members.age')} *</Label>
                                                 <Input type="number" value={formData.age || ""} onChange={e => setFormData({ ...formData, age: e.target.value ? parseInt(e.target.value) : undefined })} />
                                             </div>
+                                            {memberFields.suitSize && (
                                             <div className="space-y-2">
                                                 <Label>{t('members.suitSize')}</Label>
                                                 <Input value={formData.suitSize || ""} onChange={e => setFormData({ ...formData, suitSize: e.target.value })} />
                                             </div>
+                                            )}
+                                            {memberFields.beltSize && (
                                             <div className="space-y-2">
                                                 <Label>{t('members.beltSize')}</Label>
                                                 <Input value={formData.beltSize || ""} onChange={e => setFormData({ ...formData, beltSize: e.target.value })} />
                                             </div>
+                                            )}
                                         </CardContent>
                                     </Card>
+                                    )}
 
+                                    {memberFields.customFields.length > 0 && (
+                                    <Card>
+                                        <CardHeader><CardTitle className="text-start">{t("clubType.customFields")}</CardTitle></CardHeader>
+                                        <CardContent>
+                                            <MemberCustomFields
+                                                fields={memberFields.customFields}
+                                                values={(formData.customFields || {}) as Record<string, string | number | null>}
+                                                onChange={(key, value) =>
+                                                    setFormData({
+                                                        ...formData,
+                                                        customFields: { ...(formData.customFields || {}), [key]: value },
+                                                    })
+                                                }
+                                            />
+                                        </CardContent>
+                                    </Card>
+                                    )}
+
+                                    {memberFields.healthNotes && (
                                     <Card>
                                         <CardHeader><CardTitle className="text-start">{t('members.healthNotes')}</CardTitle></CardHeader>
                                         <CardContent>
@@ -1913,6 +1956,7 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                                             />
                                         </CardContent>
                                     </Card>
+                                    )}
 
                                     <Card>
                                         <CardHeader><CardTitle className="text-start">{t('members.profileImage')}</CardTitle></CardHeader>

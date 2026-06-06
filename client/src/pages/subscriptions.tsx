@@ -74,6 +74,8 @@ export default function Subscriptions() {
     name: "",
     price: 0,
     duration: 30,
+    packageType: "duration",
+    sessionCount: 10,
   });
 
   // Queries
@@ -193,7 +195,10 @@ export default function Subscriptions() {
         amount: plan.price,
         startDate,
         endDate: endDate.toISOString().split("T")[0],
-      });
+        packageType: plan.packageType || "duration",
+        sessionsTotal: plan.packageType === "sessions" ? plan.sessionCount : undefined,
+        sessionsRemaining: plan.packageType === "sessions" ? plan.sessionCount : undefined,
+      } as Partial<InsertSubscription>);
     }
   };
 
@@ -231,7 +236,7 @@ export default function Subscriptions() {
   };
 
   const resetPackageForm = () => {
-    setPackageFormData({ name: "", price: 0, duration: 30 });
+    setPackageFormData({ name: "", price: 0, duration: 30, packageType: "duration", sessionCount: 10 });
   };
 
   const handleMemberClick = (memberId: string) => {
@@ -251,7 +256,13 @@ export default function Subscriptions() {
 
   const openEditPackageDialog = (pkg: SubscriptionPackage) => {
     setEditingPackageId(pkg.id);
-    setPackageFormData({ name: pkg.name, price: pkg.price, duration: pkg.duration });
+    setPackageFormData({
+      name: pkg.name,
+      price: pkg.price,
+      duration: pkg.duration,
+      packageType: pkg.packageType || "duration",
+      sessionCount: pkg.sessionCount ?? 10,
+    });
     setIsPackageDialogOpen(true);
   };
 
@@ -557,7 +568,21 @@ export default function Subscriptions() {
               <DialogContent><DialogHeader><DialogTitle>{editingPackageId ? t('common.edit') : t('subscriptions.addPackage')}</DialogTitle></DialogHeader>
                 <form onSubmit={handleSubmitPackage} className="space-y-4">
                   <Input placeholder={t("subscriptions.packageNamePlaceholder")} value={packageFormData.name} onChange={e => setPackageFormData({ ...packageFormData, name: e.target.value })} />
+                  <Select
+                    value={packageFormData.packageType || "duration"}
+                    onValueChange={(v) => setPackageFormData({ ...packageFormData, packageType: v as "duration" | "sessions" })}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="duration">{t("subscriptions.packageTypeDuration")}</SelectItem>
+                      <SelectItem value="sessions">{t("subscriptions.packageTypeSessions")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {packageFormData.packageType === "sessions" && (
+                    <Input type="number" placeholder={t("subscriptions.sessionCount")} value={packageFormData.sessionCount ?? 10} onChange={e => setPackageFormData({ ...packageFormData, sessionCount: parseInt(e.target.value) })} />
+                  )}
                   <Input type="number" placeholder={t("subscriptions.packageDurationPlaceholder")} value={packageFormData.duration} onChange={e => setPackageFormData({ ...packageFormData, duration: parseInt(e.target.value) })} />
+                  <p className="text-xs text-muted-foreground">{t("subscriptions.validityHint")}</p>
                   <Input type="number" placeholder={t("subscriptions.packagePricePlaceholder")} value={packageFormData.price} onChange={e => setPackageFormData({ ...packageFormData, price: parseFloat(e.target.value) })} />
                   <Button type="submit" className="w-full" disabled={createPackage.isPending || updatePackage.isPending}>{createPackage.isPending || updatePackage.isPending ? t('common.loading') : t('common.save')}</Button>
                 </form>
@@ -586,7 +611,11 @@ export default function Subscriptions() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{p.price} {t("common.currency")}</div>
-                  <p className="text-xs text-muted-foreground">{p.duration} {t("common.days")}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {p.packageType === "sessions"
+                      ? `${p.sessionCount} ${t("subscriptions.sessions")} · ${p.duration} ${t("common.days")}`
+                      : `${p.duration} ${t("common.days")}`}
+                  </p>
                 </CardContent>
               </Card>
             ))}

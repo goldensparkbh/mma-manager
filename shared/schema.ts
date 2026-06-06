@@ -66,6 +66,8 @@ export interface Role {
   isSystem?: boolean;
 }
 
+export type { ClubTypeId, ProgressionConfig, ModuleConfig, MemberFieldConfig, CustomFieldDef, PackageType } from "./clubTypes";
+
 export interface Member {
   id: string;
   name: string;
@@ -98,6 +100,7 @@ export interface Member {
     size: number;
     uploadedAt: string;
   }[] | null;
+  customFields?: Record<string, string | number | null> | null;
 }
 
 export type InsertMember = Omit<Member, "id">;
@@ -138,6 +141,9 @@ export interface Subscription {
   status: string;
   paymentStatus?: "paid" | "pending" | "unpaid";
   paymentMethod?: string | null;
+  packageType?: "duration" | "sessions";
+  sessionsTotal?: number | null;
+  sessionsRemaining?: number | null;
   createdAt?: string;
 }
 
@@ -146,8 +152,10 @@ export type InsertSubscription = Omit<Subscription, "id">;
 export interface SubscriptionPackage {
   id: string;
   name: string;
-  duration: number; // in days
+  duration: number; // validity in days
   price: number;
+  packageType?: "duration" | "sessions";
+  sessionCount?: number | null;
 }
 
 export type InsertSubscriptionPackage = Omit<SubscriptionPackage, "id">;
@@ -165,7 +173,21 @@ export interface MemberBelt {
   id: string;
   memberId: string;
   beltId: string;
+  stripes?: number;
   awardedAt: string;
+}
+
+export interface TenantSettings {
+  name?: string;
+  clubType?: string;
+  progressionConfig?: import("./clubTypes").ProgressionConfig;
+  memberFieldConfig?: import("./clubTypes").MemberFieldConfig;
+  moduleConfig?: import("./clubTypes").ModuleConfig;
+  logoUrlLight?: string;
+  logoUrlDark?: string;
+  managerEmail?: string;
+  phone?: string;
+  location?: string;
 }
 
 export type InsertMemberBelt = Omit<MemberBelt, "id" | "awardedAt"> & { awardedAt?: string };

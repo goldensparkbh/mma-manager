@@ -88,6 +88,10 @@ CREATE TABLE IF NOT EXISTS tenant_settings (
   socials JSONB DEFAULT '{"facebook":"","instagram":"","twitter":""}',
   product_categories JSONB DEFAULT '[]',
   github_token TEXT,
+  club_type VARCHAR(50) DEFAULT 'hybrid',
+  progression_config JSONB DEFAULT '{"enabled":true,"mode":"belts","label":"Belts","labelAr":"الأحزمة","singularLabel":"Belt","singularLabelAr":"حزام","showStripes":false}',
+  member_field_config JSONB DEFAULT '{"beltSize":true,"suitSize":true,"weight":true,"height":true,"bloodType":true,"healthNotes":true,"customFields":[]}',
+  module_config JSONB DEFAULT '{"progression":true,"store":true,"belts":true}',
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -122,6 +126,7 @@ CREATE TABLE IF NOT EXISTS members (
   balance DECIMAL(10,2) DEFAULT 0,
   image_url TEXT,
   documents JSONB DEFAULT '[]',
+  custom_fields JSONB DEFAULT '{}',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -129,8 +134,10 @@ CREATE TABLE IF NOT EXISTS packages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   name VARCHAR(255) NOT NULL,
-  duration INTEGER NOT NULL,
-  price DECIMAL(10,2) NOT NULL
+  duration INTEGER NOT NULL DEFAULT 30,
+  price DECIMAL(10,2) NOT NULL,
+  package_type VARCHAR(20) DEFAULT 'duration',
+  session_count INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS subscriptions (
@@ -145,6 +152,9 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   status VARCHAR(20) DEFAULT 'active',
   payment_status VARCHAR(20) DEFAULT 'pending',
   payment_method VARCHAR(50),
+  package_type VARCHAR(20) DEFAULT 'duration',
+  sessions_total INTEGER,
+  sessions_remaining INTEGER,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -172,6 +182,7 @@ CREATE TABLE IF NOT EXISTS member_belts (
   tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
   belt_id UUID NOT NULL REFERENCES belts(id) ON DELETE CASCADE,
+  stripes INTEGER DEFAULT 0,
   awarded_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -251,3 +262,16 @@ CREATE INDEX IF NOT EXISTS idx_attendance_member ON attendance(member_id);
 CREATE INDEX IF NOT EXISTS idx_sales_tenant ON sales(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_activity_logs_tenant ON activity_logs(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_tenant_subscriptions_tenant ON tenant_subscriptions(tenant_id);
+
+-- Schema migrations for existing databases
+ALTER TABLE tenant_settings ADD COLUMN IF NOT EXISTS club_type VARCHAR(50) DEFAULT 'hybrid';
+ALTER TABLE tenant_settings ADD COLUMN IF NOT EXISTS progression_config JSONB DEFAULT '{"enabled":true,"mode":"belts","label":"Belts","labelAr":"الأحزمة","singularLabel":"Belt","singularLabelAr":"حزام","showStripes":false}';
+ALTER TABLE tenant_settings ADD COLUMN IF NOT EXISTS member_field_config JSONB DEFAULT '{"beltSize":true,"suitSize":true,"weight":true,"height":true,"bloodType":true,"healthNotes":true,"customFields":[]}';
+ALTER TABLE tenant_settings ADD COLUMN IF NOT EXISTS module_config JSONB DEFAULT '{"progression":true,"store":true,"belts":true}';
+ALTER TABLE members ADD COLUMN IF NOT EXISTS custom_fields JSONB DEFAULT '{}';
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS package_type VARCHAR(20) DEFAULT 'duration';
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS session_count INTEGER;
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS package_type VARCHAR(20) DEFAULT 'duration';
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS sessions_total INTEGER;
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS sessions_remaining INTEGER;
+ALTER TABLE member_belts ADD COLUMN IF NOT EXISTS stripes INTEGER DEFAULT 0;

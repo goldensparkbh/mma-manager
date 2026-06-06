@@ -18,11 +18,13 @@ import type { Belt, InsertBelt } from "@shared/schema";
 import { getBelts, createBelt, updateBelt, deleteBelt as deleteBeltData } from "@/lib/apiData";
 import { useLanguage } from "@/context/language-context";
 import { useAuth } from "@/context/auth-context";
+import { useClubConfig } from "@/lib/clubConfig";
 import { PERMISSIONS } from "@/lib/permissions";
 import { Plus, Trash2, Loader2, Pencil, Eye, Play, RotateCcw, Sparkles } from "lucide-react";
 
 export default function Belts() {
     const { hasPermission } = useAuth();
+    const { progressionLabel, progressionSingular } = useClubConfig();
     const { toast } = useToast();
     const { t } = useLanguage();
     const canAdd = hasPermission(PERMISSIONS.BELTS_CREATE);
@@ -132,7 +134,7 @@ export default function Belts() {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold">{t('belts.title')}</h1>
+                    <h1 className="text-2xl font-bold">{progressionLabel}</h1>
                     <p className="text-sm text-muted-foreground">{t('belts.subtitle')}</p>
                 </div>
                 <div className="flex gap-2">

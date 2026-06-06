@@ -6,6 +6,7 @@ import { query } from "./db/index.js";
 import { toCamelCase, rowsToCamel } from "./utils.js";
 import { saveFile } from "./storage.js";
 import * as data from "./data.js";
+import { getAllClubTypes } from "../shared/clubTypes.js";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -20,6 +21,19 @@ router.get("/api/plans", async (_req, res) => {
   res.json(plans);
 });
 
+router.get("/api/club-types", (_req, res) => {
+  res.json(getAllClubTypes().map((t) => ({
+    id: t.id,
+    nameEn: t.nameEn,
+    nameAr: t.nameAr,
+    descriptionEn: t.descriptionEn,
+    descriptionAr: t.descriptionAr,
+    category: t.category,
+    progressionEnabled: t.progressionConfig.enabled,
+    hasSessionPackages: t.defaultPackages.some((p) => p.packageType === "sessions"),
+  })));
+});
+
 router.get("/api/settings/public", optionalAuth, async (req, res) => {
   const auth = (req as Request & { auth?: ReturnType<typeof getAuth> }).auth;
   if (!auth?.tenantId) return res.json({ name: "Club Manager" });
@@ -29,7 +43,7 @@ router.get("/api/settings/public", optionalAuth, async (req, res) => {
 
 router.post("/api/auth/register", async (req, res) => {
   try {
-    const { clubName, email, password, adminName, phone, planSlug } = req.body;
+    const { clubName, email, password, adminName, phone, planSlug, clubType } = req.body;
     if (!clubName || !email || !password || !adminName) {
       return res.status(400).json({ error: "Missing required fields" });
     }
@@ -38,7 +52,7 @@ router.post("/api/auth/register", async (req, res) => {
     const existing = await query("SELECT u.id FROM users u WHERE u.email = $1", [email]);
     if (existing.rows.length > 0) return res.status(409).json({ error: "Email already registered" });
 
-    const { tenant, user } = await data.provisionTenant({ clubName, email, password, adminName, phone, planSlug });
+    const { tenant, user } = await data.provisionTenant({ clubName, email, password, adminName, phone, planSlug, clubType });
     const token = signToken({
       userId: user.id as string,
       tenantId: tenant.id as string,
@@ -518,6 +532,12 @@ router.get("/api/settings", async (req, res) => {
 });
 router.patch("/api/settings", async (req, res) => {
   await data.updateSettings(tid(req), req.body);
+  res.json({ ok: true });
+});
+router.post("/api/settings/apply-club-type", async (req, res) => {
+  const { clubType } = req.body;
+  if (!clubType) return res.status(400).json({ error: "clubType required" });
+  await data.applyClubTypeTemplate(tid(req), clubType);
   res.json({ ok: true });
 });
 router.post("/api/settings/upload", upload.single("file"), async (req, res) => {

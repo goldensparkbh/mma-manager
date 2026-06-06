@@ -1,6 +1,12 @@
 import { query } from "./db/index.js";
 import { rowsToCamel, toCamelCase, formatDate, formatTimestamp, uniqueSlug } from "./utils.js";
 import { hashPassword } from "./auth.js";
+import {
+  getClubTypeTemplate,
+  parseProgressionConfig,
+  parseModuleConfig,
+  parseMemberFieldConfig,
+} from "../shared/clubTypes.js";
 
 async function logActivity(
   tenantId: string,
@@ -41,8 +47,8 @@ export async function createMember(tenantId: string, data: Record<string, unknow
   const result = await query(
     `INSERT INTO members (tenant_id, member_id, name, first_name, father_name, last_name, cpr, phone, email,
       dob, gender, age, height, weight, blood_type, belt_size, suit_size, health_notes,
-      subscription_start, subscription_end, status, balance, image_url, documents)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
+      subscription_start, subscription_end, status, balance, image_url, documents, custom_fields)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
      RETURNING *`,
     [
       tenantId, memberId, data.name, data.firstName || null, data.fatherName || null, data.lastName || null,
@@ -52,6 +58,7 @@ export async function createMember(tenantId: string, data: Record<string, unknow
       data.subscriptionStart || null, data.subscriptionEnd || null,
       data.status || "inactive", data.balance ?? 0, data.imageUrl || null,
       JSON.stringify(data.documents || []),
+      JSON.stringify(data.customFields || {}),
     ],
   );
   const member = toCamelCase(result.rows[0]);
@@ -70,11 +77,12 @@ export async function updateMember(tenantId: string, id: string, updates: Record
     suitSize: "suit_size", healthNotes: "health_notes", subscriptionStart: "subscription_start",
     subscriptionEnd: "subscription_end", status: "status", balance: "balance", imageUrl: "image_url",
     documents: "documents",
+    customFields: "custom_fields",
   };
   for (const [key, col] of Object.entries(map)) {
     if (key in updates) {
       fields.push(`${col} = $${idx++}`);
-      values.push(key === "documents" ? JSON.stringify(updates[key]) : updates[key]);
+      values.push(key === "documents" || key === "customFields" ? JSON.stringify(updates[key]) : updates[key]);
     }
   }
   if (fields.length === 0) return;
@@ -117,7 +125,28 @@ export async function createAttendance(tenantId: string, data: Record<string, un
      VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
     [tenantId, data.memberId, data.memberName, data.date, data.checkIn || null, data.checkOut || null, data.notes || null],
   );
+  await decrementSessionOnAttendance(tenantId, data.memberId as string);
   return toCamelCase(result.rows[0]);
+}
+
+async function decrementSessionOnAttendance(tenantId: string, memberId: string) {
+  const today = new Date().toISOString().split("T")[0];
+  const subs = await query(
+    `SELECT id, sessions_remaining FROM subscriptions
+     WHERE tenant_id = $1 AND member_id = $2 AND package_type = 'sessions'
+       AND status != 'cancelled' AND start_date <= $3 AND end_date >= $3
+       AND sessions_remaining > 0
+     ORDER BY start_date DESC LIMIT 1`,
+    [tenantId, memberId, today],
+  );
+  if (!subs.rows[0]) return;
+  const remaining = (subs.rows[0].sessions_remaining as number) - 1;
+  await query(
+    `UPDATE subscriptions SET sessions_remaining = $3, status = CASE WHEN $3 <= 0 THEN 'expired' ELSE status END
+     WHERE tenant_id = $1 AND id = $2`,
+    [tenantId, subs.rows[0].id, remaining],
+  );
+  await syncMemberSubscriptionStatus(tenantId, memberId);
 }
 
 export async function deleteAttendance(tenantId: string, id: string) {
@@ -149,12 +178,13 @@ export async function getSubscriptionsByMember(tenantId: string, memberId: strin
 
 export async function createSubscription(tenantId: string, data: Record<string, unknown>) {
   const result = await query(
-    `INSERT INTO subscriptions (tenant_id, member_id, member_name, plan_name, amount, start_date, end_date, status, payment_status, payment_method)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+    `INSERT INTO subscriptions (tenant_id, member_id, member_name, plan_name, amount, start_date, end_date, status, payment_status, payment_method, package_type, sessions_total, sessions_remaining)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
     [
       tenantId, data.memberId, data.memberName, data.planName, data.amount,
       data.startDate, data.endDate, data.status || "active",
       data.paymentStatus || "pending", data.paymentMethod || null,
+      data.packageType || "duration", data.sessionsTotal || null, data.sessionsRemaining ?? data.sessionsTotal ?? null,
     ],
   );
   const sub = toCamelCase(result.rows[0]);
@@ -169,6 +199,7 @@ export async function updateSubscription(tenantId: string, id: string, updates: 
   const map: Record<string, string> = {
     planName: "plan_name", amount: "amount", startDate: "start_date", endDate: "end_date",
     status: "status", paymentStatus: "payment_status", paymentMethod: "payment_method",
+    packageType: "package_type", sessionsTotal: "sessions_total", sessionsRemaining: "sessions_remaining",
   };
   for (const [key, col] of Object.entries(map)) {
     if (key in updates) { fields.push(`${col} = $${idx++}`); values.push(updates[key]); }
@@ -199,7 +230,9 @@ export async function syncMemberSubscriptionStatus(tenantId: string, memberId: s
   for (const row of subs.rows) {
     const start = formatDate(row.start_date);
     const end = formatDate(row.end_date);
-    if (start <= today && end >= today && row.status !== "cancelled") {
+    const isSession = row.package_type === "sessions";
+    const sessionsOk = !isSession || (row.sessions_remaining != null && row.sessions_remaining > 0);
+    if (start <= today && end >= today && row.status !== "cancelled" && sessionsOk) {
       status = "active";
       subscriptionStart = start;
       subscriptionEnd = end;
@@ -237,8 +270,8 @@ export async function getPackages(tenantId: string) {
 
 export async function createPackage(tenantId: string, data: Record<string, unknown>) {
   const result = await query(
-    "INSERT INTO packages (tenant_id, name, duration, price) VALUES ($1,$2,$3,$4) RETURNING *",
-    [tenantId, data.name, data.duration, data.price],
+    "INSERT INTO packages (tenant_id, name, duration, price, package_type, session_count) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *",
+    [tenantId, data.name, data.duration, data.price, data.packageType || "duration", data.sessionCount || null],
   );
   return toCamelCase(result.rows[0]);
 }
@@ -247,8 +280,12 @@ export async function updatePackage(tenantId: string, id: string, updates: Recor
   const fields: string[] = [];
   const values: unknown[] = [tenantId, id];
   let idx = 3;
-  for (const key of ["name", "duration", "price"]) {
-    if (key in updates) { fields.push(`${key} = $${idx++}`); values.push(updates[key]); }
+  const map: Record<string, string> = {
+    name: "name", duration: "duration", price: "price",
+    packageType: "package_type", sessionCount: "session_count",
+  };
+  for (const [key, col] of Object.entries(map)) {
+    if (key in updates) { fields.push(`${col} = $${idx++}`); values.push(updates[key]); }
   }
   if (fields.length > 0) await query(`UPDATE packages SET ${fields.join(", ")} WHERE tenant_id = $1 AND id = $2`, values);
 }
@@ -301,8 +338,8 @@ export async function getMemberBelts(tenantId: string, memberId?: string) {
 
 export async function awardBeltToMember(tenantId: string, data: Record<string, unknown>) {
   const result = await query(
-    "INSERT INTO member_belts (tenant_id, member_id, belt_id, awarded_at) VALUES ($1,$2,$3,$4) RETURNING *",
-    [tenantId, data.memberId, data.beltId, data.awardedAt || new Date().toISOString()],
+    "INSERT INTO member_belts (tenant_id, member_id, belt_id, stripes, awarded_at) VALUES ($1,$2,$3,$4,$5) RETURNING *",
+    [tenantId, data.memberId, data.beltId, data.stripes ?? 0, data.awardedAt || new Date().toISOString()],
   );
   const belt = toCamelCase(result.rows[0]);
   return { ...belt, awardedAt: formatTimestamp(belt.awardedAt) };
@@ -574,12 +611,26 @@ export async function deleteRole(tenantId: string, id: string) {
 
 // ─── Settings ──────────────────────────────────────────────────────────────
 
+function parseJsonField<T>(val: unknown, fallback: T): T {
+  if (val == null) return fallback;
+  if (typeof val === "string") {
+    try { return JSON.parse(val) as T; } catch { return fallback; }
+  }
+  return val as T;
+}
+
 export async function getSettings(tenantId: string) {
   const result = await query("SELECT * FROM tenant_settings WHERE tenant_id = $1", [tenantId]);
   if (!result.rows[0]) return null;
   const s = toCamelCase(result.rows[0]);
+  const clubType = (s.clubType as string) || "hybrid";
+  const template = getClubTypeTemplate(clubType);
   return {
     ...s,
+    clubType,
+    progressionConfig: parseProgressionConfig(parseJsonField(s.progressionConfig, template.progressionConfig)),
+    memberFieldConfig: parseMemberFieldConfig(parseJsonField(s.memberFieldConfig, template.memberFieldConfig)),
+    moduleConfig: parseModuleConfig(parseJsonField(s.moduleConfig, template.moduleConfig)),
     socials: typeof s.socials === "string" ? JSON.parse(s.socials as string) : s.socials,
     whatsappTemplates: typeof s.whatsappTemplates === "string" ? JSON.parse(s.whatsappTemplates as string) : s.whatsappTemplates,
     productCategories: typeof s.productCategories === "string" ? JSON.parse(s.productCategories as string) : s.productCategories,
@@ -608,7 +659,48 @@ export async function updateSettings(tenantId: string, updates: Record<string, u
   if ("socials" in updates) { fields.push(`socials = $${idx++}`); values.push(JSON.stringify(updates.socials)); }
   if ("whatsappTemplates" in updates) { fields.push(`whatsapp_templates = $${idx++}`); values.push(JSON.stringify(updates.whatsappTemplates)); }
   if ("productCategories" in updates) { fields.push(`product_categories = $${idx++}`); values.push(JSON.stringify(updates.productCategories)); }
+  if ("clubType" in updates) { fields.push(`club_type = $${idx++}`); values.push(updates.clubType); }
+  if ("progressionConfig" in updates) { fields.push(`progression_config = $${idx++}`); values.push(JSON.stringify(updates.progressionConfig)); }
+  if ("memberFieldConfig" in updates) { fields.push(`member_field_config = $${idx++}`); values.push(JSON.stringify(updates.memberFieldConfig)); }
+  if ("moduleConfig" in updates) { fields.push(`module_config = $${idx++}`); values.push(JSON.stringify(updates.moduleConfig)); }
   await query(`UPDATE tenant_settings SET ${fields.join(", ")} WHERE tenant_id = $1`, values);
+}
+
+export async function applyClubTypeTemplate(tenantId: string, clubTypeId: string) {
+  const template = getClubTypeTemplate(clubTypeId);
+  await query(
+    `UPDATE tenant_settings SET club_type = $2, progression_config = $3, member_field_config = $4, module_config = $5, updated_at = NOW()
+     WHERE tenant_id = $1`,
+    [
+      tenantId,
+      template.id,
+      JSON.stringify(template.progressionConfig),
+      JSON.stringify(template.memberFieldConfig),
+      JSON.stringify(template.moduleConfig),
+    ],
+  );
+
+  if (template.defaultBelts?.length) {
+    const existing = await query("SELECT id FROM belts WHERE tenant_id = $1 LIMIT 1", [tenantId]);
+    if (existing.rows.length === 0) {
+      for (const belt of template.defaultBelts) {
+        await query(
+          "INSERT INTO belts (tenant_id, name, color, sort_order) VALUES ($1,$2,$3,$4)",
+          [tenantId, belt.name, belt.color, belt.order],
+        );
+      }
+    }
+  }
+
+  const pkgExisting = await query("SELECT id FROM packages WHERE tenant_id = $1 LIMIT 1", [tenantId]);
+  if (pkgExisting.rows.length === 0) {
+    for (const pkg of template.defaultPackages) {
+      await query(
+        "INSERT INTO packages (tenant_id, name, duration, price, package_type, session_count) VALUES ($1,$2,$3,$4,$5,$6)",
+        [tenantId, pkg.name, pkg.duration, pkg.price, pkg.packageType, pkg.sessionCount || null],
+      );
+    }
+  }
 }
 
 // ─── Dashboard ─────────────────────────────────────────────────────────────
@@ -690,6 +782,7 @@ export async function provisionTenant(params: {
   adminName: string;
   phone?: string;
   planSlug?: string;
+  clubType?: string;
 }) {
   const slug = await uniqueSlug(params.clubName, async (s) => {
     const r = await query("SELECT id FROM tenants WHERE slug = $1", [s]);
@@ -726,11 +819,34 @@ export async function provisionTenant(params: {
     [tenantId, params.email, hash, params.adminName],
   );
 
+  const clubType = params.clubType || "hybrid";
+  const template = getClubTypeTemplate(clubType);
   await query(
-    `INSERT INTO tenant_settings (tenant_id, name, manager_email) VALUES ($1,$2,$3)`,
-    [tenantId, params.clubName, params.email],
+    `INSERT INTO tenant_settings (tenant_id, name, manager_email, club_type, progression_config, member_field_config, module_config)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+    [
+      tenantId, params.clubName, params.email, clubType,
+      JSON.stringify(template.progressionConfig),
+      JSON.stringify(template.memberFieldConfig),
+      JSON.stringify(template.moduleConfig),
+    ],
   );
   await query("INSERT INTO tenant_counters (tenant_id, member_count) VALUES ($1, 1000)", [tenantId]);
+
+  if (template.defaultBelts?.length) {
+    for (const belt of template.defaultBelts) {
+      await query(
+        "INSERT INTO belts (tenant_id, name, color, sort_order) VALUES ($1,$2,$3,$4)",
+        [tenantId, belt.name, belt.color, belt.order],
+      );
+    }
+  }
+  for (const pkg of template.defaultPackages) {
+    await query(
+      "INSERT INTO packages (tenant_id, name, duration, price, package_type, session_count) VALUES ($1,$2,$3,$4,$5,$6)",
+      [tenantId, pkg.name, pkg.duration, pkg.price, pkg.packageType, pkg.sessionCount || null],
+    );
+  }
   await query(
     `INSERT INTO roles (tenant_id, id, name, permissions, is_system) VALUES
      ($1,'admin','Admin','["*"]',true), ($1,'staff','Staff','[]',true)`,

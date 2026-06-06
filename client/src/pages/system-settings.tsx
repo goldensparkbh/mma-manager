@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { PERMISSIONS } from "@/lib/permissions";
+import { ClubTypeSettings } from "@/components/club-type-settings";
 
 type ClubProfile = {
     name: string;
@@ -405,6 +406,7 @@ export default function SystemSettings() {
                 <div className="flex justify-start mb-6">
                     <TabsList className="w-auto inline-flex items-center justify-start bg-muted/50 p-1">
                         <TabsTrigger value="profile" className="px-6">{t("settings.tabs.profile")}</TabsTrigger>
+                        <TabsTrigger value="clubType" className="px-6">{t("settings.tabs.clubType")}</TabsTrigger>
                         <TabsTrigger value="receipts" className="px-6">{t("settings.tabs.receipts")}</TabsTrigger>
                         <TabsTrigger value="admin" className="px-6">{t("settings.tabs.admin")}</TabsTrigger>
                         <TabsTrigger value="backup" className="px-6">{t("settings.tabs.backup")}</TabsTrigger>
@@ -412,6 +414,10 @@ export default function SystemSettings() {
                 </div>
 
 
+
+                <TabsContent value="clubType" className="space-y-6">
+                    <ClubTypeSettings />
+                </TabsContent>
 
                 {/* Club Profile Tab */}
                 <TabsContent value="profile" className="space-y-6">

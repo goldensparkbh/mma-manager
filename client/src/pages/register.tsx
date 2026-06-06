@@ -9,14 +9,17 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/auth-context";
 import { useLanguage } from "@/context/language-context";
 import { apiJson } from "@/lib/api";
+import { ClubTypePicker, type ClubTypeOption } from "@/components/club-type-picker";
+import { getClubTypeVisual } from "@/lib/clubTypeIcons";
 import type { PlatformSubscriptionPlan } from "@shared/schema";
-import { Building2, Check, Loader2 } from "lucide-react";
+import { Building2, Check, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 
 export default function Register() {
   const { toast } = useToast();
   const { register } = useAuth();
-  const { t } = useLanguage();
+  const { t, language, dir } = useLanguage();
   const [, setLocation] = useLocation();
+  const [step, setStep] = useState<1 | 2>(1);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     clubName: "",
@@ -26,6 +29,7 @@ export default function Register() {
     password: "",
     confirmPassword: "",
     planSlug: "starter",
+    clubType: "hybrid",
   });
 
   const { data: plans = [] } = useQuery<PlatformSubscriptionPlan[]>({
@@ -33,17 +37,26 @@ export default function Register() {
     queryFn: () => apiJson("/api/plans"),
   });
 
+  const { data: clubTypes = [], isLoading: typesLoading } = useQuery<ClubTypeOption[]>({
+    queryKey: ["/api/club-types"],
+    queryFn: () => apiJson("/api/club-types"),
+  });
+
+  const selectedType = clubTypes.find((c) => c.id === form.clubType);
+  const selectedVisual = getClubTypeVisual(form.clubType);
+  const SelectedIcon = selectedVisual.icon;
+
   const handleSubmit = async () => {
     if (!form.clubName || !form.adminName || !form.email || !form.password) {
-      toast({ variant: "destructive", title: t("common.error"), description: "All required fields must be filled" });
+      toast({ variant: "destructive", title: t("common.error"), description: t("register.errorRequired") });
       return;
     }
     if (form.password !== form.confirmPassword) {
-      toast({ variant: "destructive", title: t("common.error"), description: "Passwords do not match" });
+      toast({ variant: "destructive", title: t("common.error"), description: t("register.errorPasswordMatch") });
       return;
     }
     if (form.password.length < 6) {
-      toast({ variant: "destructive", title: t("common.error"), description: "Password must be at least 6 characters" });
+      toast({ variant: "destructive", title: t("common.error"), description: t("register.errorPasswordLength") });
       return;
     }
 
@@ -56,8 +69,9 @@ export default function Register() {
         password: form.password,
         phone: form.phone || undefined,
         planSlug: form.planSlug,
+        clubType: form.clubType,
       });
-      toast({ title: t("common.success"), description: "Your club has been created! 14-day free trial started." });
+      toast({ title: t("common.success"), description: t("register.success") });
       setLocation("/");
     } catch (err) {
       toast({ variant: "destructive", title: t("common.error"), description: (err as Error).message });
@@ -66,19 +80,83 @@ export default function Register() {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-background to-muted/30 flex items-center justify-center p-4">
-      <div className="w-full max-w-4xl grid gap-8 lg:grid-cols-2">
-        <div className="space-y-6">
-          <div className="flex items-center gap-3">
-            <Building2 className="h-10 w-10 text-primary" />
-            <div>
-              <h1 className="text-3xl font-bold">Start Your Club</h1>
-              <p className="text-muted-foreground">Register and get your own isolated management system</p>
+  if (step === 1) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/40">
+        <div className="mx-auto max-w-6xl px-4 py-8 sm:py-12">
+          <div className="mb-8 text-center sm:text-start">
+            <div className="inline-flex items-center gap-3 mb-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+                <Building2 className="h-7 w-7 text-primary" />
+              </div>
+              <div className="text-start">
+                <h1 className="text-2xl sm:text-3xl font-bold">{t("register.title")}</h1>
+                <p className="text-muted-foreground text-sm sm:text-base">{t("register.step1Subtitle")}</p>
+              </div>
             </div>
+            <p className="text-sm text-muted-foreground max-w-2xl">{t("register.clubTypeHint")}</p>
           </div>
 
-          <div className="space-y-3">
+          {typesLoading ? (
+            <div className="flex justify-center py-20">
+              <Loader2 className="h-10 w-10 animate-spin text-primary" />
+            </div>
+          ) : (
+            <ClubTypePicker
+              clubTypes={clubTypes}
+              value={form.clubType}
+              onChange={(id) => setForm((f) => ({ ...f, clubType: id }))}
+            />
+          )}
+
+          <div className="mt-10 flex flex-col sm:flex-row items-center justify-between gap-4 border-t pt-6">
+            <p className="text-sm text-muted-foreground text-center sm:text-start">
+              {t("register.hasAccount")}{" "}
+              <Link href="/login" className="text-primary hover:underline font-medium">{t("register.signIn")}</Link>
+            </p>
+            <Button size="lg" className="w-full sm:w-auto min-w-[200px]" onClick={() => setStep(2)}>
+              {t("register.continue")}
+              {dir === "rtl" ? <ChevronLeft className="ms-2 h-4 w-4" /> : <ChevronRight className="ms-2 h-4 w-4" />}
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-background to-muted/30 flex items-center justify-center p-4">
+      <div className="w-full max-w-5xl space-y-6">
+        <Button variant="ghost" className="gap-2 -ms-2" onClick={() => setStep(1)}>
+          {dir === "rtl" ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          {t("register.backToClubType")}
+        </Button>
+
+        {selectedType && (
+          <Card className="border-primary/20 bg-primary/5">
+            <CardContent className="flex items-center gap-4 p-4">
+              <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-xl ${selectedVisual.tileClass}`}>
+                <SelectedIcon className="h-7 w-7" strokeWidth={1.75} />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">{t("register.selectedClubType")}</p>
+                <p className="font-semibold text-lg">
+                  {language === "ar" ? selectedType.nameAr : selectedType.nameEn}
+                </p>
+                <p className="text-sm text-muted-foreground line-clamp-1">
+                  {language === "ar" ? selectedType.descriptionAr : selectedType.descriptionEn}
+                </p>
+              </div>
+              <Button variant="outline" size="sm" className="ms-auto shrink-0" onClick={() => setStep(1)}>
+                {t("register.change")}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        <div className="grid gap-8 lg:grid-cols-2">
+          <div className="space-y-4">
+            <Label className="text-base font-semibold">{t("register.plan")}</Label>
             {plans.map((plan) => (
               <Card
                 key={plan.id}
@@ -89,61 +167,56 @@ export default function Register() {
                   <div>
                     <p className="font-semibold">{plan.name}</p>
                     <p className="text-sm text-muted-foreground">{plan.description}</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Up to {plan.maxMembers} members · {plan.maxUsers} users
-                    </p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-2xl font-bold">${plan.priceMonthly}</p>
-                    <p className="text-xs text-muted-foreground">/month</p>
-                    {form.planSlug === plan.slug && <Check className="h-5 w-5 text-primary ml-auto mt-1" />}
+                  <div className="text-end flex items-center gap-3">
+                    <div>
+                      <p className="text-2xl font-bold">${plan.priceMonthly}</p>
+                      <p className="text-xs text-muted-foreground">/month</p>
+                    </div>
+                    {form.planSlug === plan.slug && <Check className="h-5 w-5 text-primary" />}
                   </div>
                 </CardContent>
               </Card>
             ))}
+            <p className="text-sm text-muted-foreground">{t("register.trialNote")}</p>
           </div>
-          <p className="text-sm text-muted-foreground">All plans include a 14-day free trial. No credit card required.</p>
-        </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Create Account</CardTitle>
-            <CardDescription>Set up your club administrator account</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Club Name *</Label>
-              <Input value={form.clubName} onChange={(e) => setForm((f) => ({ ...f, clubName: e.target.value }))} placeholder="My MMA Club" />
-            </div>
-            <div className="space-y-2">
-              <Label>Your Name *</Label>
-              <Input value={form.adminName} onChange={(e) => setForm((f) => ({ ...f, adminName: e.target.value }))} placeholder="Admin Name" />
-            </div>
-            <div className="space-y-2">
-              <Label>Email *</Label>
-              <Input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
-            </div>
-            <div className="space-y-2">
-              <Label>Phone</Label>
-              <Input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
-            </div>
-            <div className="space-y-2">
-              <Label>Password *</Label>
-              <Input type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} />
-            </div>
-            <div className="space-y-2">
-              <Label>Confirm Password *</Label>
-              <Input type="password" value={form.confirmPassword} onChange={(e) => setForm((f) => ({ ...f, confirmPassword: e.target.value }))} />
-            </div>
-            <Button className="w-full" onClick={handleSubmit} disabled={loading}>
-              {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Creating...</> : "Create Club & Start Trial"}
-            </Button>
-            <p className="text-center text-sm text-muted-foreground">
-              Already have an account?{" "}
-              <Link href="/login" className="text-primary hover:underline font-medium">Sign in</Link>
-            </p>
-          </CardContent>
-        </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("register.accountTitle")}</CardTitle>
+              <CardDescription>{t("register.accountDesc")}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>{t("register.clubName")} *</Label>
+                <Input value={form.clubName} onChange={(e) => setForm((f) => ({ ...f, clubName: e.target.value }))} placeholder={t("register.clubNamePlaceholder")} />
+              </div>
+              <div className="space-y-2">
+                <Label>{t("register.adminName")} *</Label>
+                <Input value={form.adminName} onChange={(e) => setForm((f) => ({ ...f, adminName: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>{t("register.email")} *</Label>
+                <Input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>{t("register.phone")}</Label>
+                <Input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>{t("register.password")} *</Label>
+                <Input type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>{t("register.confirmPassword")} *</Label>
+                <Input type="password" value={form.confirmPassword} onChange={(e) => setForm((f) => ({ ...f, confirmPassword: e.target.value }))} />
+              </div>
+              <Button className="w-full" onClick={handleSubmit} disabled={loading}>
+                {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t("register.creating")}</> : t("register.submit")}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

@@ -33,6 +33,7 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/context/auth-context";
+import { useClubConfig } from "@/lib/clubConfig";
 import { PERMISSIONS } from "@/lib/permissions";
 import { APP_VERSION } from "@/lib/app-version";
 
@@ -46,6 +47,7 @@ const mainItems = [
 
 export function AppSidebar() {
   const { user, signOutUser, clubSettings, role, hasPermission } = useAuth();
+  const { showBeltsNav, showStore, progressionLabel } = useClubConfig();
   const [location, setLocation] = useLocation();
   const { t, dir } = useLanguage();
   const [guideOpen, setGuideOpen] = useState(false);
@@ -107,9 +109,13 @@ export function AppSidebar() {
     },
   ];
 
-  const visibleFinanceItems = financeItems.filter(item => hasPermission(item.permission));
+  const visibleFinanceItems = financeItems
+    .filter(item => hasPermission(item.permission))
+    .filter(item => item.url !== "/store" || showStore);
   const visibleSystemItems = systemItems.filter(item => hasPermission(item.permission));
-  const visibleMemberItems = memberItems.filter(item => hasPermission(item.permission));
+  const visibleMemberItems = memberItems
+    .filter(item => hasPermission(item.permission))
+    .filter(item => item.url !== "/belts" || showBeltsNav);
 
   const isActive = (url: string) => {
     if (url === "/") return location === "/";
@@ -195,7 +201,9 @@ export function AppSidebar() {
                   >
                     <Link href={item.url}>
                       <item.icon className="w-4 h-4" />
-                      <span className="flex-1 ltr:text-left rtl:text-right">{t(item.key)}</span>
+                      <span className="flex-1 ltr:text-left rtl:text-right">
+                        {item.url === "/belts" ? progressionLabel : t(item.key)}
+                      </span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
