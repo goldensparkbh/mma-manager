@@ -22,6 +22,7 @@ import Expenses from "@/pages/expenses";
 import Logs from "@/pages/logs";
 import Login from "@/pages/login";
 import Register from "@/pages/register";
+import Landing from "@/pages/landing";
 import Belts from "@/pages/belts";
 import Users from "@/pages/users";
 import SystemSettings from "@/pages/system-settings";
@@ -94,8 +95,10 @@ function Router() {
 
 function PublicRoutes() {
   const [location] = useLocation();
+  if (location === "/") return <Landing />;
   if (location === "/register") return <Register />;
-  return <Login />;
+  if (location === "/login") return <Login />;
+  return <Landing />;
 }
 
 function AppShell() {
