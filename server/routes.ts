@@ -50,9 +50,9 @@ router.post("/api/webhooks/tap", async (req, res) => {
 
 router.get("/api/settings/public", optionalAuth, async (req, res) => {
   const auth = (req as Request & { auth?: ReturnType<typeof getAuth> }).auth;
-  if (!auth?.tenantId) return res.json({ name: "Club Manager" });
+  if (!auth?.tenantId) return res.json({ name: "MMA Manager" });
   const settings = await data.getSettings(auth.tenantId);
-  res.json(settings || { name: "Club Manager" });
+  res.json(settings || { name: "MMA Manager" });
 });
 
 router.post("/api/auth/register", async (req, res) => {

@@ -66,7 +66,7 @@ function mapClubSettings(data: Record<string, unknown>) {
   );
   const socials = (data.socials as Record<string, string>) || {};
   return {
-    name: (data.name as string) || "Club Manager",
+    name: (data.name as string) || "MMA Manager",
     clubType: (data.clubType as string) || "hybrid",
     progressionConfig: data.progressionConfig as import("@shared/clubTypes").ProgressionConfig | undefined,
     memberFieldConfig: data.memberFieldConfig as import("@shared/clubTypes").MemberFieldConfig | undefined,

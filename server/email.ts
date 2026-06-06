@@ -57,7 +57,7 @@ export async function sendTrialReminderEmail(params: {
     html: `
       <h2>Your free trial is ending soon</h2>
       <p>Hello,</p>
-      <p>Your trial for <strong>${params.clubName}</strong> on Club Manager ${urgency}.</p>
+      <p>Your trial for <strong>${params.clubName}</strong> on MMA Manager ${urgency}.</p>
       <ul>
         <li><strong>Plan:</strong> ${params.planName}</li>
         <li><strong>Trial ends:</strong> ${params.trialEndDate}</li>
@@ -81,7 +81,7 @@ export async function sendTrialExpiredEmail(params: {
     html: `
       <h2>Your free trial has ended</h2>
       <p>Hello,</p>
-      <p>Your trial for <strong>${params.clubName}</strong> on Club Manager has ended.</p>
+      <p>Your trial for <strong>${params.clubName}</strong> on MMA Manager has ended.</p>
       <p>To continue using the platform with your <strong>${params.planName}</strong> plan, please complete payment:</p>
       <p><a href="${params.billingUrl}">${params.billingUrl}</a></p>
       <p>Until payment is completed, access to the platform will remain locked.</p>
