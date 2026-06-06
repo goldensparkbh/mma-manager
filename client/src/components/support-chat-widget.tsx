@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MessageCircle, Send, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,9 +17,13 @@ type Message = {
   createdAt?: string;
 };
 
-export function SupportChatWidget() {
+type Props = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+};
+
+export function SupportChatWidget({ open, onOpenChange }: Props) {
   const { t } = useLanguage();
-  const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
@@ -53,23 +58,39 @@ export function SupportChatWidget() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, open]);
 
-  return (
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <>
-      <Button
-        size="icon"
-        className={cn(
-          "fixed bottom-6 end-6 z-50 h-14 w-14 rounded-full shadow-lg",
-          open && "scale-95",
+      <div className="fixed bottom-6 end-6 z-[9990] flex flex-col items-end gap-2 pointer-events-none max-md:bottom-20">
+        {!open && (
+          <span className="pointer-events-none rounded-full bg-card px-3 py-1 text-xs font-medium shadow-md border text-foreground">
+            {t("support.fabLabel")}
+          </span>
         )}
-        onClick={() => setOpen((v) => !v)}
-        aria-label={t("support.openChat")}
-      >
-        {open ? <X className="h-6 w-6" /> : <MessageCircle className="h-6 w-6" />}
-      </Button>
+        <Button
+          size="icon"
+          className={cn(
+            "pointer-events-auto h-14 w-14 rounded-full shadow-xl ring-4 ring-primary/25",
+            "bg-primary text-primary-foreground hover:bg-primary/90",
+            !open && "animate-pulse hover:animate-none",
+            open && "scale-95",
+          )}
+          onClick={() => onOpenChange(!open)}
+          aria-label={t("support.openChat")}
+          data-testid="button-support-chat"
+        >
+          {open ? <X className="h-6 w-6" /> : <MessageCircle className="h-7 w-7" />}
+        </Button>
+      </div>
 
       {open && (
-        <div className="fixed bottom-24 end-6 z-50 flex h-[min(70vh,520px)] w-[min(92vw,380px)] flex-col overflow-hidden rounded-xl border bg-card shadow-2xl">
-          <div className="border-b px-4 py-3">
+        <div
+          className="fixed bottom-24 end-6 z-[9990] flex h-[min(70vh,520px)] w-[min(92vw,380px)] flex-col overflow-hidden rounded-xl border-2 border-primary/20 bg-card shadow-2xl max-md:bottom-36"
+          role="dialog"
+          aria-label={t("support.title")}
+        >
+          <div className="border-b bg-primary/5 px-4 py-3">
             <p className="font-semibold">{t("support.title")}</p>
             <p className="text-xs text-muted-foreground">{t("support.subtitle")}</p>
           </div>
@@ -125,6 +146,7 @@ export function SupportChatWidget() {
           </div>
         </div>
       )}
-    </>
+    </>,
+    document.body,
   );
 }

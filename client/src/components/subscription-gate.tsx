@@ -7,7 +7,7 @@ import { useAuth } from "@/context/auth-context";
 import { useLanguage } from "@/context/language-context";
 import { getTenantSubscriptionStatus, type SubscriptionBlockReason } from "@/lib/tenantSubscription";
 import Billing from "@/pages/billing";
-import { SupportChatWidget } from "@/components/support-chat-widget";
+import { SupportChatProvider } from "@/context/support-chat-context";
 
 const REASON_KEYS: Record<SubscriptionBlockReason, string> = {
   subscription_suspended: "billing.gate.suspended",
@@ -32,6 +32,7 @@ export function SubscriptionGate({ children }: { children: React.ReactNode }) {
 
   if (location === "/billing") {
     return (
+      <SupportChatProvider>
       <div className="min-h-screen bg-muted/30">
         <header className="border-b bg-card px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -58,8 +59,8 @@ export function SubscriptionGate({ children }: { children: React.ReactNode }) {
           </Card>
           <Billing />
         </main>
-        <SupportChatWidget />
       </div>
+      </SupportChatProvider>
     );
   }
 

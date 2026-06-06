@@ -31,7 +31,7 @@ import PaymentResult from "@/pages/payment-result";
 import PlatformAdmin from "@/pages/platform-admin";
 import { ScreenSaver } from "@/components/screen-saver";
 import { SubscriptionGate } from "@/components/subscription-gate";
-import { SupportChatWidget } from "@/components/support-chat-widget";
+import { SupportChatProvider } from "@/context/support-chat-context";
 import { ImpersonationBanner } from "@/components/impersonation-banner";
 import { useEffect } from "react";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -129,6 +129,7 @@ function AppShell() {
 
   return (
     <SubscriptionGate>
+    <SupportChatProvider>
     <ThemeProvider defaultTheme="light" storageKey="club-theme">
       <ScreenSaver />
       <TooltipProvider>
@@ -174,9 +175,9 @@ function AppShell() {
           </div>
         </SidebarProvider>
       </TooltipProvider>
-      <SupportChatWidget />
       <Toaster />
     </ThemeProvider>
+    </SupportChatProvider>
     </SubscriptionGate>
   );
 }

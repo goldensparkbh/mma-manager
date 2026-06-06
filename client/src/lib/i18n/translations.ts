@@ -111,6 +111,7 @@ export const translations = {
             logs: "سجل النظام",
             settings: "إعدادات النظام",
             guide: "دليل المستخدم",
+            support: "دعم المنصة",
             logout: "تسجيل خروج",
             controlPanel: "لوحة التحكم",
             membership: "العضوية",
@@ -182,6 +183,7 @@ export const translations = {
             subtitle: "اسأل عن التجربة، الفوترة، أو المميزات",
             openChat: "فتح الدعم",
             placeholder: "اكتب رسالتك...",
+            fabLabel: "تحتاج مساعدة؟",
         },
         admin: {
             impersonating: "أنت تعرض لوحة نادي كمسؤول منصة",
@@ -1131,6 +1133,7 @@ export const translations = {
             logs: "System Logs",
             settings: "System Settings",
             guide: "User Guide",
+            support: "Platform Support",
             logout: "Logout",
             controlPanel: "Control Panel",
             membership: "Membership",
@@ -1201,6 +1204,7 @@ export const translations = {
             subtitle: "Ask about trials, billing, or features",
             openChat: "Open support",
             placeholder: "Type your message...",
+            fabLabel: "Need help?",
         },
         admin: {
             impersonating: "Viewing a club dashboard as platform admin",

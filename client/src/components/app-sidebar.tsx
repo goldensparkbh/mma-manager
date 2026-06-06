@@ -16,7 +16,8 @@ import {
   UserCog,
   Settings,
   BookOpen,
-  TrendingDown
+  TrendingDown,
+  MessageCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserGuideDialog } from "./user-guide-dialog";
@@ -36,6 +37,7 @@ import { useAuth } from "@/context/auth-context";
 import { useClubConfig } from "@/lib/clubConfig";
 import { PERMISSIONS } from "@/lib/permissions";
 import { APP_VERSION } from "@/lib/app-version";
+import { useSupportChat } from "@/context/support-chat-context";
 
 const mainItems = [
   {
@@ -51,6 +53,7 @@ export function AppSidebar() {
   const [location, setLocation] = useLocation();
   const { t, dir } = useLanguage();
   const [guideOpen, setGuideOpen] = useState(false);
+  const { openChat } = useSupportChat();
   const logoUrl = clubSettings?.logoUrlDark || clubSettings?.logoUrlLight || "/logo_dark_icon.svg";
 
   const financeItems = [
@@ -285,6 +288,16 @@ export function AppSidebar() {
                     <CreditCard className="w-4 h-4" />
                     <span className="flex-1 ltr:text-left rtl:text-right">Subscription</span>
                   </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={openChat}
+                  tooltip={t("nav.support")}
+                  className="text-white hover:text-white hover:bg-white/10 data-[active=true]:bg-white/20 data-[active=true]:text-white"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  <span className="flex-1 ltr:text-left rtl:text-right">{t("nav.support")}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
