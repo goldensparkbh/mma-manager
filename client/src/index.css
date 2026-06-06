@@ -271,4 +271,18 @@
     -ms-overflow-style: none; /* IE and Edge */
     scrollbar-width: none; /* Firefox */
   }
+
+  @keyframes login-club-scroll-down {
+    from {
+      transform: translateY(0);
+    }
+    to {
+      transform: translateY(-50%);
+    }
+  }
+
+  .login-club-scroll-track {
+    animation: login-club-scroll-down 50s linear infinite;
+    will-change: transform;
+  }
 }

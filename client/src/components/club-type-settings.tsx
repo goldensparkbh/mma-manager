@@ -13,6 +13,7 @@ import { apiJson } from "@/lib/api";
 import { useClubConfig } from "@/lib/clubConfig";
 import type { ProgressionConfig, ModuleConfig } from "@shared/clubTypes";
 import { Loader2, Dumbbell } from "lucide-react";
+import { ClubTypeImage } from "@/components/club-type-image";
 
 type ClubTypeOption = {
   id: string;
@@ -88,11 +89,19 @@ export function ClubTypeSettings() {
         </CardHeader>
         <CardContent className="space-y-4">
           {current && (
-            <div className="flex items-center gap-3">
-              <Badge variant="secondary">{current.category}</Badge>
-              <span className="font-semibold text-lg">
-                {language === "ar" ? current.nameAr : current.nameEn}
-              </span>
+            <div className="flex items-center gap-4">
+              <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl ring-1 ring-black/5">
+                <ClubTypeImage
+                  clubTypeId={current.id}
+                  alt={language === "ar" ? current.nameAr : current.nameEn}
+                />
+              </div>
+              <div>
+                <Badge variant="secondary">{current.category}</Badge>
+                <p className="font-semibold text-lg mt-1">
+                  {language === "ar" ? current.nameAr : current.nameEn}
+                </p>
+              </div>
             </div>
           )}
           <p className="text-sm text-muted-foreground">
@@ -184,14 +193,22 @@ export function ClubTypeSettings() {
                 type="button"
                 disabled={!canEdit || saving || type.id === clubType}
                 onClick={() => handleApplyTemplate(type.id)}
-                className={`text-start p-4 rounded-lg border transition-colors ${
-                  type.id === clubType ? "border-primary bg-primary/5" : "hover:border-primary/50"
+                className={`text-start overflow-hidden rounded-lg border transition-colors ${
+                  type.id === clubType ? "border-primary bg-primary/5 ring-2 ring-primary/30" : "hover:border-primary/50"
                 } disabled:opacity-50`}
               >
-                <p className="font-medium">{language === "ar" ? type.nameAr : type.nameEn}</p>
-                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                  {language === "ar" ? type.descriptionAr : type.descriptionEn}
-                </p>
+                <div className="h-20 w-full">
+                  <ClubTypeImage
+                    clubTypeId={type.id}
+                    alt={language === "ar" ? type.nameAr : type.nameEn}
+                  />
+                </div>
+                <div className="p-3">
+                  <p className="font-medium text-sm">{language === "ar" ? type.nameAr : type.nameEn}</p>
+                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                    {language === "ar" ? type.descriptionAr : type.descriptionEn}
+                  </p>
+                </div>
               </button>
             ))}
           </div>
