@@ -17,7 +17,7 @@ type Floater = {
 
 function createFloaters(width: number, height: number): Floater[] {
   return CLUB_IMAGES.map((img) => {
-    const size = 52 + Math.random() * 36;
+    const size = 110 + Math.random() * 50;
     const maxX = Math.max(0, width - size);
     const maxY = Math.max(0, height - size);
     const speed = 0.6 + Math.random() * 1.2;
@@ -159,12 +159,12 @@ export function LoginClubShowcase() {
               else nodeRefs.current.delete(img.id);
             }}
             className="absolute left-0 top-0 will-change-transform"
-            style={{ width: 64, height: 64 }}
+            style={{ width: 120, height: 120 }}
           >
             <img
               src={img.url}
               alt=""
-              className="h-full w-full rounded-xl object-cover shadow-2xl ring-2 ring-white/30"
+              className="h-full w-full rounded-2xl object-cover shadow-2xl ring-2 ring-white/40"
               draggable={false}
             />
           </div>
