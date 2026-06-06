@@ -272,17 +272,36 @@
     scrollbar-width: none; /* Firefox */
   }
 
-  @keyframes login-club-scroll-down {
+  .login-club-parallax-scene {
+    perspective: 1100px;
+    perspective-origin: 50% 35%;
+  }
+
+  .login-club-parallax-plane {
+    position: absolute;
+    inset: -20% -8%;
+    transform: rotateX(24deg) rotateZ(-8deg) scale(1.2);
+    transform-style: preserve-3d;
+    transform-origin: center center;
+  }
+
+  @keyframes login-club-scroll-diagonal {
     from {
-      transform: translateY(0);
+      transform: translate3d(0, 0, 0);
     }
     to {
-      transform: translateY(-50%);
+      transform: translate3d(-14%, -50%, 0);
     }
   }
 
   .login-club-scroll-track {
-    animation: login-club-scroll-down 50s linear infinite;
+    animation: login-club-scroll-diagonal 42s linear infinite;
     will-change: transform;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .login-club-scroll-track {
+      animation: none;
+    }
   }
 }

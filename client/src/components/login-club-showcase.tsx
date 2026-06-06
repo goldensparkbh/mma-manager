@@ -1,21 +1,35 @@
 import { getAllClubTypeImages } from "@/lib/clubTypeImages";
 
 const CLUB_IMAGES = getAllClubTypeImages();
+const COLS = 3;
+const ROWS_PER_BLOCK = 6;
 
-function ScrollingGrid({ suffix }: { suffix: string }) {
+function buildTileRows(rowCount: number) {
+  return Array.from({ length: rowCount }, (_, row) =>
+    Array.from({ length: COLS }, (_, col) => {
+      const img = CLUB_IMAGES[(row * COLS + col) % CLUB_IMAGES.length];
+      return { key: `r${row}-c${col}`, ...img };
+    }),
+  );
+}
+
+function TileWall({ suffix }: { suffix: string }) {
+  const rows = buildTileRows(ROWS_PER_BLOCK);
+
   return (
-    <div className="grid grid-cols-3 gap-3 px-4 pb-3">
-      {CLUB_IMAGES.map((img) => (
-        <div
-          key={`${suffix}-${img.id}`}
-          className="aspect-[4/3] overflow-hidden rounded-xl shadow-lg ring-1 ring-white/20"
-        >
-          <img
-            src={img.url}
-            alt=""
-            className="h-full w-full object-cover"
-            draggable={false}
-          />
+    <div className="flex flex-col">
+      {rows.map((row, rowIdx) => (
+        <div key={`${suffix}-row-${rowIdx}`} className="grid grid-cols-3">
+          {row.map((tile) => (
+            <div key={`${suffix}-${tile.key}-${tile.id}`} className="aspect-square overflow-hidden">
+              <img
+                src={tile.url}
+                alt=""
+                className="block h-full w-full object-cover"
+                draggable={false}
+              />
+            </div>
+          ))}
         </div>
       ))}
     </div>
@@ -24,10 +38,10 @@ function ScrollingGrid({ suffix }: { suffix: string }) {
 
 function ScrollHalf({ id }: { id: string }) {
   return (
-    <div className="flex flex-col pt-3">
-      <ScrollingGrid suffix={`${id}-a`} />
-      <ScrollingGrid suffix={`${id}-b`} />
-      <ScrollingGrid suffix={`${id}-c`} />
+    <div className="flex flex-col">
+      <TileWall suffix={`${id}-1`} />
+      <TileWall suffix={`${id}-2`} />
+      <TileWall suffix={`${id}-3`} />
     </div>
   );
 }
@@ -35,15 +49,19 @@ function ScrollHalf({ id }: { id: string }) {
 export function LoginClubShowcase() {
   return (
     <div
-      className="relative h-full w-full overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900"
+      className="relative h-full w-full overflow-hidden bg-slate-950"
       aria-hidden
     >
-      <div className="login-club-scroll-track absolute left-0 right-0 top-0">
-        <ScrollHalf id="half-1" />
-        <ScrollHalf id="half-2" />
+      <div className="login-club-parallax-scene absolute inset-0">
+        <div className="login-club-parallax-plane">
+          <div className="login-club-scroll-track">
+            <ScrollHalf id="a" />
+            <ScrollHalf id="b" />
+          </div>
+        </div>
       </div>
 
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/50" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-slate-950/80 via-transparent to-slate-950/90" />
     </div>
   );
 }
