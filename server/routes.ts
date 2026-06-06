@@ -1,6 +1,8 @@
 import { Router, type Request, type Response } from "express";
 import multer from "multer";
-import { authMiddleware, requireTenant, requirePlatformAdmin, signToken, comparePassword, hashPassword, optionalAuth } from "./auth.js";
+import { authMiddleware, requireTenant, requirePlatformAdmin, requirePlatformPermission, signToken, comparePassword, hashPassword, optionalAuth } from "./auth.js";
+import { PLATFORM_PERMISSIONS } from "../shared/platformPermissions.js";
+import { isTapConfigured } from "./tap.js";
 import { getAuth } from "./utils.js";
 import { query } from "./db/index.js";
 import { toCamelCase, rowsToCamel } from "./utils.js";
@@ -17,7 +19,7 @@ export const router = Router();
 router.get("/api/health", (_req, res) => res.json({ ok: true }));
 
 router.get("/api/plans", async (_req, res) => {
-  const plans = await data.getSubscriptionPlans();
+  const plans = await data.getSubscriptionPlans(true);
   res.json(plans);
 });
 
@@ -32,6 +34,18 @@ router.get("/api/club-types", (_req, res) => {
     progressionEnabled: t.progressionConfig.enabled,
     hasSessionPackages: t.defaultPackages.some((p) => p.packageType === "sessions"),
   })));
+});
+
+router.post("/api/webhooks/tap", async (req, res) => {
+  try {
+    const chargeId = req.body?.id as string;
+    if (!chargeId) return res.status(400).json({ error: "Missing charge id" });
+    const result = await data.confirmPlatformPayment(chargeId);
+    res.json(result);
+  } catch (err) {
+    console.error("TAP webhook error:", err);
+    res.status(500).json({ error: (err as Error).message });
+  }
 });
 
 router.get("/api/settings/public", optionalAuth, async (req, res) => {
@@ -78,14 +92,27 @@ router.post("/api/auth/login", async (req, res) => {
       const valid = await comparePassword(password, adminResult.rows[0].password_hash);
       if (!valid) return res.status(401).json({ error: "Invalid credentials" });
       const admin = toCamelCase(adminResult.rows[0]);
+      if (admin.isActive === false) return res.status(403).json({ error: "Platform admin account is inactive" });
+      const permissions = await data.getPlatformAdminPermissions(admin.id as string);
       const token = signToken({
         userId: admin.id as string,
         tenantId: null,
         email: admin.email as string,
-        role: "platform_admin",
+        role: admin.roleId as string || "platform_admin",
         isPlatformAdmin: true,
+        platformPermissions: permissions,
       });
-      return res.json({ token, user: { id: admin.id, email: admin.email, displayName: admin.displayName, role: "platform_admin", isPlatformAdmin: true } });
+      return res.json({
+        token,
+        user: {
+          id: admin.id,
+          email: admin.email,
+          displayName: admin.displayName,
+          role: admin.roleId || "platform_admin",
+          isPlatformAdmin: true,
+          platformPermissions: permissions,
+        },
+      });
     }
 
     // Tenant user login
@@ -110,6 +137,7 @@ router.post("/api/auth/login", async (req, res) => {
       isPlatformAdmin: false,
     });
     const subscription = await data.getTenantSubscription(row.tenant_id);
+    const access = await data.checkTenantAccess(row.tenant_id);
     res.json({
       token,
       user: { id: user.id, email: user.email, displayName: user.displayName, role: user.role, tenantId: user.tenantId },
@@ -121,6 +149,8 @@ router.post("/api/auth/login", async (req, res) => {
         trialEndsAt: user.trialEndsAt ? String(user.trialEndsAt) : null,
       },
       subscription,
+      subscriptionActive: access.allowed,
+      subscriptionBlockReason: access.allowed ? null : access.code,
     });
   } catch (err) {
     console.error("Login error:", err);
@@ -210,16 +240,24 @@ async function getRolePermissions(tenantId: string, roleId: string): Promise<str
   return typeof perms === "string" ? JSON.parse(perms) : perms;
 }
 
-// Tenant access middleware — block app APIs when subscription inactive (billing endpoints still work)
-const BILLING_PATHS_WHEN_INACTIVE = ["/tenant/subscription"];
+// Tenant access middleware — block app APIs when subscription inactive (billing/payment/support still work)
+const ALLOWED_WHEN_INACTIVE = ["/tenant/subscription", "/tenant/payments/", "/tenant/support/"];
+
+function isAllowedWhenInactive(path: string, method: string) {
+  if (ALLOWED_WHEN_INACTIVE.some((p) => path.includes(p))) {
+    return method === "GET" || path.includes("/tenant/payments/") || path.includes("/tenant/support/");
+  }
+  return false;
+}
 
 async function tenantAccess(req: Request, res: Response, next: () => void) {
   const auth = getAuth(req);
-  if (auth.isPlatformAdmin) return next();
+  if (auth.isPlatformAdmin || auth.impersonatedBy) return next();
   if (!auth.tenantId) return res.status(403).json({ error: "No tenant" });
   const access = await data.checkTenantAccess(auth.tenantId);
   if (access.allowed) return next();
-  if (req.method === "GET" && BILLING_PATHS_WHEN_INACTIVE.includes(req.path)) return next();
+  const path = req.path || req.url.split("?")[0];
+  if (isAllowedWhenInactive(path, req.method)) return next();
   return res.status(403).json({
     error: access.reason,
     code: access.code,
@@ -233,46 +271,68 @@ router.get("/api/platform/stats", requirePlatformAdmin, async (_req, res) => {
   res.json(await data.getPlatformStats());
 });
 
-router.get("/api/platform/tenants", requirePlatformAdmin, async (_req, res) => {
+router.get("/api/platform/tenants", requirePlatformAdmin, requirePlatformPermission(PLATFORM_PERMISSIONS.TENANTS_VIEW), async (_req, res) => {
   res.json(await data.getAllTenants());
 });
 
-router.get("/api/platform/tenants/:id", requirePlatformAdmin, async (req, res) => {
+router.get("/api/platform/tenants/:id", requirePlatformAdmin, requirePlatformPermission(PLATFORM_PERMISSIONS.TENANTS_VIEW), async (req, res) => {
   const tenant = await data.getTenantById(req.params.id);
   if (!tenant) return res.status(404).json({ error: "Not found" });
   res.json(tenant);
 });
 
-router.patch("/api/platform/tenants/:id", requirePlatformAdmin, async (req, res) => {
+router.patch("/api/platform/tenants/:id", requirePlatformAdmin, requirePlatformPermission(PLATFORM_PERMISSIONS.TENANTS_EDIT), async (req, res) => {
   await data.updateTenant(req.params.id, req.body);
   res.json({ ok: true });
 });
 
-router.get("/api/platform/plans", requirePlatformAdmin, async (_req, res) => {
+router.post("/api/platform/tenants/:id/impersonate", requirePlatformAdmin, requirePlatformPermission(PLATFORM_PERMISSIONS.TENANTS_IMPERSONATE), async (req, res) => {
+  try {
+    const auth = getAuth(req);
+    const payload = await data.impersonateTenant(auth.userId, req.params.id);
+    const token = signToken({
+      userId: payload.userId,
+      tenantId: payload.tenantId,
+      email: payload.email,
+      role: payload.role,
+      isPlatformAdmin: false,
+      impersonatedBy: payload.impersonatedBy,
+    });
+    res.json({ token, tenantId: payload.tenantId });
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+router.get("/api/platform/plans", requirePlatformAdmin, requirePlatformPermission(PLATFORM_PERMISSIONS.PLANS_VIEW), async (_req, res) => {
   res.json(await data.getSubscriptionPlans());
 });
 
-router.post("/api/platform/plans", requirePlatformAdmin, async (req, res) => {
-  const { name, slug, description, priceMonthly, priceYearly, maxMembers, maxUsers, features } = req.body;
-  const result = await query(
-    `INSERT INTO subscription_plans (name, slug, description, price_monthly, price_yearly, max_members, max_users, features)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-    [name, slug, description, priceMonthly, priceYearly, maxMembers, maxUsers, JSON.stringify(features || [])],
-  );
-  res.status(201).json(toCamelCase(result.rows[0]));
+router.post("/api/platform/plans", requirePlatformAdmin, requirePlatformPermission(PLATFORM_PERMISSIONS.PLANS_EDIT), async (req, res) => {
+  try {
+    const plan = await data.createSubscriptionPlan(req.body);
+    res.status(201).json(plan);
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
 });
 
-router.patch("/api/platform/plans/:id", requirePlatformAdmin, async (req, res) => {
-  const { name, description, priceMonthly, priceYearly, maxMembers, maxUsers, features, isActive } = req.body;
-  await query(
-    `UPDATE subscription_plans SET name=COALESCE($2,name), description=COALESCE($3,description),
-     price_monthly=COALESCE($4,price_monthly), price_yearly=COALESCE($5,price_yearly),
-     max_members=COALESCE($6,max_members), max_users=COALESCE($7,max_users),
-     features=COALESCE($8,features), is_active=COALESCE($9,is_active) WHERE id=$1`,
-    [req.params.id, name, description, priceMonthly, priceYearly, maxMembers, maxUsers,
-     features ? JSON.stringify(features) : null, isActive],
-  );
-  res.json({ ok: true });
+router.patch("/api/platform/plans/:id", requirePlatformAdmin, requirePlatformPermission(PLATFORM_PERMISSIONS.PLANS_EDIT), async (req, res) => {
+  try {
+    const plan = await data.updateSubscriptionPlan(req.params.id, req.body);
+    res.json(plan);
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+router.delete("/api/platform/plans/:id", requirePlatformAdmin, requirePlatformPermission(PLATFORM_PERMISSIONS.PLANS_EDIT), async (req, res) => {
+  try {
+    await data.deleteSubscriptionPlan(req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
 });
 
 // ─── Tenant API ──────────────────────────────────────────────────────────────
@@ -550,6 +610,130 @@ router.post("/api/settings/upload", upload.single("file"), async (req, res) => {
 // Tenant subscription info
 router.get("/api/tenant/subscription", async (req, res) => {
   res.json(await data.getTenantSubscription(tid(req)));
+});
+
+router.get("/api/tenant/payments/config", async (req, res) => {
+  const auth = getAuth(req);
+  let trialDaysRemaining: number | null = null;
+  if (auth.tenantId) {
+    const tenant = await query("SELECT status, trial_ends_at FROM tenants WHERE id = $1", [auth.tenantId]);
+    if (tenant.rows[0]?.status === "trial") {
+      trialDaysRemaining = data.getTrialDaysRemaining(tenant.rows[0].trial_ends_at as string);
+    }
+  }
+  res.json({
+    tapEnabled: isTapConfigured(),
+    currency: process.env.TAP_CURRENCY || "USD",
+    trialDaysRemaining,
+  });
+});
+
+router.post("/api/tenant/payments/checkout", async (req, res) => {
+  try {
+    const auth = getAuth(req);
+    const billingCycle = req.body.billingCycle === "yearly" ? "yearly" : "monthly";
+    const checkout = await data.createPlatformCheckout(auth.tenantId!, auth.userId, billingCycle);
+    res.json(checkout);
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+router.get("/api/tenant/payments/confirm", async (req, res) => {
+  try {
+    const tapId = req.query.tap_id as string;
+    if (!tapId) return res.status(400).json({ error: "Missing tap_id" });
+    const result = await data.confirmPlatformPayment(tapId);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+router.get("/api/tenant/support/conversation", async (req, res) => {
+  const auth = getAuth(req);
+  const user = await query("SELECT display_name FROM users WHERE id = $1", [auth.userId]);
+  const conv = await data.getOrCreateSupportConversation(
+    tid(req),
+    auth.userId,
+    (user.rows[0]?.display_name as string) || auth.email,
+  );
+  res.json(conv);
+});
+
+router.get("/api/tenant/support/messages", async (req, res) => {
+  const conversationId = req.query.conversationId as string;
+  if (!conversationId) return res.status(400).json({ error: "conversationId required" });
+  res.json(await data.getSupportMessages(conversationId, tid(req)));
+});
+
+router.post("/api/tenant/support/messages", async (req, res) => {
+  const auth = getAuth(req);
+  const { conversationId, body } = req.body;
+  if (!conversationId || !body) return res.status(400).json({ error: "conversationId and body required" });
+  const user = await query("SELECT display_name FROM users WHERE id = $1", [auth.userId]);
+  const msg = await data.sendSupportMessage({
+    conversationId,
+    body,
+    senderType: "tenant_user",
+    senderId: auth.userId,
+    senderName: (user.rows[0]?.display_name as string) || auth.email,
+    tenantId: tid(req),
+  });
+  res.status(201).json(msg);
+});
+
+router.get("/api/platform/payments", requirePlatformAdmin, requirePlatformPermission(PLATFORM_PERMISSIONS.PAYMENTS_VIEW), async (_req, res) => {
+  res.json(await data.getPlatformPayments());
+});
+
+router.get("/api/platform/support/conversations", requirePlatformAdmin, requirePlatformPermission(PLATFORM_PERMISSIONS.SUPPORT_VIEW), async (_req, res) => {
+  res.json(await data.getAllSupportConversations());
+});
+
+router.get("/api/platform/support/conversations/:id/messages", requirePlatformAdmin, requirePlatformPermission(PLATFORM_PERMISSIONS.SUPPORT_VIEW), async (req, res) => {
+  res.json(await data.getSupportMessages(req.params.id));
+});
+
+router.post("/api/platform/support/conversations/:id/messages", requirePlatformAdmin, requirePlatformPermission(PLATFORM_PERMISSIONS.SUPPORT_REPLY), async (req, res) => {
+  const auth = getAuth(req);
+  const admin = await data.getPlatformAdminById(auth.userId);
+  const { body } = req.body;
+  if (!body) return res.status(400).json({ error: "body required" });
+  const msg = await data.sendSupportMessage({
+    conversationId: req.params.id,
+    body,
+    senderType: "platform_admin",
+    senderId: auth.userId,
+    senderName: (admin?.displayName as string) || auth.email,
+  });
+  res.status(201).json(msg);
+});
+
+router.get("/api/platform/admins", requirePlatformAdmin, requirePlatformPermission(PLATFORM_PERMISSIONS.ADMINS_VIEW), async (_req, res) => {
+  res.json(await data.getAllPlatformAdmins());
+});
+
+router.get("/api/platform/admin-roles", requirePlatformAdmin, requirePlatformPermission(PLATFORM_PERMISSIONS.ADMINS_VIEW), async (_req, res) => {
+  res.json(await data.getPlatformAdminRoles());
+});
+
+router.post("/api/platform/admins", requirePlatformAdmin, requirePlatformPermission(PLATFORM_PERMISSIONS.ADMINS_EDIT), async (req, res) => {
+  try {
+    const admin = await data.createPlatformAdminUser(req.body);
+    res.status(201).json(admin);
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+router.patch("/api/platform/admins/:id", requirePlatformAdmin, requirePlatformPermission(PLATFORM_PERMISSIONS.ADMINS_EDIT), async (req, res) => {
+  try {
+    await data.updatePlatformAdminUser(req.params.id, req.body);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
 });
 
 // Backup

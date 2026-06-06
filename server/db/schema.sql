@@ -30,12 +30,27 @@ CREATE TABLE IF NOT EXISTS tenants (
 CREATE TABLE IF NOT EXISTS tenant_subscriptions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  plan_id UUID NOT NULL REFERENCES subscription_plans(id),
+  plan_id UUID REFERENCES subscription_plans(id) ON DELETE SET NULL,
   status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'past_due', 'cancelled', 'trialing')),
   billing_cycle VARCHAR(10) DEFAULT 'monthly' CHECK (billing_cycle IN ('monthly', 'yearly')),
   current_period_start TIMESTAMPTZ DEFAULT NOW(),
   current_period_end TIMESTAMPTZ,
   cancelled_at TIMESTAMPTZ,
+  plan_name VARCHAR(100),
+  plan_slug VARCHAR(50),
+  plan_description TEXT,
+  price_monthly DECIMAL(10,2),
+  price_yearly DECIMAL(10,2),
+  max_members INTEGER,
+  max_users INTEGER,
+  plan_features JSONB DEFAULT '[]',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS platform_admin_roles (
+  id VARCHAR(50) PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  permissions JSONB NOT NULL DEFAULT '[]',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -44,6 +59,48 @@ CREATE TABLE IF NOT EXISTS platform_admins (
   email VARCHAR(255) UNIQUE NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
   display_name VARCHAR(255),
+  role_id VARCHAR(50) DEFAULT 'super_admin' REFERENCES platform_admin_roles(id),
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS platform_payments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  subscription_id UUID REFERENCES tenant_subscriptions(id) ON DELETE SET NULL,
+  tap_charge_id VARCHAR(100),
+  amount DECIMAL(10,2) NOT NULL,
+  currency VARCHAR(3) DEFAULT 'USD',
+  status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'captured', 'failed', 'cancelled')),
+  billing_cycle VARCHAR(10) DEFAULT 'monthly',
+  plan_name VARCHAR(100),
+  plan_slug VARCHAR(50),
+  customer_email VARCHAR(255),
+  invoice_number VARCHAR(50),
+  invoice_sent_at TIMESTAMPTZ,
+  paid_at TIMESTAMPTZ,
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS support_conversations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  status VARCHAR(20) DEFAULT 'open' CHECK (status IN ('open', 'closed')),
+  subject VARCHAR(255) DEFAULT 'Support request',
+  created_by_user_id UUID,
+  created_by_name VARCHAR(255),
+  last_message_at TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS support_messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  conversation_id UUID NOT NULL REFERENCES support_conversations(id) ON DELETE CASCADE,
+  sender_type VARCHAR(20) NOT NULL CHECK (sender_type IN ('tenant_user', 'platform_admin', 'bot')),
+  sender_id UUID,
+  sender_name VARCHAR(255),
+  body TEXT NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -276,3 +333,93 @@ ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS sessions_total INTEGER;
 ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS sessions_remaining INTEGER;
 ALTER TABLE member_belts ADD COLUMN IF NOT EXISTS stripes INTEGER DEFAULT 0;
 UPDATE tenant_settings SET club_type = 'hybrid' WHERE club_type = 'yoga_pilates';
+
+ALTER TABLE tenant_subscriptions ADD COLUMN IF NOT EXISTS plan_name VARCHAR(100);
+ALTER TABLE tenant_subscriptions ADD COLUMN IF NOT EXISTS plan_slug VARCHAR(50);
+ALTER TABLE tenant_subscriptions ADD COLUMN IF NOT EXISTS plan_description TEXT;
+ALTER TABLE tenant_subscriptions ADD COLUMN IF NOT EXISTS price_monthly DECIMAL(10,2);
+ALTER TABLE tenant_subscriptions ADD COLUMN IF NOT EXISTS price_yearly DECIMAL(10,2);
+ALTER TABLE tenant_subscriptions ADD COLUMN IF NOT EXISTS max_members INTEGER;
+ALTER TABLE tenant_subscriptions ADD COLUMN IF NOT EXISTS max_users INTEGER;
+ALTER TABLE tenant_subscriptions ADD COLUMN IF NOT EXISTS plan_features JSONB DEFAULT '[]';
+
+ALTER TABLE tenant_subscriptions ALTER COLUMN plan_id DROP NOT NULL;
+
+UPDATE tenant_subscriptions ts
+SET
+  plan_name = sp.name,
+  plan_slug = sp.slug,
+  plan_description = sp.description,
+  price_monthly = sp.price_monthly,
+  price_yearly = sp.price_yearly,
+  max_members = sp.max_members,
+  max_users = sp.max_users,
+  plan_features = sp.features
+FROM subscription_plans sp
+WHERE ts.plan_id = sp.id AND ts.plan_name IS NULL;
+
+ALTER TABLE platform_admins ADD COLUMN IF NOT EXISTS role_id VARCHAR(50) DEFAULT 'super_admin';
+ALTER TABLE platform_admins ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS trial_expired_notified_at TIMESTAMPTZ;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS trial_reminder_3d_sent_at TIMESTAMPTZ;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS trial_reminder_1d_sent_at TIMESTAMPTZ;
+
+CREATE TABLE IF NOT EXISTS platform_admin_roles (
+  id VARCHAR(50) PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  permissions JSONB NOT NULL DEFAULT '[]',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS platform_payments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  subscription_id UUID REFERENCES tenant_subscriptions(id) ON DELETE SET NULL,
+  tap_charge_id VARCHAR(100),
+  amount DECIMAL(10,2) NOT NULL,
+  currency VARCHAR(3) DEFAULT 'USD',
+  status VARCHAR(20) DEFAULT 'pending',
+  billing_cycle VARCHAR(10) DEFAULT 'monthly',
+  plan_name VARCHAR(100),
+  plan_slug VARCHAR(50),
+  customer_email VARCHAR(255),
+  invoice_number VARCHAR(50),
+  invoice_sent_at TIMESTAMPTZ,
+  paid_at TIMESTAMPTZ,
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS support_conversations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  status VARCHAR(20) DEFAULT 'open',
+  subject VARCHAR(255) DEFAULT 'Support request',
+  created_by_user_id UUID,
+  created_by_name VARCHAR(255),
+  last_message_at TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS support_messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  conversation_id UUID NOT NULL REFERENCES support_conversations(id) ON DELETE CASCADE,
+  sender_type VARCHAR(20) NOT NULL,
+  sender_id UUID,
+  sender_name VARCHAR(255),
+  body TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_platform_payments_tenant ON platform_payments(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_support_conversations_tenant ON support_conversations(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_support_messages_conversation ON support_messages(conversation_id);
+
+INSERT INTO platform_admin_roles (id, name, permissions) VALUES
+  ('super_admin', 'Super Admin', '["*"]'),
+  ('support', 'Support', '["platform.tenants.view","platform.support.view","platform.support.reply","platform.payments.view"]'),
+  ('billing', 'Billing', '["platform.tenants.view","platform.payments.view","platform.plans.view"]'),
+  ('operations', 'Operations', '["platform.tenants.view","platform.tenants.edit","platform.tenants.impersonate","platform.plans.view","platform.plans.edit","platform.payments.view"]')
+ON CONFLICT (id) DO NOTHING;
+
+UPDATE platform_admins SET role_id = 'super_admin' WHERE role_id IS NULL;

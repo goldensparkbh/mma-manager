@@ -170,9 +170,6 @@ export default function Landing() {
 
         <div className="relative mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-28 lg:py-32">
           <div className="mx-auto max-w-3xl text-center">
-            <Badge variant="secondary" className="mb-6 px-3 py-1 text-xs font-semibold uppercase tracking-wide">
-              {t("landing.hero.badge")}
-            </Badge>
             <h1 className="text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">
               {t("landing.hero.title")}
             </h1>

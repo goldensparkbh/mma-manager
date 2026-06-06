@@ -7,18 +7,20 @@ import { useAuth } from "@/context/auth-context";
 import { useLanguage } from "@/context/language-context";
 import { getTenantSubscriptionStatus, type SubscriptionBlockReason } from "@/lib/tenantSubscription";
 import Billing from "@/pages/billing";
+import { SupportChatWidget } from "@/components/support-chat-widget";
 
 const REASON_KEYS: Record<SubscriptionBlockReason, string> = {
   subscription_suspended: "billing.gate.suspended",
   subscription_cancelled: "billing.gate.cancelled",
   trial_expired: "billing.gate.trialExpired",
+  subscription_expired: "billing.gate.subscriptionExpired",
 };
 
 export function SubscriptionGate({ children }: { children: React.ReactNode }) {
-  const { tenant, signOutUser } = useAuth();
+  const { tenant, subscription, subscriptionBlockReason, signOutUser } = useAuth();
   const { t } = useLanguage();
   const [location, setLocation] = useLocation();
-  const { active, reason } = getTenantSubscriptionStatus(tenant);
+  const { active, reason } = getTenantSubscriptionStatus(tenant, subscription, subscriptionBlockReason);
 
   useEffect(() => {
     if (!active && location !== "/billing") {
@@ -56,6 +58,7 @@ export function SubscriptionGate({ children }: { children: React.ReactNode }) {
           </Card>
           <Billing />
         </main>
+        <SupportChatWidget />
       </div>
     );
   }

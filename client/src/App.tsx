@@ -27,9 +27,12 @@ import Belts from "@/pages/belts";
 import Users from "@/pages/users";
 import SystemSettings from "@/pages/system-settings";
 import Billing from "@/pages/billing";
+import PaymentResult from "@/pages/payment-result";
 import PlatformAdmin from "@/pages/platform-admin";
 import { ScreenSaver } from "@/components/screen-saver";
 import { SubscriptionGate } from "@/components/subscription-gate";
+import { SupportChatWidget } from "@/components/support-chat-widget";
+import { ImpersonationBanner } from "@/components/impersonation-banner";
 import { useEffect } from "react";
 import { PERMISSIONS } from "@/lib/permissions";
 
@@ -88,6 +91,7 @@ function Router() {
         <RequirePermission permission={PERMISSIONS.SETTINGS_VIEW}><SystemSettings /></RequirePermission>
       </Route>
       <Route path="/billing" component={Billing} />
+      <Route path="/payment/result" component={PaymentResult} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -104,6 +108,7 @@ function PublicRoutes() {
 function AppShell() {
   const { user, loading, clubSettings, tenant } = useAuth();
   const { t, language } = useLanguage();
+  const [location] = useLocation();
   const style = { "--sidebar-width": "17rem", "--sidebar-width-icon": "4rem" };
 
   if (loading) {
@@ -115,7 +120,10 @@ function AppShell() {
     );
   }
 
-  if (!user) return <PublicRoutes />;
+  if (!user) {
+    if (location === "/payment/result") return <PaymentResult />;
+    return <PublicRoutes />;
+  }
 
   if (user.isPlatformAdmin) return <PlatformAdmin />;
 
@@ -128,6 +136,7 @@ function AppShell() {
           <div className="flex h-screen w-full">
             <AppSidebar />
             <div className="flex flex-col flex-1 overflow-hidden">
+              <ImpersonationBanner />
               <header className="flex items-center justify-between gap-4 p-3 border-b bg-card">
                 <div className="flex items-center gap-3">
                   <SidebarTrigger data-testid="button-sidebar-toggle" />
@@ -144,9 +153,12 @@ function AppShell() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {tenant?.status === "trial" && (
+                  {tenant?.status === "trial" && tenant.trialEndsAt && (
                     <span className="hidden sm:inline text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
-                      Trial
+                      {(() => {
+                        const days = Math.ceil((new Date(tenant.trialEndsAt).getTime() - Date.now()) / 86400000);
+                        return days > 0 ? t("billing.trialDaysLeft").replace("{days}", String(days)) : t("billing.trialEnded");
+                      })()}
                     </span>
                   )}
                   <div className="hidden xs:flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted text-xs font-mono">
@@ -162,6 +174,7 @@ function AppShell() {
           </div>
         </SidebarProvider>
       </TooltipProvider>
+      <SupportChatWidget />
       <Toaster />
     </ThemeProvider>
     </SubscriptionGate>

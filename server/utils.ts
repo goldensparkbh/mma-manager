@@ -55,6 +55,8 @@ export interface AuthPayload {
   email: string;
   role: string;
   isPlatformAdmin: boolean;
+  platformPermissions?: string[];
+  impersonatedBy?: string | null;
 }
 
 export function getAuth(req: Request): AuthPayload {

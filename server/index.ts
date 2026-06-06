@@ -35,6 +35,12 @@ async function main() {
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on port ${PORT}`);
   });
+
+  const { processAllTrialReminders } = await import("./data.js");
+  processAllTrialReminders().catch((err) => console.error("Trial reminder job:", err));
+  setInterval(() => {
+    processAllTrialReminders().catch((err) => console.error("Trial reminder job:", err));
+  }, 6 * 60 * 60 * 1000);
 }
 
 main().catch((err) => {

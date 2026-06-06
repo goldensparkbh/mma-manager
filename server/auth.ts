@@ -4,6 +4,7 @@ import bcryptPkg from "bcryptjs";
 const bcrypt = (bcryptPkg as typeof bcryptPkg & { default?: typeof bcryptPkg }).default ?? bcryptPkg;
 import type { Request, Response, NextFunction } from "express";
 import type { AuthPayload } from "./utils.js";
+import { hasPlatformPermission } from "../shared/platformPermissions.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-in-production";
 const JWT_EXPIRES = /^(\d+[smhdw]|[1-9]\d*\s*(ms|seconds?|minutes?|hours?|days?|weeks?))$/i.test(process.env.JWT_EXPIRES || "")
@@ -70,4 +71,16 @@ export function requirePlatformAdmin(req: Request, res: Response, next: NextFunc
     return res.status(403).json({ error: "Platform admin access required" });
   }
   next();
+}
+
+export function requirePlatformPermission(...permissions: string[]) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const auth = (req as Request & { auth?: AuthPayload }).auth;
+    if (!auth?.isPlatformAdmin) {
+      return res.status(403).json({ error: "Platform admin access required" });
+    }
+    const userPerms = auth.platformPermissions || ["*"];
+    if (permissions.some((p) => hasPlatformPermission(userPerms, p))) return next();
+    return res.status(403).json({ error: "Insufficient platform permissions" });
+  };
 }

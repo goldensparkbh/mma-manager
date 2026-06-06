@@ -41,13 +41,16 @@ export interface PlatformSubscriptionPlan {
   features: string[];
   isActive: boolean;
   sortOrder?: number;
+  subscriberCount?: number;
 }
 
 export interface TenantSubscription {
   id: string;
   tenantId: string;
-  planId: string;
+  planId?: string | null;
   planName?: string;
+  planSlug?: string;
+  planDescription?: string | null;
   status: "active" | "past_due" | "cancelled" | "trialing";
   billingCycle: "monthly" | "yearly";
   currentPeriodStart?: string;

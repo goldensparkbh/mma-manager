@@ -1,25 +1,30 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/auth-context";
 import { useLanguage } from "@/context/language-context";
 import { apiJson } from "@/lib/api";
 import { getTenantSubscriptionStatus } from "@/lib/tenantSubscription";
-import type { TenantSubscription, PlatformSubscriptionPlan } from "@shared/schema";
-import { CreditCard, Calendar, Users, Shield, AlertTriangle } from "lucide-react";
+import type { TenantSubscription } from "@shared/schema";
+import { CreditCard, Calendar, Users, Shield, AlertTriangle, Loader2 } from "lucide-react";
 
 export default function Billing() {
-  const { tenant, subscription } = useAuth();
+  const { tenant, subscription, subscriptionBlockReason } = useAuth();
   const { t } = useLanguage();
-  const { active, reason } = getTenantSubscriptionStatus(tenant);
+  const { toast } = useToast();
+  const [paying, setPaying] = useState<"monthly" | "yearly" | null>(null);
+  const { active, reason } = getTenantSubscriptionStatus(tenant, subscription, subscriptionBlockReason);
 
-  const { data: plans = [] } = useQuery<PlatformSubscriptionPlan[]>({
-    queryKey: ["/api/plans"],
-    queryFn: () => apiJson("/api/plans"),
+  const { data: paymentConfig } = useQuery<{ tapEnabled: boolean; currency: string; trialDaysRemaining?: number | null }>({
+    queryKey: ["/api/tenant/payments/config"],
+    queryFn: () => apiJson("/api/tenant/payments/config"),
+    enabled: !!tenant,
   });
 
-  const { data: currentSub } = useQuery<TenantSubscription>({
+  const { data: currentSub, refetch } = useQuery<TenantSubscription>({
     queryKey: ["/api/tenant/subscription"],
     queryFn: () => apiJson("/api/tenant/subscription"),
     enabled: !!tenant,
@@ -27,15 +32,36 @@ export default function Billing() {
 
   const sub = currentSub || subscription;
   const isTrial = tenant?.status === "trial";
+  const needsPayment = !active || isTrial;
 
   const alertKey =
     reason === "trial_expired"
       ? "trialExpired"
-      : reason === "subscription_cancelled"
-        ? "cancelled"
-        : reason === "subscription_suspended"
-          ? "suspended"
-          : null;
+      : reason === "subscription_expired"
+        ? "subscriptionExpired"
+        : reason === "subscription_cancelled"
+          ? "cancelled"
+          : reason === "subscription_suspended"
+            ? "suspended"
+            : null;
+
+  const startCheckout = async (billingCycle: "monthly" | "yearly") => {
+    if (!paymentConfig?.tapEnabled) {
+      toast({ variant: "destructive", title: t("common.error"), description: t("billing.tapNotConfigured") });
+      return;
+    }
+    setPaying(billingCycle);
+    try {
+      const result = await apiJson<{ url: string }>("/api/tenant/payments/checkout", {
+        method: "POST",
+        body: JSON.stringify({ billingCycle }),
+      });
+      window.location.href = result.url;
+    } catch (err) {
+      toast({ variant: "destructive", title: t("common.error"), description: (err as Error).message });
+      setPaying(null);
+    }
+  };
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -43,6 +69,22 @@ export default function Billing() {
         <h1 className="text-2xl font-bold">{t("billing.title")}</h1>
         <p className="text-muted-foreground">{t("billing.subtitle")}</p>
       </div>
+
+      {isTrial && paymentConfig?.trialDaysRemaining != null && paymentConfig.trialDaysRemaining > 0 && paymentConfig.trialDaysRemaining <= 3 && (
+        <Card className="border-amber-500/50 bg-amber-500/5">
+          <CardContent className="pt-6 flex items-center gap-4 text-amber-800 dark:text-amber-200">
+            <AlertTriangle className="h-8 w-8 shrink-0" />
+            <div>
+              <p className="font-semibold">
+                {paymentConfig.trialDaysRemaining <= 1
+                  ? t("billing.trialReminder1d")
+                  : t("billing.trialReminder3d").replace("{days}", String(paymentConfig.trialDaysRemaining))}
+              </p>
+              <p className="text-sm opacity-90">{t("billing.trialReminderDesc")}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {!active && alertKey && (
         <Card className="border-destructive">
@@ -61,6 +103,7 @@ export default function Billing() {
           <CardTitle className="flex items-center gap-2">
             <CreditCard className="h-5 w-5" /> {t("billing.currentPlan")}
           </CardTitle>
+          <CardDescription>{t("billing.lockedPlanNote")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
@@ -70,7 +113,7 @@ export default function Billing() {
                 {tenant?.status || sub?.status}
               </Badge>
             </div>
-            {sub?.priceMonthly && (
+            {sub?.priceMonthly != null && (
               <p className="text-3xl font-bold">
                 ${sub.priceMonthly}
                 <span className="text-sm font-normal text-muted-foreground">/mo</span>
@@ -82,15 +125,9 @@ export default function Billing() {
               <Calendar className="h-4 w-4 text-muted-foreground" />
               <span>
                 {isTrial && tenant?.trialEndsAt
-                  ? t("billing.trialEnds").replace(
-                      "{date}",
-                      new Date(tenant.trialEndsAt).toLocaleDateString(),
-                    )
+                  ? t("billing.trialEnds").replace("{date}", new Date(tenant.trialEndsAt).toLocaleDateString())
                   : sub?.currentPeriodEnd
-                    ? t("billing.renews").replace(
-                        "{date}",
-                        new Date(sub.currentPeriodEnd).toLocaleDateString(),
-                      )
+                    ? t("billing.renews").replace("{date}", new Date(sub.currentPeriodEnd).toLocaleDateString())
                     : "—"}
               </span>
             </div>
@@ -103,36 +140,44 @@ export default function Billing() {
               <span>{t("billing.staffLimit").replace("{count}", String(sub?.maxUsers || 3))}</span>
             </div>
           </div>
+
+          {needsPayment && (
+            <div className="rounded-lg border bg-muted/40 p-4 space-y-3">
+              <p className="text-sm font-medium">{t("billing.payToActivate")}</p>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button
+                  className="flex-1"
+                  disabled={!!paying}
+                  onClick={() => startCheckout("monthly")}
+                >
+                  {paying === "monthly" ? <Loader2 className="h-4 w-4 animate-spin me-2" /> : null}
+                  {t("billing.payMonthly").replace("{amount}", String(sub?.priceMonthly ?? 0))}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  disabled={!!paying}
+                  onClick={() => startCheckout("yearly")}
+                >
+                  {paying === "yearly" ? <Loader2 className="h-4 w-4 animate-spin me-2" /> : null}
+                  {t("billing.payYearly").replace("{amount}", String(sub?.priceYearly ?? 0))}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">{t("billing.tapSecureNote")}</p>
+            </div>
+          )}
+
+          {active && !isTrial && (
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              {t("billing.refreshStatus")}
+            </Button>
+          )}
         </CardContent>
       </Card>
 
-      <div>
-        <h2 className="text-lg font-semibold mb-4">{t("billing.availablePlans")}</h2>
-        <div className="grid gap-4 md:grid-cols-3">
-          {plans.map((plan) => (
-            <Card key={plan.id} className={sub?.planName === plan.name ? "ring-2 ring-primary" : ""}>
-              <CardHeader>
-                <CardTitle>{plan.name}</CardTitle>
-                <CardDescription>{plan.description}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold mb-4">
-                  ${plan.priceMonthly}
-                  <span className="text-sm font-normal">/mo</span>
-                </p>
-                <ul className="text-sm space-y-1 text-muted-foreground mb-4">
-                  <li>{t("billing.membersLimit").replace("{count}", String(plan.maxMembers))}</li>
-                  <li>{t("billing.staffLimit").replace("{count}", String(plan.maxUsers))}</li>
-                </ul>
-                <Button className="w-full" variant={sub?.planName === plan.name ? "secondary" : "default"} disabled>
-                  {sub?.planName === plan.name ? t("billing.currentPlanButton") : t("billing.upgradeButton")}
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-        <p className="text-sm text-muted-foreground mt-4 text-center">{t("billing.paymentNote")}</p>
-      </div>
+      {!paymentConfig?.tapEnabled && needsPayment && (
+        <p className="text-sm text-center text-muted-foreground">{t("billing.tapNotConfigured")}</p>
+      )}
     </div>
   );
 }

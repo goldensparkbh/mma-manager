@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState, useCallback } 
 import { apiJson, setToken, clearToken, getToken } from "@/lib/api";
 import { normalizeWhatsAppTemplates, type WhatsAppTemplate } from "@/lib/whatsapp";
 import type { User, Tenant, TenantSubscription } from "@shared/schema";
-import { getTenantSubscriptionStatus } from "@/lib/tenantSubscription";
+import { getTenantSubscriptionStatus, type SubscriptionBlockReason } from "@/lib/tenantSubscription";
 
 type AuthUser = {
   id: string;
@@ -17,6 +17,7 @@ type AuthContextValue = {
   user: AuthUser | null;
   tenant: Tenant | null;
   subscription: TenantSubscription | null;
+  subscriptionBlockReason: SubscriptionBlockReason | null;
   role: string | null;
   permissions: string[];
   loading: boolean;
@@ -95,6 +96,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [subscription, setSubscription] = useState<TenantSubscription | null>(null);
+  const [subscriptionBlockReason, setSubscriptionBlockReason] = useState<SubscriptionBlockReason | null>(null);
   const [role, setRole] = useState<string | null>(null);
   const [permissions, setPermissions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -128,14 +130,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         tenant?: Tenant;
         subscription?: TenantSubscription;
         permissions?: string[];
+        subscriptionBlockReason?: SubscriptionBlockReason | null;
       }>("/api/auth/me");
       setUser(data.user);
       setTenant(data.tenant || null);
       setSubscription(data.subscription || null);
+      setSubscriptionBlockReason(data.subscriptionBlockReason || null);
       setRole(data.user.role);
       setPermissions(data.permissions || (data.user.role === "admin" ? ["*"] : []));
       if (!data.user.isPlatformAdmin) {
-        const subStatus = getTenantSubscriptionStatus(data.tenant || null);
+        const subStatus = getTenantSubscriptionStatus(
+          data.tenant || null,
+          data.subscription || null,
+          data.subscriptionBlockReason,
+        );
         if (subStatus.active) await fetchClubSettings();
       }
     } catch {
@@ -156,6 +164,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user: AuthUser;
       tenant?: Tenant;
       subscription?: TenantSubscription;
+      subscriptionBlockReason?: SubscriptionBlockReason | null;
     }>("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
     setToken(data.token);
     setUser(data.user);
@@ -166,10 +175,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { redirectTo: "/" };
     }
     setSubscription(data.subscription || null);
-    const me = await apiJson<{ permissions?: string[]; subscription?: TenantSubscription }>("/api/auth/me");
+    const me = await apiJson<{
+      permissions?: string[];
+      subscription?: TenantSubscription;
+      subscriptionBlockReason?: SubscriptionBlockReason | null;
+    }>("/api/auth/me");
     setPermissions(me.permissions || (data.user.role === "admin" ? ["*"] : []));
     if (me.subscription) setSubscription(me.subscription);
-    const subStatus = getTenantSubscriptionStatus(data.tenant || null);
+    setSubscriptionBlockReason(me.subscriptionBlockReason || data.subscriptionBlockReason || null);
+    const subStatus = getTenantSubscriptionStatus(
+      data.tenant || null,
+      me.subscription || data.subscription || null,
+      me.subscriptionBlockReason || data.subscriptionBlockReason,
+    );
     if (subStatus.active) await fetchClubSettings();
     return { redirectTo: subStatus.active ? "/" : "/billing" };
   };
@@ -201,6 +219,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
     setTenant(null);
     setSubscription(null);
+    setSubscriptionBlockReason(null);
     setRole(null);
     setPermissions([]);
     setClubSettings(null);
@@ -222,6 +241,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       tenant,
       subscription,
+      subscriptionBlockReason,
       role,
       permissions,
       loading,
@@ -232,7 +252,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       login,
       register,
     }),
-    [user, tenant, subscription, role, permissions, loading, clubSettings, fetchClubSettings],
+    [user, tenant, subscription, subscriptionBlockReason, role, permissions, loading, clubSettings, fetchClubSettings],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,6 +1,9 @@
 import { query } from "./db/index.js";
 import { rowsToCamel, toCamelCase, formatDate, formatTimestamp, uniqueSlug } from "./utils.js";
 import { hashPassword } from "./auth.js";
+import { createTapCharge, getAppBaseUrl, isTapChargeSuccessful, isTapConfigured, retrieveTapCharge } from "./tap.js";
+import { sendPaymentInvoiceEmail, sendTrialExpiredEmail, sendTrialReminderEmail } from "./email.js";
+import { PLATFORM_ROLE_PRESETS } from "../shared/platformPermissions.js";
 import {
   getClubTypeTemplate,
   parseProgressionConfig,
@@ -790,11 +793,11 @@ export async function provisionTenant(params: {
   });
 
   const planResult = await query(
-    "SELECT id FROM subscription_plans WHERE slug = $1 AND is_active = true",
+    "SELECT * FROM subscription_plans WHERE slug = $1 AND is_active = true",
     [params.planSlug || "starter"],
   );
-  const planId = planResult.rows[0]?.id;
-  if (!planId) throw new Error("Invalid plan");
+  const plan = planResult.rows[0] as PlanRow;
+  if (!plan) throw new Error("Invalid plan");
 
   const trialEnd = new Date();
   trialEnd.setDate(trialEnd.getDate() + 14);
@@ -802,16 +805,19 @@ export async function provisionTenant(params: {
   const tenantResult = await query(
     `INSERT INTO tenants (name, slug, email, phone, status, plan_id, trial_ends_at)
      VALUES ($1,$2,$3,$4,'trial',$5,$6) RETURNING *`,
-    [params.clubName, slug, params.email, params.phone || null, planId, trialEnd.toISOString()],
+    [params.clubName, slug, params.email, params.phone || null, plan.id, trialEnd.toISOString()],
   );
   const tenant = tenantResult.rows[0];
   const tenantId = tenant.id;
 
-  await query(
-    `INSERT INTO tenant_subscriptions (tenant_id, plan_id, status, billing_cycle, current_period_start, current_period_end)
-     VALUES ($1,$2,'trialing','monthly',NOW(),$3)`,
-    [tenantId, planId, trialEnd.toISOString()],
-  );
+  await createTenantSubscriptionSnapshot({
+    tenantId,
+    plan,
+    status: "trialing",
+    billingCycle: "monthly",
+    periodStart: new Date(),
+    periodEnd: trialEnd,
+  });
 
   const hash = await hashPassword(params.password);
   const userResult = await query(
@@ -856,16 +862,63 @@ export async function provisionTenant(params: {
   return { tenant: toCamelCase(tenant), user: toCamelCase(userResult.rows[0]) };
 }
 
+// ─── Platform subscriptions (snapshotted per tenant period) ────────────────
+
+type PlanRow = {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  price_monthly: number;
+  price_yearly: number;
+  max_members: number;
+  max_users: number;
+  features: string[] | string;
+};
+
+async function createTenantSubscriptionSnapshot(params: {
+  tenantId: string;
+  plan: PlanRow;
+  status: string;
+  billingCycle: string;
+  periodStart: Date;
+  periodEnd: Date;
+}) {
+  const { tenantId, plan, status, billingCycle, periodStart, periodEnd } = params;
+  const features = Array.isArray(plan.features) ? plan.features : JSON.parse(plan.features as string || "[]");
+  await query(
+    `INSERT INTO tenant_subscriptions (
+      tenant_id, plan_id, status, billing_cycle, current_period_start, current_period_end,
+      plan_name, plan_slug, plan_description, price_monthly, price_yearly, max_members, max_users, plan_features
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+    [
+      tenantId, plan.id, status, billingCycle, periodStart.toISOString(), periodEnd.toISOString(),
+      plan.name, plan.slug, plan.description || null,
+      plan.price_monthly, plan.price_yearly, plan.max_members, plan.max_users,
+      JSON.stringify(features),
+    ],
+  );
+}
+
+function mapTenantSubscriptionRow(row: Record<string, unknown>) {
+  const sub = toCamelCase(row) as Record<string, unknown>;
+  if (!sub.features && sub.planFeatures) {
+    const raw = sub.planFeatures;
+    sub.features = typeof raw === "string" ? JSON.parse(raw) : raw;
+  }
+  return sub;
+}
+
 // ─── Platform Admin ────────────────────────────────────────────────────────
 
 export async function getAllTenants() {
   const result = await query(`
-    SELECT t.*, sp.name as plan_name, sp.price_monthly,
+    SELECT t.*,
+      ts.plan_name, ts.price_monthly,
       ts.status as subscription_status, ts.current_period_end, ts.billing_cycle,
       (SELECT COUNT(*) FROM members m WHERE m.tenant_id = t.id) as member_count,
       (SELECT COUNT(*) FROM users u WHERE u.tenant_id = t.id) as user_count
     FROM tenants t
-    LEFT JOIN subscription_plans sp ON t.plan_id = sp.id
     LEFT JOIN LATERAL (
       SELECT * FROM tenant_subscriptions WHERE tenant_id = t.id ORDER BY created_at DESC LIMIT 1
     ) ts ON true
@@ -876,10 +929,10 @@ export async function getAllTenants() {
 
 export async function getTenantById(id: string) {
   const result = await query(`
-    SELECT t.*, sp.name as plan_name, sp.price_monthly, sp.max_members, sp.max_users,
+    SELECT t.*,
+      ts.plan_name, ts.price_monthly, ts.max_members, ts.max_users,
       ts.status as subscription_status, ts.current_period_end, ts.billing_cycle
     FROM tenants t
-    LEFT JOIN subscription_plans sp ON t.plan_id = sp.id
     LEFT JOIN LATERAL (
       SELECT * FROM tenant_subscriptions WHERE tenant_id = t.id ORDER BY created_at DESC LIMIT 1
     ) ts ON true
@@ -892,27 +945,122 @@ export async function updateTenant(id: string, updates: Record<string, unknown>)
   const fields: string[] = ["updated_at = NOW()"];
   const values: unknown[] = [id];
   let idx = 2;
-  for (const key of ["name", "email", "phone", "status", "planId"]) {
+  for (const key of ["name", "email", "phone", "status"]) {
     if (key in updates) {
-      const col = key === "planId" ? "plan_id" : key;
-      fields.push(`${col} = $${idx++}`);
+      fields.push(`${key} = $${idx++}`);
       values.push(updates[key]);
+    }
+  }
+  if ("planId" in updates && updates.planId) {
+    fields.push(`plan_id = $${idx++}`);
+    values.push(updates.planId);
+    const planResult = await query("SELECT * FROM subscription_plans WHERE id = $1", [updates.planId]);
+    const plan = planResult.rows[0] as PlanRow | undefined;
+    if (plan) {
+      const periodStart = new Date();
+      const periodEnd = new Date();
+      periodEnd.setMonth(periodEnd.getMonth() + 1);
+      await createTenantSubscriptionSnapshot({
+        tenantId: id,
+        plan,
+        status: "active",
+        billingCycle: "monthly",
+        periodStart,
+        periodEnd,
+      });
     }
   }
   if (fields.length > 1) await query(`UPDATE tenants SET ${fields.join(", ")} WHERE id = $1`, values);
 }
 
-export async function getSubscriptionPlans() {
-  const result = await query("SELECT * FROM subscription_plans ORDER BY sort_order");
+export async function getSubscriptionPlans(activeOnly = false) {
+  const result = await query(
+    `SELECT sp.*,
+      (SELECT COUNT(DISTINCT ts.tenant_id) FROM tenant_subscriptions ts WHERE ts.plan_id = sp.id) as subscriber_count
+     FROM subscription_plans sp
+     ${activeOnly ? "WHERE sp.is_active = true" : ""}
+     ORDER BY sp.sort_order`,
+  );
   return rowsToCamel(result.rows);
+}
+
+export async function getSubscriptionPlanById(id: string) {
+  const result = await query("SELECT * FROM subscription_plans WHERE id = $1", [id]);
+  return result.rows[0] ? toCamelCase(result.rows[0]) : null;
+}
+
+export async function createSubscriptionPlan(data: Record<string, unknown>) {
+  const result = await query(
+    `INSERT INTO subscription_plans (name, slug, description, price_monthly, price_yearly, max_members, max_users, features, sort_order, is_active)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+    [
+      data.name, data.slug, data.description || null,
+      data.priceMonthly, data.priceYearly, data.maxMembers, data.maxUsers,
+      JSON.stringify(data.features || []),
+      data.sortOrder ?? 0,
+      data.isActive !== false,
+    ],
+  );
+  return toCamelCase(result.rows[0]);
+}
+
+export async function updateSubscriptionPlan(id: string, data: Record<string, unknown>) {
+  const result = await query(
+    `UPDATE subscription_plans SET
+      name = COALESCE($2, name),
+      description = COALESCE($3, description),
+      price_monthly = COALESCE($4, price_monthly),
+      price_yearly = COALESCE($5, price_yearly),
+      max_members = COALESCE($6, max_members),
+      max_users = COALESCE($7, max_users),
+      features = COALESCE($8, features),
+      is_active = COALESCE($9, is_active),
+      sort_order = COALESCE($10, sort_order)
+     WHERE id = $1 RETURNING *`,
+    [
+      id,
+      data.name ?? null,
+      data.description ?? null,
+      data.priceMonthly ?? null,
+      data.priceYearly ?? null,
+      data.maxMembers ?? null,
+      data.maxUsers ?? null,
+      data.features ? JSON.stringify(data.features) : null,
+      data.isActive ?? null,
+      data.sortOrder ?? null,
+    ],
+  );
+  if (!result.rows[0]) throw new Error("Plan not found");
+  return toCamelCase(result.rows[0]);
+}
+
+export async function deleteSubscriptionPlan(id: string) {
+  const refs = await query(
+    `SELECT COUNT(*) as count FROM tenant_subscriptions WHERE plan_id = $1`,
+    [id],
+  );
+  if (Number(refs.rows[0].count) > 0) {
+    throw new Error("Cannot delete a plan with existing subscriptions. Deactivate it instead.");
+  }
+  const result = await query("DELETE FROM subscription_plans WHERE id = $1 RETURNING id", [id]);
+  if (!result.rows[0]) throw new Error("Plan not found");
 }
 
 export async function getPlatformStats() {
   const tenants = await query("SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status = 'active') as active, COUNT(*) FILTER (WHERE status = 'trial') as trial FROM tenants");
   const revenue = await query(`
-    SELECT COALESCE(SUM(sp.price_monthly), 0) as mrr
-    FROM tenants t JOIN subscription_plans sp ON t.plan_id = sp.id
+    SELECT COALESCE(SUM(
+      CASE
+        WHEN ts.billing_cycle = 'yearly' THEN COALESCE(ts.price_yearly, 0) / 12
+        ELSE COALESCE(ts.price_monthly, 0)
+      END
+    ), 0) as mrr
+    FROM tenants t
+    JOIN LATERAL (
+      SELECT * FROM tenant_subscriptions WHERE tenant_id = t.id ORDER BY created_at DESC LIMIT 1
+    ) ts ON true
     WHERE t.status IN ('active', 'trial')
+      AND (ts.current_period_end IS NULL OR ts.current_period_end > NOW())
   `);
   return {
     totalTenants: Number(tenants.rows[0].total),
@@ -924,19 +1072,18 @@ export async function getPlatformStats() {
 
 export async function getTenantSubscription(tenantId: string) {
   const result = await query(`
-    SELECT ts.*, sp.name as plan_name, sp.price_monthly, sp.price_yearly, sp.max_members, sp.max_users, sp.features
+    SELECT ts.*
     FROM tenant_subscriptions ts
-    JOIN subscription_plans sp ON ts.plan_id = sp.id
     WHERE ts.tenant_id = $1
     ORDER BY ts.created_at DESC LIMIT 1
   `, [tenantId]);
-  return result.rows[0] ? toCamelCase(result.rows[0]) : null;
+  return result.rows[0] ? mapTenantSubscriptionRow(result.rows[0]) : null;
 }
 
 export async function checkTenantAccess(tenantId: string): Promise<{
   allowed: boolean;
   reason?: string;
-  code?: "subscription_suspended" | "subscription_cancelled" | "trial_expired";
+  code?: "subscription_suspended" | "subscription_cancelled" | "trial_expired" | "subscription_expired";
 }> {
   const tenant = await query("SELECT status, trial_ends_at FROM tenants WHERE id = $1", [tenantId]);
   if (!tenant.rows[0]) return { allowed: false, reason: "Tenant not found", code: "subscription_suspended" };
@@ -947,8 +1094,454 @@ export async function checkTenantAccess(tenantId: string): Promise<{
   if (status === "cancelled") {
     return { allowed: false, reason: "Subscription cancelled", code: "subscription_cancelled" };
   }
-  if (status === "trial" && trial_ends_at && new Date(trial_ends_at) < new Date()) {
-    return { allowed: false, reason: "Trial expired", code: "trial_expired" };
+
+  const subResult = await query(
+    `SELECT status, current_period_end FROM tenant_subscriptions
+     WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 1`,
+    [tenantId],
+  );
+  const sub = subResult.rows[0];
+  const periodEnd = sub?.current_period_end || trial_ends_at;
+
+  if (periodEnd && new Date(periodEnd) < new Date()) {
+    if (status === "trial" || sub?.status === "trialing") {
+      await maybeNotifyTrialExpired(tenantId);
+      return { allowed: false, reason: "Trial expired", code: "trial_expired" };
+    }
+    return { allowed: false, reason: "Subscription period ended", code: "subscription_expired" };
   }
+
+  if (status === "trial" && trial_ends_at) {
+    await maybeSendTrialReminders(tenantId);
+  }
+
   return { allowed: true };
+}
+
+export function getTrialDaysRemaining(trialEndsAt: string | Date | null | undefined): number | null {
+  if (!trialEndsAt) return null;
+  const end = new Date(trialEndsAt);
+  const diff = end.getTime() - Date.now();
+  if (diff <= 0) return 0;
+  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+}
+
+async function maybeSendTrialReminders(tenantId: string) {
+  const row = await query(
+    `SELECT t.email, t.name, t.trial_ends_at, t.trial_reminder_3d_sent_at, t.trial_reminder_1d_sent_at, ts.plan_name
+     FROM tenants t
+     LEFT JOIN LATERAL (
+       SELECT plan_name FROM tenant_subscriptions WHERE tenant_id = t.id ORDER BY created_at DESC LIMIT 1
+     ) ts ON true
+     WHERE t.id = $1 AND t.status = 'trial'`,
+    [tenantId],
+  );
+  const tenant = row.rows[0];
+  if (!tenant?.trial_ends_at) return;
+
+  const daysLeft = getTrialDaysRemaining(tenant.trial_ends_at as string);
+  if (daysLeft === null || daysLeft <= 0) return;
+
+  const billingUrl = `${getAppBaseUrl()}/billing`;
+  const trialEndDate = new Date(tenant.trial_ends_at as string).toLocaleDateString();
+  const base = {
+    to: tenant.email as string,
+    clubName: tenant.name as string,
+    planName: (tenant.plan_name as string) || "your plan",
+    trialEndDate,
+    billingUrl,
+  };
+
+  if (daysLeft <= 3 && daysLeft > 1 && !tenant.trial_reminder_3d_sent_at) {
+    await sendTrialReminderEmail({ ...base, daysLeft });
+    await query("UPDATE tenants SET trial_reminder_3d_sent_at = NOW() WHERE id = $1", [tenantId]);
+  }
+
+  if (daysLeft <= 1 && !tenant.trial_reminder_1d_sent_at) {
+    await sendTrialReminderEmail({ ...base, daysLeft: 1 });
+    await query("UPDATE tenants SET trial_reminder_1d_sent_at = NOW() WHERE id = $1", [tenantId]);
+  }
+}
+
+export async function processAllTrialReminders() {
+  const result = await query(
+    `SELECT id FROM tenants WHERE status = 'trial' AND trial_ends_at > NOW()`,
+  );
+  for (const row of result.rows) {
+    await maybeSendTrialReminders(row.id as string);
+  }
+}
+
+async function maybeNotifyTrialExpired(tenantId: string) {
+  const row = await query(
+    `SELECT t.email, t.name, t.trial_expired_notified_at, ts.plan_name
+     FROM tenants t
+     LEFT JOIN LATERAL (
+       SELECT plan_name FROM tenant_subscriptions WHERE tenant_id = t.id ORDER BY created_at DESC LIMIT 1
+     ) ts ON true
+     WHERE t.id = $1`,
+    [tenantId],
+  );
+  const tenant = row.rows[0];
+  if (!tenant || tenant.trial_expired_notified_at) return;
+  const billingUrl = `${getAppBaseUrl()}/billing`;
+  await sendTrialExpiredEmail({
+    to: tenant.email,
+    clubName: tenant.name,
+    planName: tenant.plan_name || "your plan",
+    billingUrl,
+  });
+  await query("UPDATE tenants SET trial_expired_notified_at = NOW() WHERE id = $1", [tenantId]);
+}
+
+// ─── Platform payments (TAP) ───────────────────────────────────────────────
+
+function nextInvoiceNumber(): string {
+  return `INV-${Date.now()}`;
+}
+
+export async function createPlatformCheckout(tenantId: string, userId: string, billingCycle: "monthly" | "yearly") {
+  if (!isTapConfigured()) throw new Error("Payment gateway is not configured");
+
+  const tenantRow = await query(
+    `SELECT t.*, u.display_name, u.email as user_email
+     FROM tenants t JOIN users u ON u.tenant_id = t.id AND u.id = $2
+     WHERE t.id = $1`,
+    [tenantId, userId],
+  );
+  const tenant = tenantRow.rows[0];
+  if (!tenant) throw new Error("Tenant not found");
+
+  const sub = await getTenantSubscription(tenantId) as Record<string, unknown> | null;
+  if (!sub) throw new Error("No subscription found");
+
+  const amount = billingCycle === "yearly"
+    ? Number(sub.priceYearly || 0)
+    : Number(sub.priceMonthly || 0);
+  if (!amount) throw new Error("Invalid plan amount");
+
+  const currency = process.env.TAP_CURRENCY || "USD";
+  const paymentResult = await query(
+    `INSERT INTO platform_payments (tenant_id, subscription_id, amount, currency, status, billing_cycle, plan_name, plan_slug, customer_email)
+     VALUES ($1,$2,$3,$4,'pending',$5,$6,$7,$8) RETURNING *`,
+    [tenantId, sub.id, amount, currency, billingCycle, sub.planName, sub.planSlug, tenant.user_email || tenant.email],
+  );
+  const payment = toCamelCase(paymentResult.rows[0]) as { id: string };
+
+  const baseUrl = getAppBaseUrl();
+  const charge = await createTapCharge({
+    amount,
+    currency,
+    customer: {
+      firstName: tenant.display_name || tenant.name,
+      email: tenant.user_email || tenant.email,
+      phone: tenant.phone || undefined,
+    },
+    description: `Club Manager — ${sub.planName} (${billingCycle})`,
+    metadata: {
+      paymentId: payment.id,
+      tenantId,
+      billingCycle,
+    },
+    redirectUrl: `${baseUrl}/payment/result`,
+    webhookUrl: `${baseUrl}/api/webhooks/tap`,
+  });
+
+  await query("UPDATE platform_payments SET tap_charge_id = $2, metadata = $3 WHERE id = $1", [
+    payment.id,
+    charge.id,
+    JSON.stringify({ tapStatus: charge.status }),
+  ]);
+
+  const payUrl = charge.transaction?.url;
+  if (!payUrl) throw new Error("No payment URL returned from TAP");
+
+  return { paymentId: payment.id, url: payUrl, chargeId: charge.id };
+}
+
+export async function confirmPlatformPayment(tapChargeId: string) {
+  const charge = await retrieveTapCharge(tapChargeId);
+  const paymentRow = await query("SELECT * FROM platform_payments WHERE tap_charge_id = $1", [tapChargeId]);
+  const payment = paymentRow.rows[0];
+  if (!payment) return { ok: false, status: charge.status, reason: "Payment record not found" };
+
+  if (payment.status === "captured") {
+    return { ok: true, status: "CAPTURED", payment: toCamelCase(payment) };
+  }
+
+  if (!isTapChargeSuccessful(charge.status)) {
+    await query(
+      "UPDATE platform_payments SET status = 'failed', metadata = metadata || $2::jsonb WHERE id = $1",
+      [payment.id, JSON.stringify({ tapStatus: charge.status, tapMessage: charge.response?.message })],
+    );
+    return { ok: false, status: charge.status, payment: toCamelCase(payment) };
+  }
+
+  return activateCapturedPayment(payment, charge.id);
+}
+
+async function activateCapturedPayment(payment: Record<string, unknown>, tapChargeId: string) {
+  const tenantId = payment.tenant_id as string;
+  const billingCycle = (payment.billing_cycle as string) || "monthly";
+  const periodStart = new Date();
+  const periodEnd = new Date();
+  if (billingCycle === "yearly") periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+  else periodEnd.setMonth(periodEnd.getMonth() + 1);
+
+  const sub = await getTenantSubscription(tenantId) as Record<string, unknown> | null;
+  const planRow = sub?.planId
+    ? await query("SELECT * FROM subscription_plans WHERE id = $1", [sub.planId])
+    : { rows: [] };
+  const plan = planRow.rows[0] as PlanRow | undefined;
+
+  if (plan) {
+    await createTenantSubscriptionSnapshot({
+      tenantId,
+      plan: {
+        id: plan.id,
+        name: (sub?.planName as string) || plan.name,
+        slug: (sub?.planSlug as string) || plan.slug,
+        description: (sub?.planDescription as string) || plan.description,
+        price_monthly: Number(sub?.priceMonthly ?? plan.price_monthly),
+        price_yearly: Number(sub?.priceYearly ?? plan.price_yearly),
+        max_members: Number(sub?.maxMembers ?? plan.max_members),
+        max_users: Number(sub?.maxUsers ?? plan.max_users),
+        features: (sub?.features as string[]) || plan.features,
+      },
+      status: "active",
+      billingCycle,
+      periodStart,
+      periodEnd,
+    });
+  }
+
+  await query(
+    `UPDATE tenants SET status = 'active', plan_id = COALESCE(plan_id, $2), trial_ends_at = NULL, updated_at = NOW() WHERE id = $1`,
+    [tenantId, sub?.planId || null],
+  );
+
+  const invoiceNumber = (payment.invoice_number as string) || nextInvoiceNumber();
+  const paidAt = new Date();
+  await query(
+    `UPDATE platform_payments SET status = 'captured', paid_at = $2, invoice_number = $3, metadata = metadata || $4::jsonb WHERE id = $1`,
+    [payment.id, paidAt.toISOString(), invoiceNumber, JSON.stringify({ tapStatus: "CAPTURED" })],
+  );
+
+  const tenantInfo = await query("SELECT name, email FROM tenants WHERE id = $1", [tenantId]);
+  const t = tenantInfo.rows[0];
+  if (t) {
+    const sent = await sendPaymentInvoiceEmail({
+      to: (payment.customer_email as string) || t.email,
+      clubName: t.name,
+      planName: (payment.plan_name as string) || "Platform plan",
+      amount: Number(payment.amount),
+      currency: (payment.currency as string) || "USD",
+      invoiceNumber,
+      billingCycle,
+      paidAt: paidAt.toISOString(),
+    });
+    if (sent) {
+      await query("UPDATE platform_payments SET invoice_sent_at = NOW() WHERE id = $1", [payment.id]);
+    }
+  }
+
+  const updated = await query("SELECT * FROM platform_payments WHERE id = $1", [payment.id]);
+  return { ok: true, status: "CAPTURED", payment: toCamelCase(updated.rows[0]), tapChargeId };
+}
+
+export async function getPlatformPayments() {
+  const result = await query(`
+    SELECT p.*, t.name as tenant_name, t.email as tenant_email
+    FROM platform_payments p
+    JOIN tenants t ON t.id = p.tenant_id
+    ORDER BY p.created_at DESC
+    LIMIT 200
+  `);
+  return rowsToCamel(result.rows);
+}
+
+// ─── Support chat ──────────────────────────────────────────────────────────
+
+const BOT_REPLIES: { match: RegExp; reply: string }[] = [
+  { match: /trial|تجرب/i, reply: "Your trial lasts 14 days. When it ends, go to Billing to pay via TAP and restore access." },
+  { match: /pay|payment|billing|دفع|فوتر/i, reply: "Open Billing from the menu. Choose monthly or yearly and pay securely through TAP." },
+  { match: /password|كلمة/i, reply: "Admins can reset passwords from System Settings. Contact us if you are locked out." },
+  { match: /member|عضو/i, reply: "Members are managed under the Members module. You can add profiles, documents, and subscriptions there." },
+];
+
+function botReplyFor(message: string): string | null {
+  for (const item of BOT_REPLIES) {
+    if (item.match.test(message)) return item.reply;
+  }
+  return null;
+}
+
+export async function getOrCreateSupportConversation(tenantId: string, userId: string, userName: string) {
+  const existing = await query(
+    `SELECT * FROM support_conversations WHERE tenant_id = $1 AND status = 'open' ORDER BY created_at DESC LIMIT 1`,
+    [tenantId],
+  );
+  if (existing.rows[0]) return toCamelCase(existing.rows[0]);
+
+  const created = await query(
+    `INSERT INTO support_conversations (tenant_id, created_by_user_id, created_by_name, subject)
+     VALUES ($1,$2,$3,'Platform support') RETURNING *`,
+    [tenantId, userId, userName],
+  );
+  const conversation = created.rows[0];
+  await query(
+    `INSERT INTO support_messages (conversation_id, sender_type, sender_name, body)
+     VALUES ($1,'bot','Assistant','Hello! I can help with billing, trials, and platform features. Type your question or wait for our team to reply.')`,
+    [conversation.id],
+  );
+  return toCamelCase(conversation);
+}
+
+export async function getSupportMessages(conversationId: string, tenantId?: string) {
+  if (tenantId) {
+    const conv = await query("SELECT id FROM support_conversations WHERE id = $1 AND tenant_id = $2", [conversationId, tenantId]);
+    if (!conv.rows[0]) throw new Error("Conversation not found");
+  }
+  const result = await query(
+    `SELECT * FROM support_messages WHERE conversation_id = $1 ORDER BY created_at ASC`,
+    [conversationId],
+  );
+  return rowsToCamel(result.rows);
+}
+
+export async function sendSupportMessage(params: {
+  conversationId: string;
+  body: string;
+  senderType: "tenant_user" | "platform_admin" | "bot";
+  senderId?: string;
+  senderName?: string;
+  tenantId?: string;
+}) {
+  if (params.tenantId) {
+    const conv = await query("SELECT id FROM support_conversations WHERE id = $1 AND tenant_id = $2", [params.conversationId, params.tenantId]);
+    if (!conv.rows[0]) throw new Error("Conversation not found");
+  }
+  const result = await query(
+    `INSERT INTO support_messages (conversation_id, sender_type, sender_id, sender_name, body)
+     VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+    [params.conversationId, params.senderType, params.senderId || null, params.senderName || null, params.body],
+  );
+  await query("UPDATE support_conversations SET last_message_at = NOW(), status = 'open' WHERE id = $1", [params.conversationId]);
+
+  if (params.senderType === "tenant_user") {
+    const auto = botReplyFor(params.body);
+    if (auto) {
+      await query(
+        `INSERT INTO support_messages (conversation_id, sender_type, sender_name, body) VALUES ($1,'bot','Assistant',$2)`,
+        [params.conversationId, auto],
+      );
+    } else {
+      await query(
+        `INSERT INTO support_messages (conversation_id, sender_type, sender_name, body) VALUES ($1,'bot','Assistant',$2)`,
+        [params.conversationId, "Thanks! Our support team has been notified and will reply shortly."],
+      );
+    }
+  }
+
+  return toCamelCase(result.rows[0]);
+}
+
+export async function getAllSupportConversations() {
+  const result = await query(`
+    SELECT c.*, t.name as tenant_name, t.email as tenant_email,
+      (SELECT body FROM support_messages m WHERE m.conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message
+    FROM support_conversations c
+    JOIN tenants t ON t.id = c.tenant_id
+    ORDER BY c.last_message_at DESC
+    LIMIT 100
+  `);
+  return rowsToCamel(result.rows);
+}
+
+// ─── Platform admin users & roles ────────────────────────────────────────────
+
+export async function getPlatformAdminById(id: string) {
+  const result = await query(
+    `SELECT pa.*, r.name as role_name, r.permissions
+     FROM platform_admins pa
+     LEFT JOIN platform_admin_roles r ON r.id = pa.role_id
+     WHERE pa.id = $1`,
+    [id],
+  );
+  if (!result.rows[0]) return null;
+  const row = toCamelCase(result.rows[0]) as Record<string, unknown>;
+  const perms = row.permissions;
+  row.permissions = typeof perms === "string" ? JSON.parse(perms) : perms;
+  return row;
+}
+
+export async function getPlatformAdminPermissions(adminId: string): Promise<string[]> {
+  const admin = await getPlatformAdminById(adminId);
+  if (!admin) return [];
+  return (admin.permissions as string[]) || ["*"];
+}
+
+export async function getAllPlatformAdmins() {
+  const result = await query(
+    `SELECT pa.id, pa.email, pa.display_name, pa.role_id, pa.is_active, pa.created_at, r.name as role_name
+     FROM platform_admins pa
+     LEFT JOIN platform_admin_roles r ON r.id = pa.role_id
+     ORDER BY pa.created_at`,
+  );
+  return rowsToCamel(result.rows);
+}
+
+export async function getPlatformAdminRoles() {
+  return Object.entries(PLATFORM_ROLE_PRESETS).map(([id, role]) => ({
+    id,
+    name: role.name,
+    permissions: role.permissions,
+  }));
+}
+
+export async function createPlatformAdminUser(params: {
+  email: string;
+  password: string;
+  displayName: string;
+  roleId: string;
+}) {
+  const hash = await hashPassword(params.password);
+  const result = await query(
+    `INSERT INTO platform_admins (email, password_hash, display_name, role_id, is_active)
+     VALUES ($1,$2,$3,$4,true) RETURNING id, email, display_name, role_id, is_active, created_at`,
+    [params.email, hash, params.displayName, params.roleId],
+  );
+  return toCamelCase(result.rows[0]);
+}
+
+export async function updatePlatformAdminUser(id: string, updates: Record<string, unknown>) {
+  const fields: string[] = [];
+  const values: unknown[] = [id];
+  let idx = 2;
+  if ("displayName" in updates) { fields.push(`display_name = $${idx++}`); values.push(updates.displayName); }
+  if ("roleId" in updates) { fields.push(`role_id = $${idx++}`); values.push(updates.roleId); }
+  if ("isActive" in updates) { fields.push(`is_active = $${idx++}`); values.push(updates.isActive); }
+  if ("password" in updates && updates.password) {
+    const hash = await hashPassword(updates.password as string);
+    fields.push(`password_hash = $${idx++}`);
+    values.push(hash);
+  }
+  if (!fields.length) return;
+  await query(`UPDATE platform_admins SET ${fields.join(", ")} WHERE id = $1`, values);
+}
+
+export async function impersonateTenant(platformAdminId: string, tenantId: string) {
+  const adminUser = await query(
+    "SELECT id, email, display_name FROM users WHERE tenant_id = $1 AND role = 'admin' ORDER BY created_at LIMIT 1",
+    [tenantId],
+  );
+  const user = adminUser.rows[0];
+  if (!user) throw new Error("No admin user found for tenant");
+  return {
+    userId: user.id as string,
+    tenantId,
+    email: user.email as string,
+    role: "admin",
+    impersonatedBy: platformAdminId,
+  };
 }

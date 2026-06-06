@@ -7,16 +7,20 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/auth-context";
-import { apiJson, apiFetch } from "@/lib/api";
+import { apiJson } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
 import type { Tenant, PlatformSubscriptionPlan } from "@shared/schema";
 import {
   Building2, Users, DollarSign, Shield, LogOut, Loader2, Pencil, RefreshCw,
+  Plus, Trash2, Power,
 } from "lucide-react";
+import { PlatformPaymentsPanel, PlatformSupportPanel, PlatformAdminsPanel, ImpersonateTenantButton } from "@/components/platform-admin-panels";
 
 type PlatformStats = {
   totalTenants: number;
@@ -25,6 +29,42 @@ type PlatformStats = {
   mrr: number;
 };
 
+const PLAN_FEATURES = [
+  { id: "members", label: "Members" },
+  { id: "attendance", label: "Attendance" },
+  { id: "subscriptions", label: "Subscriptions" },
+  { id: "store", label: "Store" },
+  { id: "finance", label: "Finance" },
+  { id: "belts", label: "Belts" },
+  { id: "*", label: "All features" },
+] as const;
+
+type PlanForm = {
+  name: string;
+  slug: string;
+  description: string;
+  priceMonthly: string;
+  priceYearly: string;
+  maxMembers: string;
+  maxUsers: string;
+  sortOrder: string;
+  features: string[];
+  isActive: boolean;
+};
+
+const emptyPlanForm = (): PlanForm => ({
+  name: "",
+  slug: "",
+  description: "",
+  priceMonthly: "29",
+  priceYearly: "290",
+  maxMembers: "100",
+  maxUsers: "3",
+  sortOrder: "0",
+  features: ["members", "attendance", "subscriptions"],
+  isActive: true,
+});
+
 const statusColors: Record<string, string> = {
   active: "bg-green-500/10 text-green-700",
   trial: "bg-blue-500/10 text-blue-700",
@@ -32,11 +72,44 @@ const statusColors: Record<string, string> = {
   cancelled: "bg-gray-500/10 text-gray-700",
 };
 
+function planToForm(plan: PlatformSubscriptionPlan): PlanForm {
+  return {
+    name: plan.name,
+    slug: plan.slug,
+    description: plan.description || "",
+    priceMonthly: String(plan.priceMonthly),
+    priceYearly: String(plan.priceYearly),
+    maxMembers: String(plan.maxMembers),
+    maxUsers: String(plan.maxUsers),
+    sortOrder: String(plan.sortOrder ?? 0),
+    features: plan.features || [],
+    isActive: plan.isActive,
+  };
+}
+
+function formToPayload(form: PlanForm) {
+  return {
+    name: form.name.trim(),
+    slug: form.slug.trim().toLowerCase().replace(/\s+/g, "_"),
+    description: form.description.trim() || null,
+    priceMonthly: Number(form.priceMonthly),
+    priceYearly: Number(form.priceYearly),
+    maxMembers: Number(form.maxMembers),
+    maxUsers: Number(form.maxUsers),
+    sortOrder: Number(form.sortOrder),
+    features: form.features,
+    isActive: form.isActive,
+  };
+}
+
 export default function PlatformAdmin() {
   const { user, signOutUser } = useAuth();
   const { toast } = useToast();
   const [editTenant, setEditTenant] = useState<Tenant | null>(null);
   const [editForm, setEditForm] = useState({ status: "", planId: "" });
+  const [planDialog, setPlanDialog] = useState<{ mode: "create" | "edit"; plan?: PlatformSubscriptionPlan } | null>(null);
+  const [planForm, setPlanForm] = useState<PlanForm>(emptyPlanForm());
+  const [deletePlan, setDeletePlan] = useState<PlatformSubscriptionPlan | null>(null);
 
   const { data: stats, isLoading: statsLoading } = useQuery<PlatformStats>({
     queryKey: ["/api/platform/stats"],
@@ -48,7 +121,7 @@ export default function PlatformAdmin() {
     queryFn: () => apiJson("/api/platform/tenants"),
   });
 
-  const { data: plans = [] } = useQuery<PlatformSubscriptionPlan[]>({
+  const { data: plans = [], refetch: refetchPlans } = useQuery<PlatformSubscriptionPlan[]>({
     queryKey: ["/api/platform/plans"],
     queryFn: () => apiJson("/api/platform/plans"),
   });
@@ -66,6 +139,56 @@ export default function PlatformAdmin() {
     onError: (err: Error) => toast({ variant: "destructive", title: "Error", description: err.message }),
   });
 
+  const savePlan = useMutation({
+    mutationFn: async () => {
+      const payload = formToPayload(planForm);
+      if (!payload.name || !payload.slug) throw new Error("Name and slug are required");
+      if (planDialog?.mode === "edit" && planDialog.plan) {
+        const { slug: _slug, ...updatePayload } = payload;
+        return apiJson(`/api/platform/plans/${planDialog.plan.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(updatePayload),
+        });
+      }
+      return apiJson("/api/platform/plans", { method: "POST", body: JSON.stringify(payload) });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/platform/plans"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/plans"] });
+      setPlanDialog(null);
+      toast({ title: planDialog?.mode === "edit" ? "Plan updated" : "Plan created" });
+    },
+    onError: (err: Error) => toast({ variant: "destructive", title: "Error", description: err.message }),
+  });
+
+  const togglePlanActive = useMutation({
+    mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
+      return apiJson(`/api/platform/plans/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ isActive }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/platform/plans"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/plans"] });
+      toast({ title: "Plan status updated" });
+    },
+    onError: (err: Error) => toast({ variant: "destructive", title: "Error", description: err.message }),
+  });
+
+  const removePlan = useMutation({
+    mutationFn: async (id: string) => {
+      await apiJson(`/api/platform/plans/${id}`, { method: "DELETE" });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/platform/plans"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/plans"] });
+      setDeletePlan(null);
+      toast({ title: "Plan deleted" });
+    },
+    onError: (err: Error) => toast({ variant: "destructive", title: "Error", description: err.message }),
+  });
+
   const openEdit = (tenant: Tenant) => {
     setEditTenant(tenant);
     setEditForm({ status: tenant.status, planId: tenant.planId || "" });
@@ -76,6 +199,29 @@ export default function PlatformAdmin() {
     updateTenant.mutate({
       id: editTenant.id,
       data: { status: editForm.status, planId: editForm.planId || undefined },
+    });
+  };
+
+  const openCreatePlan = () => {
+    setPlanForm(emptyPlanForm());
+    setPlanDialog({ mode: "create" });
+  };
+
+  const openEditPlan = (plan: PlatformSubscriptionPlan) => {
+    setPlanForm(planToForm(plan));
+    setPlanDialog({ mode: "edit", plan });
+  };
+
+  const toggleFeature = (featureId: string) => {
+    setPlanForm((f) => {
+      if (featureId === "*") {
+        return { ...f, features: f.features.includes("*") ? [] : ["*"] };
+      }
+      const withoutAll = f.features.filter((x) => x !== "*");
+      const next = withoutAll.includes(featureId)
+        ? withoutAll.filter((x) => x !== featureId)
+        : [...withoutAll, featureId];
+      return { ...f, features: next };
     });
   };
 
@@ -128,16 +274,19 @@ export default function PlatformAdmin() {
               <DollarSign className="h-10 w-10 text-amber-600 opacity-80" />
               <div>
                 <p className="text-2xl font-bold">{statsLoading ? "—" : `$${stats?.mrr?.toFixed(0)}`}</p>
-                <p className="text-sm text-muted-foreground">Est. MRR</p>
+                <p className="text-sm text-muted-foreground">Est. MRR (snapshotted)</p>
               </div>
             </CardContent>
           </Card>
         </div>
 
         <Tabs defaultValue="tenants">
-          <TabsList>
+          <TabsList className="flex flex-wrap h-auto gap-1">
             <TabsTrigger value="tenants">Tenants</TabsTrigger>
-            <TabsTrigger value="plans">Subscription Plans</TabsTrigger>
+            <TabsTrigger value="plans">Plans</TabsTrigger>
+            <TabsTrigger value="payments">Payments</TabsTrigger>
+            <TabsTrigger value="support">Support</TabsTrigger>
+            <TabsTrigger value="admins">Admin users</TabsTrigger>
           </TabsList>
 
           <TabsContent value="tenants">
@@ -145,7 +294,7 @@ export default function PlatformAdmin() {
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                   <CardTitle>All Tenants</CardTitle>
-                  <CardDescription>Manage club accounts, subscriptions, and access</CardDescription>
+                  <CardDescription>Manage club accounts. Plan changes create a new snapshotted subscription period.</CardDescription>
                 </div>
                 <Button variant="outline" size="sm" onClick={() => refetch()}>
                   <RefreshCw className="h-4 w-4" />
@@ -160,11 +309,11 @@ export default function PlatformAdmin() {
                       <TableRow>
                         <TableHead>Club</TableHead>
                         <TableHead>Email</TableHead>
-                        <TableHead>Plan</TableHead>
+                        <TableHead>Locked Plan</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Members</TableHead>
                         <TableHead>Users</TableHead>
-                        <TableHead>Subscription</TableHead>
+                        <TableHead>Period Ends</TableHead>
                         <TableHead></TableHead>
                       </TableRow>
                     </TableHeader>
@@ -182,17 +331,17 @@ export default function PlatformAdmin() {
                           <TableCell>{tenant.memberCount ?? 0}</TableCell>
                           <TableCell>{tenant.userCount ?? 0}</TableCell>
                           <TableCell className="text-sm text-muted-foreground">
-                            {tenant.subscriptionStatus || "—"}
-                            {tenant.currentPeriodEnd && (
-                              <span className="block text-xs">
-                                until {new Date(tenant.currentPeriodEnd).toLocaleDateString()}
-                              </span>
-                            )}
+                            {tenant.currentPeriodEnd
+                              ? new Date(tenant.currentPeriodEnd).toLocaleDateString()
+                              : "—"}
                           </TableCell>
                           <TableCell>
-                            <Button variant="ghost" size="sm" onClick={() => openEdit(tenant)}>
-                              <Pencil className="h-4 w-4" />
-                            </Button>
+                            <div className="flex justify-end gap-1">
+                              <ImpersonateTenantButton tenantId={tenant.id} />
+                              <Button variant="ghost" size="sm" onClick={() => openEdit(tenant)}>
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -205,34 +354,80 @@ export default function PlatformAdmin() {
 
           <TabsContent value="plans">
             <Card>
-              <CardHeader>
-                <CardTitle>Subscription Plans</CardTitle>
-                <CardDescription>Platform pricing tiers for tenants</CardDescription>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>Subscription Plans</CardTitle>
+                  <CardDescription>
+                    Edit plans for new signups. Existing tenants keep their snapshotted plan until their period ends.
+                  </CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => refetchPlans()}>
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                  <Button size="sm" onClick={openCreatePlan}>
+                    <Plus className="h-4 w-4 mr-2" /> Add Plan
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Plan</TableHead>
+                      <TableHead>Slug</TableHead>
                       <TableHead>Monthly</TableHead>
                       <TableHead>Yearly</TableHead>
-                      <TableHead>Max Members</TableHead>
-                      <TableHead>Max Users</TableHead>
-                      <TableHead>Active</TableHead>
+                      <TableHead>Limits</TableHead>
+                      <TableHead>Subscribers</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-end">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {plans.map((plan) => (
                       <TableRow key={plan.id}>
-                        <TableCell className="font-medium">{plan.name}</TableCell>
+                        <TableCell>
+                          <p className="font-medium">{plan.name}</p>
+                          {plan.description && (
+                            <p className="text-xs text-muted-foreground line-clamp-1">{plan.description}</p>
+                          )}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">{plan.slug}</TableCell>
                         <TableCell>${plan.priceMonthly}</TableCell>
                         <TableCell>${plan.priceYearly}</TableCell>
-                        <TableCell>{plan.maxMembers}</TableCell>
-                        <TableCell>{plan.maxUsers}</TableCell>
+                        <TableCell className="text-sm">
+                          {plan.maxMembers} members · {plan.maxUsers} staff
+                        </TableCell>
+                        <TableCell>{plan.subscriberCount ?? 0}</TableCell>
                         <TableCell>
                           <Badge variant={plan.isActive ? "default" : "secondary"}>
                             {plan.isActive ? "Active" : "Inactive"}
                           </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex justify-end gap-1">
+                            <Button variant="ghost" size="sm" onClick={() => openEditPlan(plan)} title="Edit">
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => togglePlanActive.mutate({ id: plan.id, isActive: !plan.isActive })}
+                              title={plan.isActive ? "Deactivate" : "Activate"}
+                            >
+                              <Power className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => setDeletePlan(plan)}
+                              title="Delete"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -240,6 +435,18 @@ export default function PlatformAdmin() {
                 </Table>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="payments">
+            <PlatformPaymentsPanel />
+          </TabsContent>
+
+          <TabsContent value="support">
+            <PlatformSupportPanel />
+          </TabsContent>
+
+          <TabsContent value="admins">
+            <PlatformAdminsPanel />
           </TabsContent>
         </Tabs>
       </main>
@@ -263,11 +470,11 @@ export default function PlatformAdmin() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Plan</Label>
+              <Label>Assign new plan (snapshots for new period)</Label>
               <Select value={editForm.planId} onValueChange={(v) => setEditForm((f) => ({ ...f, planId: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select plan" /></SelectTrigger>
                 <SelectContent>
-                  {plans.map((p) => (
+                  {plans.filter((p) => p.isActive).map((p) => (
                     <SelectItem key={p.id} value={p.id}>{p.name} — ${p.priceMonthly}/mo</SelectItem>
                   ))}
                 </SelectContent>
@@ -277,6 +484,111 @@ export default function PlatformAdmin() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditTenant(null)}>Cancel</Button>
             <Button onClick={handleSave} disabled={updateTenant.isPending}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!planDialog} onOpenChange={() => setPlanDialog(null)}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{planDialog?.mode === "edit" ? "Edit Plan" : "Create Plan"}</DialogTitle>
+            <DialogDescription>
+              Changes apply to new registrations only. Tenants on this plan keep their locked pricing until their period ends.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Name *</Label>
+                <Input value={planForm.name} onChange={(e) => setPlanForm((f) => ({ ...f, name: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>Slug *</Label>
+                <Input
+                  value={planForm.slug}
+                  onChange={(e) => setPlanForm((f) => ({ ...f, slug: e.target.value }))}
+                  disabled={planDialog?.mode === "edit"}
+                  placeholder="starter"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Textarea value={planForm.description} onChange={(e) => setPlanForm((f) => ({ ...f, description: e.target.value }))} rows={2} />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Monthly price ($)</Label>
+                <Input type="number" min="0" step="0.01" value={planForm.priceMonthly} onChange={(e) => setPlanForm((f) => ({ ...f, priceMonthly: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>Yearly price ($)</Label>
+                <Input type="number" min="0" step="0.01" value={planForm.priceYearly} onChange={(e) => setPlanForm((f) => ({ ...f, priceYearly: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>Max members</Label>
+                <Input type="number" min="1" value={planForm.maxMembers} onChange={(e) => setPlanForm((f) => ({ ...f, maxMembers: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>Max staff users</Label>
+                <Input type="number" min="1" value={planForm.maxUsers} onChange={(e) => setPlanForm((f) => ({ ...f, maxUsers: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>Sort order</Label>
+                <Input type="number" value={planForm.sortOrder} onChange={(e) => setPlanForm((f) => ({ ...f, sortOrder: e.target.value }))} />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <Label>Active for new signups</Label>
+                <Switch checked={planForm.isActive} onCheckedChange={(v) => setPlanForm((f) => ({ ...f, isActive: v }))} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Features</Label>
+              <div className="flex flex-wrap gap-2">
+                {PLAN_FEATURES.map((feat) => (
+                  <Button
+                    key={feat.id}
+                    type="button"
+                    size="sm"
+                    variant={planForm.features.includes(feat.id) ? "default" : "outline"}
+                    onClick={() => toggleFeature(feat.id)}
+                  >
+                    {feat.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPlanDialog(null)}>Cancel</Button>
+            <Button onClick={() => savePlan.mutate()} disabled={savePlan.isPending}>
+              {savePlan.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : planDialog?.mode === "edit" ? "Save changes" : "Create plan"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!deletePlan} onOpenChange={() => setDeletePlan(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete plan: {deletePlan?.name}?</DialogTitle>
+            <DialogDescription>
+              {deletePlan?.subscriberCount
+                ? `This plan has ${deletePlan.subscriberCount} subscription record(s). Deactivate it instead — existing tenants keep their locked plan until their period ends.`
+                : "This plan has no subscriptions and can be permanently deleted."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeletePlan(null)}>Cancel</Button>
+            {deletePlan && !deletePlan.subscriberCount ? (
+              <Button variant="destructive" onClick={() => removePlan.mutate(deletePlan.id)} disabled={removePlan.isPending}>
+                Delete permanently
+              </Button>
+            ) : deletePlan ? (
+              <Button onClick={() => { togglePlanActive.mutate({ id: deletePlan.id, isActive: false }); setDeletePlan(null); }}>
+                Deactivate instead
+              </Button>
+            ) : null}
           </DialogFooter>
         </DialogContent>
       </Dialog>
