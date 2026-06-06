@@ -1237,7 +1237,7 @@ export async function createPlatformCheckout(tenantId: string, userId: string, b
       email: tenant.user_email || tenant.email,
       phone: tenant.phone || undefined,
     },
-    description: `MMA Manager — ${sub.planName} (${billingCycle})`,
+    description: `Dojo Manager — ${sub.planName} (${billingCycle})`,
     metadata: {
       paymentId: payment.id,
       tenantId,

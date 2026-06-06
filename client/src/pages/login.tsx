@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/auth-context";
 import { useLanguage } from "@/context/language-context";
 import { LoginClubShowcase } from "@/components/login-club-showcase";
+import { PlatformBranding } from "@/components/platform-branding";
 
 export default function Login() {
   const { toast } = useToast();
@@ -54,9 +55,17 @@ export default function Login() {
               className="w-48 mb-6 object-contain max-h-32"
             />
           ) : (
-            <h1 className="text-4xl font-black mb-8 text-primary uppercase tracking-tighter">
-              {clubSettings?.name || t("common.appName")}
-            </h1>
+            <div className="mb-8">
+              {clubSettings?.name ? (
+                <h1 className="text-4xl font-black text-primary uppercase tracking-tighter">{clubSettings.name}</h1>
+              ) : (
+                <PlatformBranding
+                  centered
+                  titleClassName="text-4xl font-black text-primary uppercase tracking-tighter"
+                  subtitleClassName="mt-2 text-sm text-muted-foreground"
+                />
+              )}
+            </div>
           )}
           <Card className="w-full max-w-md border-none shadow-none lg:border lg:border-border/50 lg:bg-card/85 lg:shadow-sm lg:backdrop-blur-sm">
             <CardHeader>

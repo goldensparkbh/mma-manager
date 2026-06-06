@@ -25,6 +25,7 @@ import { useLanguage } from "@/context/language-context";
 import { apiJson } from "@/lib/api";
 import { ClubTypeImage } from "@/components/club-type-image";
 import { LoginClubShowcase } from "@/components/login-club-showcase";
+import { PlatformBranding } from "@/components/platform-branding";
 import type { ClubTypeOption } from "@/components/club-type-picker";
 import type { PlatformSubscriptionPlan } from "@shared/schema";
 import { cn } from "@/lib/utils";
@@ -115,7 +116,11 @@ export default function Landing() {
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
               <Building2 className="h-5 w-5 text-primary" />
             </div>
-            <span className="hidden sm:inline">{t("common.appName")}</span>
+            <PlatformBranding
+              className="hidden sm:block text-start"
+              titleClassName="font-bold text-lg leading-tight"
+              subtitleClassName="text-[11px] font-normal text-muted-foreground leading-tight"
+            />
           </button>
 
           <nav className="hidden items-center gap-6 text-sm font-medium md:flex">
@@ -447,13 +452,13 @@ export default function Landing() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <div className="grid gap-8 sm:grid-cols-3">
             <div>
-              <div className="flex items-center gap-2 font-bold">
-                <Building2 className="h-5 w-5 text-primary" />
-                {t("common.appName")}
+              <div className="flex items-start gap-2">
+                <Building2 className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                <PlatformBranding
+                  titleClassName="font-bold"
+                  subtitleClassName="mt-1 text-sm text-muted-foreground leading-relaxed"
+                />
               </div>
-              <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
-                {t("landing.hero.subtitle")}
-              </p>
             </div>
             <div>
               <p className="font-semibold text-sm mb-3">{t("landing.footer.product")}</p>

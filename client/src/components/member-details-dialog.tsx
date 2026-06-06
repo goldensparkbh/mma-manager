@@ -1031,7 +1031,7 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
             ? clubSettings.logoUrl
             : "";
         const logoUrl = clubSettings?.logoUrlLight || legacyLogoUrl || clubSettings?.logoUrlDark || defaultLogoUrl;
-        const clubName = clubSettings?.name || "MMA Manager";
+        const clubName = clubSettings?.name || "Dojo Manager";
         const memberInitials = member.name
             .split(/\s+/)
             .filter(Boolean)

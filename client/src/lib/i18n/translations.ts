@@ -74,7 +74,8 @@ export const translations = {
             todayDate: "تاريخ اليوم",
             accessDeniedTitle: "لا تملك صلاحية الوصول",
             accessDeniedMessage: "ليس لديك الصلاحية المطلوبة لعرض هذه الصفحة",
-            appName: "نظام إدارة النوادي والفنون القتالية",
+            appName: "نظام دوجو",
+            appSubtitle: "نظام إدارة النوادي والفنون القتالية",
             toggleTheme: "تبديل الوضع",
             user: "مستخدم",
             clubLogoAlt: "شعار النادي",
@@ -121,7 +122,7 @@ export const translations = {
         },
         footer: {
             rights: "جميع الحقوق محفوظة © 2026",
-            version: "نظام إدارة النوادي والفنون القتالية (النسخة {version})",
+            version: "نظام دوجو (النسخة {version})",
         },
         billing: {
             title: "الاشتراك والفوترة",
@@ -941,7 +942,7 @@ export const translations = {
                 all: "جميع المميزات",
             },
             differentiators: {
-                title: "لماذا MMA Manager؟",
+                title: "لماذا Dojo Manager؟",
                 multiTenant: { title: "عزل بيانات كامل", desc: "كل نادي له بيئة مستقلة وآمنة على المنصة." },
                 rtl: { title: "دعم العربية أصلاً", desc: "واجهة كاملة بالعربية والإنجليزية مع دعم RTL." },
                 receipts: { title: "إيصالات احترافية", desc: "طباعة حرارية وA4 مع تخصيص شعار النادي." },
@@ -1097,7 +1098,8 @@ export const translations = {
             todayDate: "Today's date",
             accessDeniedTitle: "Access denied",
             accessDeniedMessage: "You do not have permission to view this page",
-            appName: "MMA Manager",
+            appName: "Dojo Manager",
+            appSubtitle: "MMA and GYMs Management System",
             toggleTheme: "Toggle theme",
             user: "User",
             clubLogoAlt: "Club logo",
@@ -1142,7 +1144,7 @@ export const translations = {
         },
         footer: {
             rights: "All rights reserved © 2026",
-            version: "MMA Manager (v{version})",
+            version: "Dojo Manager (v{version})",
         },
         billing: {
             title: "Subscription & Billing",
@@ -1966,7 +1968,7 @@ export const translations = {
                 all: "All features included",
             },
             differentiators: {
-                title: "Why MMA Manager?",
+                title: "Why Dojo Manager?",
                 multiTenant: { title: "Fully isolated data", desc: "Each club gets its own secure environment on the platform." },
                 rtl: { title: "Arabic-first support", desc: "Full Arabic and English UI with native RTL support." },
                 receipts: { title: "Professional receipts", desc: "Thermal and A4 printing with your club branding." },

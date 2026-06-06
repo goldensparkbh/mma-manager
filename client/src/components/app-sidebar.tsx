@@ -333,6 +333,8 @@ export function AppSidebar() {
       <SidebarFooter className="p-4 border-t border-sidebar-border bg-sidebar">
         <div className="text-[10px] text-white/30 text-center space-y-1">
           <div>{t('footer.rights')}</div>
+          <div className="text-white/40">{t("common.appName")}</div>
+          <div className="text-white/25 leading-snug">{t("common.appSubtitle")}</div>
           <div>{t('footer.version').replace("{version}", APP_VERSION.number)}</div>
         </div>
         <UserGuideDialog open={guideOpen} onOpenChange={setGuideOpen} />
