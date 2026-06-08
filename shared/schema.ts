@@ -255,6 +255,59 @@ export interface Event {
 
 export type InsertEvent = Omit<Event, "id">;
 
+export interface RecurrenceSlot {
+  day: number;
+  startTime: string;
+}
+
+export interface Coach {
+  id: string;
+  name: string;
+  phone?: string | null;
+  email?: string | null;
+  bio?: string | null;
+  userId?: string | null;
+  isActive?: boolean;
+  createdAt?: string;
+}
+
+export type InsertCoach = Omit<Coach, "id" | "createdAt">;
+
+export interface ClassTemplate {
+  id: string;
+  name: string;
+  description?: string | null;
+  coachId?: string | null;
+  coachName?: string | null;
+  location?: string | null;
+  capacity: number;
+  durationMinutes: number;
+  color?: string | null;
+  recurrence: RecurrenceSlot[];
+  isActive?: boolean;
+  createdAt?: string;
+}
+
+export type InsertClassTemplate = Omit<ClassTemplate, "id" | "createdAt" | "coachName">;
+
+export interface ClassSession {
+  id: string;
+  templateId?: string | null;
+  name: string;
+  coachId?: string | null;
+  coachName?: string | null;
+  location?: string | null;
+  startsAt: string;
+  endsAt: string;
+  capacity: number;
+  bookedCount?: number;
+  status: "scheduled" | "cancelled" | "completed";
+  notes?: string | null;
+  createdAt?: string;
+}
+
+export type InsertClassSession = Omit<ClassSession, "id" | "createdAt" | "coachName" | "bookedCount">;
+
 export interface CartItem {
   product: Product;
   quantity: number;

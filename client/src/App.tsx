@@ -14,6 +14,7 @@ import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import Members from "@/pages/members";
 import AttendancePage from "@/pages/attendance";
+import SchedulePage from "@/pages/schedule";
 import Subscriptions from "@/pages/subscriptions";
 import Store from "@/pages/store";
 import Sales from "@/pages/sales";
@@ -62,6 +63,9 @@ function Router() {
       </Route>
       <Route path="/attendance">
         <RequirePermission permission={PERMISSIONS.ATTENDANCE_VIEW}><AttendancePage /></RequirePermission>
+      </Route>
+      <Route path="/schedule">
+        <RequirePermission permission={PERMISSIONS.CLASSES_VIEW}><SchedulePage /></RequirePermission>
       </Route>
       <Route path="/subscriptions">
         <RequirePermission permission={PERMISSIONS.SUBSCRIPTIONS_VIEW}><Subscriptions /></RequirePermission>

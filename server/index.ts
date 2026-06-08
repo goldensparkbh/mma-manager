@@ -41,6 +41,12 @@ async function main() {
   setInterval(() => {
     processAllTrialReminders().catch((err) => console.error("Trial reminder job:", err));
   }, 6 * 60 * 60 * 1000);
+
+  const { generateClassSessionsForAllTenants } = await import("./scheduling.js");
+  generateClassSessionsForAllTenants(28).catch((err) => console.error("Class session generator:", err));
+  setInterval(() => {
+    generateClassSessionsForAllTenants(28).catch((err) => console.error("Class session generator:", err));
+  }, 24 * 60 * 60 * 1000);
 }
 
 main().catch((err) => {

@@ -1545,3 +1545,239 @@ export async function impersonateTenant(platformAdminId: string, tenantId: strin
     impersonatedBy: platformAdminId,
   };
 }
+
+// ─── Coaches ───────────────────────────────────────────────────────────────
+
+export async function getCoaches(tenantId: string) {
+  const result = await query(
+    "SELECT * FROM coaches WHERE tenant_id = $1 ORDER BY name",
+    [tenantId],
+  );
+  return rowsToCamel(result.rows);
+}
+
+export async function createCoach(tenantId: string, data: Record<string, unknown>) {
+  const result = await query(
+    `INSERT INTO coaches (tenant_id, user_id, name, phone, email, bio, is_active)
+     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+    [
+      tenantId,
+      data.userId || null,
+      data.name,
+      data.phone || null,
+      data.email || null,
+      data.bio || null,
+      data.isActive ?? true,
+    ],
+  );
+  const coach = toCamelCase(result.rows[0]);
+  await logActivity(tenantId, {
+    action: "coach.create",
+    entityType: "coach",
+    entityId: coach.id as string,
+    description: `Coach created: ${data.name}`,
+  });
+  return coach;
+}
+
+export async function updateCoach(tenantId: string, id: string, updates: Record<string, unknown>) {
+  const map: Record<string, string> = {
+    userId: "user_id",
+    name: "name",
+    phone: "phone",
+    email: "email",
+    bio: "bio",
+    isActive: "is_active",
+  };
+  const fields: string[] = [];
+  const values: unknown[] = [tenantId, id];
+  let idx = 3;
+  for (const [key, col] of Object.entries(map)) {
+    if (key in updates) {
+      fields.push(`${col} = $${idx++}`);
+      values.push(updates[key]);
+    }
+  }
+  if (!fields.length) return null;
+  const result = await query(
+    `UPDATE coaches SET ${fields.join(", ")} WHERE tenant_id = $1 AND id = $2 RETURNING *`,
+    values,
+  );
+  return result.rows[0] ? toCamelCase(result.rows[0]) : null;
+}
+
+export async function deleteCoach(tenantId: string, id: string) {
+  await query("DELETE FROM coaches WHERE tenant_id = $1 AND id = $2", [tenantId, id]);
+}
+
+// ─── Class templates ───────────────────────────────────────────────────────
+
+function mapClassTemplate(row: Record<string, unknown>) {
+  const t = toCamelCase(row) as Record<string, unknown>;
+  if (typeof t.recurrence === "string") {
+    try {
+      t.recurrence = JSON.parse(t.recurrence);
+    } catch {
+      t.recurrence = [];
+    }
+  }
+  if (!Array.isArray(t.recurrence)) t.recurrence = [];
+  return t;
+}
+
+export async function getClassTemplates(tenantId: string) {
+  const result = await query(
+    `SELECT t.*, c.name AS coach_name
+     FROM class_templates t
+     LEFT JOIN coaches c ON c.id = t.coach_id
+     WHERE t.tenant_id = $1
+     ORDER BY t.name`,
+    [tenantId],
+  );
+  return result.rows.map((row) => {
+    const mapped = mapClassTemplate(row);
+    mapped.coachName = row.coach_name;
+    return mapped;
+  });
+}
+
+export async function createClassTemplate(tenantId: string, data: Record<string, unknown>) {
+  const result = await query(
+    `INSERT INTO class_templates
+     (tenant_id, name, description, coach_id, location, capacity, duration_minutes, color, recurrence, is_active)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+    [
+      tenantId,
+      data.name,
+      data.description || null,
+      data.coachId || null,
+      data.location || null,
+      data.capacity ?? 20,
+      data.durationMinutes ?? 60,
+      data.color || "#3b82f6",
+      JSON.stringify(data.recurrence || []),
+      data.isActive ?? true,
+    ],
+  );
+  const template = mapClassTemplate(result.rows[0]);
+  await logActivity(tenantId, {
+    action: "class_template.create",
+    entityType: "class_template",
+    entityId: template.id as string,
+    description: `Class template created: ${data.name}`,
+  });
+  return template;
+}
+
+export async function updateClassTemplate(tenantId: string, id: string, updates: Record<string, unknown>) {
+  const map: Record<string, string> = {
+    name: "name",
+    description: "description",
+    coachId: "coach_id",
+    location: "location",
+    capacity: "capacity",
+    durationMinutes: "duration_minutes",
+    color: "color",
+    isActive: "is_active",
+  };
+  const fields: string[] = [];
+  const values: unknown[] = [tenantId, id];
+  let idx = 3;
+  for (const [key, col] of Object.entries(map)) {
+    if (key in updates) {
+      fields.push(`${col} = $${idx++}`);
+      values.push(updates[key]);
+    }
+  }
+  if ("recurrence" in updates) {
+    fields.push(`recurrence = $${idx++}`);
+    values.push(JSON.stringify(updates.recurrence || []));
+  }
+  if (!fields.length) return null;
+  const result = await query(
+    `UPDATE class_templates SET ${fields.join(", ")} WHERE tenant_id = $1 AND id = $2 RETURNING *`,
+    values,
+  );
+  return result.rows[0] ? mapClassTemplate(result.rows[0]) : null;
+}
+
+export async function deleteClassTemplate(tenantId: string, id: string) {
+  await query("DELETE FROM class_templates WHERE tenant_id = $1 AND id = $2", [tenantId, id]);
+}
+
+// ─── Class sessions ────────────────────────────────────────────────────────
+
+function mapClassSession(row: Record<string, unknown>) {
+  const s = toCamelCase(row) as Record<string, unknown>;
+  s.startsAt = formatTimestamp(s.startsAt);
+  s.endsAt = formatTimestamp(s.endsAt);
+  if (row.coach_name) s.coachName = row.coach_name;
+  return s;
+}
+
+export async function getClassSessions(tenantId: string, from: string, to: string) {
+  const result = await query(
+    `SELECT s.*, c.name AS coach_name
+     FROM class_sessions s
+     LEFT JOIN coaches c ON c.id = s.coach_id
+     WHERE s.tenant_id = $1 AND s.starts_at >= $2 AND s.starts_at <= $3
+     ORDER BY s.starts_at`,
+    [tenantId, from, to],
+  );
+  return result.rows.map(mapClassSession);
+}
+
+export async function createClassSession(tenantId: string, data: Record<string, unknown>) {
+  const result = await query(
+    `INSERT INTO class_sessions
+     (tenant_id, template_id, name, coach_id, location, starts_at, ends_at, capacity, status, notes)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+    [
+      tenantId,
+      data.templateId || null,
+      data.name,
+      data.coachId || null,
+      data.location || null,
+      data.startsAt,
+      data.endsAt,
+      data.capacity ?? 20,
+      data.status || "scheduled",
+      data.notes || null,
+    ],
+  );
+  return mapClassSession(result.rows[0]);
+}
+
+export async function updateClassSession(tenantId: string, id: string, updates: Record<string, unknown>) {
+  const map: Record<string, string> = {
+    name: "name",
+    coachId: "coach_id",
+    location: "location",
+    startsAt: "starts_at",
+    endsAt: "ends_at",
+    capacity: "capacity",
+    status: "status",
+    notes: "notes",
+  };
+  const fields: string[] = [];
+  const values: unknown[] = [tenantId, id];
+  let idx = 3;
+  for (const [key, col] of Object.entries(map)) {
+    if (key in updates) {
+      fields.push(`${col} = $${idx++}`);
+      values.push(updates[key]);
+    }
+  }
+  if (!fields.length) return null;
+  const result = await query(
+    `UPDATE class_sessions SET ${fields.join(", ")} WHERE tenant_id = $1 AND id = $2 RETURNING *`,
+    values,
+  );
+  return result.rows[0] ? mapClassSession(result.rows[0]) : null;
+}
+
+export async function deleteClassSession(tenantId: string, id: string) {
+  await query("DELETE FROM class_sessions WHERE tenant_id = $1 AND id = $2", [tenantId, id]);
+}
+
+export { generateClassSessionsForTenant, generateClassSessionsForAllTenants } from "./scheduling.js";

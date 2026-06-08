@@ -58,6 +58,12 @@ export const PERMISSIONS = {
     // Settings
     SETTINGS_VIEW: "settings.view",
     SETTINGS_MODIFY: "settings.edit",
+
+    // Schedule
+    CLASSES_VIEW: "classes.view",
+    CLASSES_MANAGE: "classes.manage",
+    COACHES_VIEW: "coaches.view",
+    COACHES_MANAGE: "coaches.manage",
 } as const;
 
 export const PERMISSION_GROUPS = [
@@ -137,6 +143,15 @@ export const PERMISSION_GROUPS = [
         permissions: [
             { id: "settings.view", label: "permissions.items.view" },
             { id: "settings.edit", label: "permissions.items.edit" },
+        ]
+    },
+    {
+        label: "permissions.groups.schedule",
+        permissions: [
+            { id: PERMISSIONS.CLASSES_VIEW, label: "permissions.items.view" },
+            { id: PERMISSIONS.CLASSES_MANAGE, label: "permissions.items.add" },
+            { id: PERMISSIONS.COACHES_VIEW, label: "permissions.items.view" },
+            { id: PERMISSIONS.COACHES_MANAGE, label: "permissions.items.edit" },
         ]
     },
     {

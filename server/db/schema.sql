@@ -423,3 +423,55 @@ INSERT INTO platform_admin_roles (id, name, permissions) VALUES
 ON CONFLICT (id) DO NOTHING;
 
 UPDATE platform_admins SET role_id = 'super_admin' WHERE role_id IS NULL;
+
+-- Class scheduling (Sprint 1)
+CREATE TABLE IF NOT EXISTS coaches (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  name VARCHAR(255) NOT NULL,
+  phone VARCHAR(50),
+  email VARCHAR(255),
+  bio TEXT,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS class_templates (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  coach_id UUID REFERENCES coaches(id) ON DELETE SET NULL,
+  location VARCHAR(255),
+  capacity INTEGER NOT NULL DEFAULT 20,
+  duration_minutes INTEGER NOT NULL DEFAULT 60,
+  color VARCHAR(20) DEFAULT '#3b82f6',
+  recurrence JSONB NOT NULL DEFAULT '[]',
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS class_sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  template_id UUID REFERENCES class_templates(id) ON DELETE SET NULL,
+  name VARCHAR(255) NOT NULL,
+  coach_id UUID REFERENCES coaches(id) ON DELETE SET NULL,
+  location VARCHAR(255),
+  starts_at TIMESTAMPTZ NOT NULL,
+  ends_at TIMESTAMPTZ NOT NULL,
+  capacity INTEGER NOT NULL DEFAULT 20,
+  booked_count INTEGER DEFAULT 0,
+  status VARCHAR(20) DEFAULT 'scheduled'
+    CHECK (status IN ('scheduled', 'cancelled', 'completed')),
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_coaches_tenant ON coaches(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_class_templates_tenant ON class_templates(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_class_sessions_tenant_starts ON class_sessions(tenant_id, starts_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_class_sessions_template_start
+  ON class_sessions(tenant_id, template_id, starts_at)
+  WHERE template_id IS NOT NULL;

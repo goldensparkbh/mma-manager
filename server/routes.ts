@@ -585,6 +585,66 @@ router.delete("/api/events/:id", async (req, res) => {
   res.status(204).send();
 });
 
+// Coaches
+router.get("/api/coaches", async (req, res) => res.json(await data.getCoaches(tid(req))));
+router.post("/api/coaches", async (req, res) => {
+  res.status(201).json(await data.createCoach(tid(req), req.body));
+});
+router.patch("/api/coaches/:id", async (req, res) => {
+  const coach = await data.updateCoach(tid(req), req.params.id, req.body);
+  if (!coach) return res.status(404).json({ error: "Not found" });
+  res.json(coach);
+});
+router.delete("/api/coaches/:id", async (req, res) => {
+  await data.deleteCoach(tid(req), req.params.id);
+  res.status(204).send();
+});
+
+// Class templates
+router.get("/api/classes/templates", async (req, res) => {
+  res.json(await data.getClassTemplates(tid(req)));
+});
+router.post("/api/classes/templates", async (req, res) => {
+  res.status(201).json(await data.createClassTemplate(tid(req), req.body));
+});
+router.patch("/api/classes/templates/:id", async (req, res) => {
+  const template = await data.updateClassTemplate(tid(req), req.params.id, req.body);
+  if (!template) return res.status(404).json({ error: "Not found" });
+  res.json(template);
+});
+router.delete("/api/classes/templates/:id", async (req, res) => {
+  await data.deleteClassTemplate(tid(req), req.params.id);
+  res.status(204).send();
+});
+
+// Class sessions
+router.get("/api/classes/sessions", async (req, res) => {
+  const from = (req.query.from as string) || new Date().toISOString();
+  const to = (req.query.to as string) || new Date(Date.now() + 7 * 86400000).toISOString();
+  res.json(await data.getClassSessions(tid(req), from, to));
+});
+router.post("/api/classes/sessions", async (req, res) => {
+  res.status(201).json(await data.createClassSession(tid(req), req.body));
+});
+router.patch("/api/classes/sessions/:id", async (req, res) => {
+  const session = await data.updateClassSession(tid(req), req.params.id, req.body);
+  if (!session) return res.status(404).json({ error: "Not found" });
+  res.json(session);
+});
+router.delete("/api/classes/sessions/:id", async (req, res) => {
+  await data.deleteClassSession(tid(req), req.params.id);
+  res.status(204).send();
+});
+router.post("/api/classes/sessions/generate", async (req, res) => {
+  const days = Number(req.body.days) || 28;
+  const from = new Date();
+  from.setHours(0, 0, 0, 0);
+  const to = new Date(from);
+  to.setDate(to.getDate() + days);
+  const created = await data.generateClassSessionsForTenant(tid(req), from, to);
+  res.json({ created });
+});
+
 // Settings
 router.get("/api/settings", async (req, res) => {
   const settings = await data.getSettings(tid(req));

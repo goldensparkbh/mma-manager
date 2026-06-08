@@ -5,6 +5,7 @@ import { useLanguage } from "@/context/language-context";
 import {
   LayoutDashboard,
   Users,
+  CalendarDays,
   Calendar,
   CreditCard,
   Package,
@@ -103,6 +104,12 @@ export function AppSidebar() {
       url: "/attendance",
       icon: Calendar,
       permission: PERMISSIONS.ATTENDANCE_VIEW
+    },
+    {
+      key: "nav.schedule",
+      url: "/schedule",
+      icon: CalendarDays,
+      permission: PERMISSIONS.CLASSES_VIEW
     },
     {
       key: "nav.belts",
