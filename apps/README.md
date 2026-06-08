@@ -17,6 +17,10 @@ Two Expo (React Native) apps live alongside the web platform:
 
 Mobile apps call the same backend as the web app. Set the base URL before starting Expo:
 
+By default both apps point at the production API (`apps/dojo-member/.env` and `apps/dojo-staff/.env`).
+
+To use a **local** API instead:
+
 ```bash
 # iOS Simulator — server on same machine
 export EXPO_PUBLIC_API_URL=http://localhost:3000

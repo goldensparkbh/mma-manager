@@ -1,12 +1,16 @@
-import { Route, Switch, useRoute } from "wouter";
+import { Route, Switch, useLocation } from "wouter";
 import { PortalAuthProvider } from "@/context/portal-auth-context";
 import PortalLogin from "./login";
 import PortalHome from "./home";
 import PortalPaymentResult from "./payment-result";
 
+function getPortalSlug(path: string): string | undefined {
+  return path.match(/^\/portal\/([^/]+)/)?.[1];
+}
+
 export default function PortalApp() {
-  const [, params] = useRoute("/portal/:slug");
-  const slug = params?.slug;
+  const [location] = useLocation();
+  const slug = getPortalSlug(location);
 
   if (!slug) {
     return (
