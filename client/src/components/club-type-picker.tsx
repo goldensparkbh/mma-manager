@@ -17,7 +17,7 @@ export type ClubTypeOption = {
   hasSessionPackages?: boolean;
 };
 
-const CATEGORY_ORDER = ["martial_arts", "fitness", "specialty", "hybrid"] as const;
+const CATEGORY_ORDER = ["martial_arts", "team_sports", "fitness", "specialty", "hybrid"] as const;
 
 type Props = {
   clubTypes: ClubTypeOption[];

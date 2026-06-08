@@ -90,6 +90,46 @@ export const CLUB_TYPE_VISUALS: Record<ClubTypeId, ClubTypeVisual> = {
     tileClass: "bg-gradient-to-br from-green-100 to-emerald-200 text-green-800 dark:from-green-950 dark:to-emerald-900 dark:text-green-300",
     accentClass: "ring-emerald-500",
   },
+  football: {
+    icon: Target,
+    tileClass: "bg-gradient-to-br from-emerald-100 to-lime-200 text-emerald-900 dark:from-emerald-950 dark:to-lime-900 dark:text-lime-300",
+    accentClass: "ring-emerald-600",
+  },
+  basketball: {
+    icon: Activity,
+    tileClass: "bg-gradient-to-br from-orange-100 to-amber-200 text-orange-900 dark:from-orange-950 dark:to-amber-900 dark:text-amber-300",
+    accentClass: "ring-orange-600",
+  },
+  handball: {
+    icon: Flame,
+    tileClass: "bg-gradient-to-br from-rose-100 to-red-200 text-rose-900 dark:from-rose-950 dark:to-red-900 dark:text-red-300",
+    accentClass: "ring-rose-600",
+  },
+  volleyball: {
+    icon: ArrowUpRight,
+    tileClass: "bg-gradient-to-br from-sky-100 to-blue-200 text-sky-900 dark:from-sky-950 dark:to-blue-900 dark:text-sky-300",
+    accentClass: "ring-sky-600",
+  },
+  tennis: {
+    icon: Wind,
+    tileClass: "bg-gradient-to-br from-lime-100 to-green-200 text-lime-900 dark:from-lime-950 dark:to-green-900 dark:text-lime-300",
+    accentClass: "ring-lime-600",
+  },
+  swimming: {
+    icon: Wind,
+    tileClass: "bg-gradient-to-br from-cyan-100 to-sky-200 text-cyan-900 dark:from-cyan-950 dark:to-sky-900 dark:text-cyan-300",
+    accentClass: "ring-cyan-600",
+  },
+  gymnastics: {
+    icon: Sparkles,
+    tileClass: "bg-gradient-to-br from-fuchsia-100 to-pink-200 text-fuchsia-900 dark:from-fuchsia-950 dark:to-pink-900 dark:text-fuchsia-300",
+    accentClass: "ring-fuchsia-600",
+  },
+  weightlifting: {
+    icon: Dumbbell,
+    tileClass: "bg-gradient-to-br from-slate-100 to-zinc-200 text-slate-900 dark:from-slate-900 dark:to-zinc-800 dark:text-zinc-200",
+    accentClass: "ring-slate-600",
+  },
   general_gym: {
     icon: Dumbbell,
     tileClass: "bg-gradient-to-br from-blue-100 to-cyan-200 text-blue-800 dark:from-blue-950 dark:to-cyan-900 dark:text-cyan-300",

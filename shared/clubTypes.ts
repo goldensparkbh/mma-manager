@@ -11,6 +11,14 @@ export type ClubTypeId =
   | "krav_maga"
   | "kung_fu"
   | "capoeira"
+  | "football"
+  | "basketball"
+  | "handball"
+  | "volleyball"
+  | "tennis"
+  | "swimming"
+  | "gymnastics"
+  | "weightlifting"
   | "general_gym"
   | "crossfit"
   | "parkour"
@@ -76,7 +84,7 @@ export interface ClubTypeTemplate {
   nameAr: string;
   descriptionEn: string;
   descriptionAr: string;
-  category: "martial_arts" | "fitness" | "specialty" | "hybrid";
+  category: "martial_arts" | "team_sports" | "fitness" | "specialty" | "hybrid";
   progressionConfig: ProgressionConfig;
   moduleConfig: ModuleConfig;
   memberFieldConfig: MemberFieldConfig;
@@ -138,6 +146,26 @@ const SESSION_PACKAGES: DefaultPackage[] = [
   { name: "10 Class Pack", packageType: "sessions", duration: 90, sessionCount: 10, price: 80 },
   { name: "Monthly Unlimited", packageType: "duration", duration: 30, price: 99 },
 ];
+
+const TEAM_SPORT_PACKAGES: DefaultPackage[] = [
+  { name: "Monthly", packageType: "duration", duration: 30, price: 45 },
+  { name: "Quarterly", packageType: "duration", duration: 90, price: 120 },
+  { name: "Season (6 months)", packageType: "duration", duration: 180, price: 210 },
+  { name: "Annual", packageType: "duration", duration: 365, price: 390 },
+];
+
+const TEAM_SPORT_MEMBER_FIELDS: MemberFieldConfig = {
+  beltSize: false,
+  suitSize: false,
+  weight: true,
+  height: true,
+  bloodType: false,
+  healthNotes: true,
+  customFields: [
+    { key: "position", label: "Position", labelAr: "المركز", type: "text" },
+    { key: "jerseyNumber", label: "Jersey Number", labelAr: "رقم القميص", type: "number" },
+  ],
+};
 
 const STRIKING_LEVELS: DefaultBelt[] = [
   { name: "Beginner", color: "#94A3B8", order: 1 },
@@ -368,6 +396,111 @@ export const CLUB_TYPE_TEMPLATES: ClubTypeTemplate[] = [
     moduleConfig: DEFAULT_MODULES,
     memberFieldConfig: { ...DEFAULT_MEMBER_FIELDS, suitSize: true, beltSize: false },
     defaultBelts: KARATE_BELTS,
+    defaultPackages: MONTHLY_PACKAGES,
+  },
+  {
+    id: "football",
+    nameEn: "Football (Soccer)",
+    nameAr: "كرة القدم",
+    descriptionEn: "Team training with season memberships",
+    descriptionAr: "تدريب جماعي مع عضويات موسمية",
+    category: "team_sports",
+    progressionConfig: { ...DEFAULT_PROGRESSION, enabled: false, mode: "none" },
+    moduleConfig: { progression: false, store: true, belts: false },
+    memberFieldConfig: TEAM_SPORT_MEMBER_FIELDS,
+    defaultPackages: TEAM_SPORT_PACKAGES,
+  },
+  {
+    id: "basketball",
+    nameEn: "Basketball",
+    nameAr: "كرة السلة",
+    descriptionEn: "Team practice, camps, and seasonal access",
+    descriptionAr: "تدريبات ومعسكرات واشتراك موسمي",
+    category: "team_sports",
+    progressionConfig: { ...DEFAULT_PROGRESSION, enabled: false, mode: "none" },
+    moduleConfig: { progression: false, store: true, belts: false },
+    memberFieldConfig: TEAM_SPORT_MEMBER_FIELDS,
+    defaultPackages: TEAM_SPORT_PACKAGES,
+  },
+  {
+    id: "handball",
+    nameEn: "Handball",
+    nameAr: "كرة اليد",
+    descriptionEn: "Team training with match participation tracking",
+    descriptionAr: "تدريب جماعي مع متابعة المشاركة بالمباريات",
+    category: "team_sports",
+    progressionConfig: { ...DEFAULT_PROGRESSION, enabled: false, mode: "none" },
+    moduleConfig: { progression: false, store: true, belts: false },
+    memberFieldConfig: TEAM_SPORT_MEMBER_FIELDS,
+    defaultPackages: TEAM_SPORT_PACKAGES,
+  },
+  {
+    id: "volleyball",
+    nameEn: "Volleyball",
+    nameAr: "كرة الطائرة",
+    descriptionEn: "Team sessions, leagues, and seasonal memberships",
+    descriptionAr: "حصص جماعية ودوريات واشتراكات موسمية",
+    category: "team_sports",
+    progressionConfig: { ...DEFAULT_PROGRESSION, enabled: false, mode: "none" },
+    moduleConfig: { progression: false, store: true, belts: false },
+    memberFieldConfig: TEAM_SPORT_MEMBER_FIELDS,
+    defaultPackages: TEAM_SPORT_PACKAGES,
+  },
+  {
+    id: "tennis",
+    nameEn: "Tennis",
+    nameAr: "تنس",
+    descriptionEn: "Court sessions and coaching memberships",
+    descriptionAr: "حصص ملاعب وعضويات تدريب",
+    category: "specialty",
+    progressionConfig: { ...DEFAULT_PROGRESSION, enabled: false, mode: "none" },
+    moduleConfig: { progression: false, store: true, belts: false },
+    memberFieldConfig: { ...DEFAULT_MEMBER_FIELDS, beltSize: false, suitSize: false, bloodType: false },
+    defaultPackages: SESSION_PACKAGES,
+  },
+  {
+    id: "swimming",
+    nameEn: "Swimming",
+    nameAr: "سباحة",
+    descriptionEn: "Group classes and lane access memberships",
+    descriptionAr: "حصص جماعية وعضويات دخول المسارات",
+    category: "fitness",
+    progressionConfig: { ...DEFAULT_PROGRESSION, enabled: false, mode: "none" },
+    moduleConfig: { progression: false, store: true, belts: false },
+    memberFieldConfig: { ...DEFAULT_MEMBER_FIELDS, beltSize: false, suitSize: false, bloodType: false },
+    defaultPackages: SESSION_PACKAGES,
+  },
+  {
+    id: "gymnastics",
+    nameEn: "Gymnastics",
+    nameAr: "جمباز",
+    descriptionEn: "Classes and skill development programs",
+    descriptionAr: "حصص وبرامج تطوير مهارات",
+    category: "fitness",
+    progressionConfig: { ...DEFAULT_PROGRESSION, enabled: false, mode: "none" },
+    moduleConfig: { progression: false, store: true, belts: false },
+    memberFieldConfig: { ...DEFAULT_MEMBER_FIELDS, beltSize: false, suitSize: false, bloodType: false },
+    defaultPackages: SESSION_PACKAGES,
+  },
+  {
+    id: "weightlifting",
+    nameEn: "Weightlifting",
+    nameAr: "رفع الأثقال",
+    descriptionEn: "Coaching memberships and training blocks",
+    descriptionAr: "عضويات تدريب وكتل تدريبية",
+    category: "fitness",
+    progressionConfig: { ...DEFAULT_PROGRESSION, enabled: false, mode: "none" },
+    moduleConfig: { progression: false, store: true, belts: false },
+    memberFieldConfig: {
+      ...DEFAULT_MEMBER_FIELDS,
+      beltSize: false,
+      suitSize: false,
+      bloodType: false,
+      customFields: [
+        { key: "total", label: "Total (Snatch + Clean & Jerk)", labelAr: "المجموع", type: "number" },
+        { key: "weightClass", label: "Weight Class", labelAr: "فئة الوزن", type: "text" },
+      ],
+    },
     defaultPackages: MONTHLY_PACKAGES,
   },
   {

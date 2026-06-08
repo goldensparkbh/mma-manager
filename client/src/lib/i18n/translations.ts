@@ -859,6 +859,7 @@ export const translations = {
             customFields: "حقول إضافية",
             category: {
                 martial_arts: "فنون قتالية",
+                team_sports: "رياضات جماعية",
                 fitness: "لياقة بدنية",
                 specialty: "تخصصي",
                 hybrid: "مختلط",
@@ -1885,6 +1886,7 @@ export const translations = {
             customFields: "Additional fields",
             category: {
                 martial_arts: "Martial Arts",
+                team_sports: "Team Sports",
                 fitness: "Fitness",
                 specialty: "Specialty",
                 hybrid: "Hybrid",
