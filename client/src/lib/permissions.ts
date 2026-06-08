@@ -64,6 +64,10 @@ export const PERMISSIONS = {
     CLASSES_MANAGE: "classes.manage",
     COACHES_VIEW: "coaches.view",
     COACHES_MANAGE: "coaches.manage",
+
+    // Bookings
+    BOOKINGS_VIEW: "bookings.view",
+    BOOKINGS_MANAGE: "bookings.manage",
 } as const;
 
 export const PERMISSION_GROUPS = [
@@ -152,6 +156,8 @@ export const PERMISSION_GROUPS = [
             { id: PERMISSIONS.CLASSES_MANAGE, label: "permissions.items.add" },
             { id: PERMISSIONS.COACHES_VIEW, label: "permissions.items.view" },
             { id: PERMISSIONS.COACHES_MANAGE, label: "permissions.items.edit" },
+            { id: PERMISSIONS.BOOKINGS_VIEW, label: "permissions.items.view" },
+            { id: PERMISSIONS.BOOKINGS_MANAGE, label: "permissions.items.add" },
         ]
     },
     {

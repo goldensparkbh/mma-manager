@@ -308,6 +308,43 @@ export interface ClassSession {
 
 export type InsertClassSession = Omit<ClassSession, "id" | "createdAt" | "coachName" | "bookedCount">;
 
+export interface BookingSettings {
+  tenantId?: string;
+  bookingWindowDays: number;
+  cancellationHours: number;
+  allowWaitlist: boolean;
+  autoPromoteWaitlist: boolean;
+  portalEnabled: boolean;
+  publicSlug?: string | null;
+}
+
+export interface MemberAccount {
+  id: string;
+  memberId: string;
+  phone: string;
+  email?: string | null;
+  isActive?: boolean;
+  lastLogin?: string | null;
+  createdAt?: string;
+}
+
+export interface Booking {
+  id: string;
+  sessionId: string;
+  memberId: string;
+  memberName: string;
+  status: "confirmed" | "cancelled" | "waitlist" | "no_show" | "attended";
+  bookedAt: string;
+  cancelledAt?: string | null;
+  attendedAt?: string | null;
+  bookedBy?: "member" | "staff";
+  sessionName?: string;
+  startsAt?: string;
+  endsAt?: string;
+  location?: string | null;
+  coachName?: string | null;
+}
+
 export interface CartItem {
   product: Product;
   quantity: number;

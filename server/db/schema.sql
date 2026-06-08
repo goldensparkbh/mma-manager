@@ -475,3 +475,60 @@ CREATE INDEX IF NOT EXISTS idx_class_sessions_tenant_starts ON class_sessions(te
 CREATE UNIQUE INDEX IF NOT EXISTS idx_class_sessions_template_start
   ON class_sessions(tenant_id, template_id, starts_at)
   WHERE template_id IS NOT NULL;
+
+-- Member portal & bookings (Sprint 2)
+CREATE TABLE IF NOT EXISTS tenant_booking_settings (
+  tenant_id UUID PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+  booking_window_days INTEGER DEFAULT 7,
+  cancellation_hours INTEGER DEFAULT 2,
+  allow_waitlist BOOLEAN DEFAULT true,
+  auto_promote_waitlist BOOLEAN DEFAULT true,
+  portal_enabled BOOLEAN DEFAULT true,
+  public_slug VARCHAR(100),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS member_accounts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+  phone VARCHAR(50) NOT NULL,
+  email VARCHAR(255),
+  password_hash VARCHAR(255),
+  is_active BOOLEAN DEFAULT true,
+  last_login TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (tenant_id, member_id),
+  UNIQUE (tenant_id, phone)
+);
+
+CREATE TABLE IF NOT EXISTS bookings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  session_id UUID NOT NULL REFERENCES class_sessions(id) ON DELETE CASCADE,
+  member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+  member_name VARCHAR(255) NOT NULL,
+  status VARCHAR(20) DEFAULT 'confirmed'
+    CHECK (status IN ('confirmed', 'cancelled', 'waitlist', 'no_show', 'attended')),
+  booked_at TIMESTAMPTZ DEFAULT NOW(),
+  cancelled_at TIMESTAMPTZ,
+  attended_at TIMESTAMPTZ,
+  booked_by VARCHAR(20) DEFAULT 'member' CHECK (booked_by IN ('member', 'staff')),
+  UNIQUE (session_id, member_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_member_accounts_tenant ON member_accounts(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_bookings_session ON bookings(session_id);
+CREATE INDEX IF NOT EXISTS idx_bookings_member ON bookings(tenant_id, member_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tenant_booking_slug ON tenant_booking_settings(public_slug)
+  WHERE public_slug IS NOT NULL;
+
+-- Backfill portal slug from tenant slug
+INSERT INTO tenant_booking_settings (tenant_id, public_slug, portal_enabled)
+SELECT t.id, t.slug, true FROM tenants t
+ON CONFLICT (tenant_id) DO NOTHING;
+
+UPDATE tenant_booking_settings bs
+SET public_slug = t.slug
+FROM tenants t
+WHERE bs.tenant_id = t.id AND (bs.public_slug IS NULL OR bs.public_slug = '');

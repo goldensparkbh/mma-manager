@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import multer from "multer";
-import { authMiddleware, requireTenant, requirePlatformAdmin, requirePlatformPermission, signToken, comparePassword, hashPassword, optionalAuth } from "./auth.js";
+import { authMiddleware, requireTenant, requirePlatformAdmin, requirePlatformPermission, requireMemberAccount, requireStaffAccount, signToken, comparePassword, hashPassword, optionalAuth } from "./auth.js";
+import * as bookings from "./bookings.js";
 import { PLATFORM_PERMISSIONS } from "../shared/platformPermissions.js";
 import { isTapConfigured } from "./tap.js";
 import { getAuth } from "./utils.js";
@@ -55,6 +56,47 @@ router.get("/api/settings/public", optionalAuth, async (req, res) => {
   res.json(settings || { name: "Dojo Manager" });
 });
 
+// ─── Member portal (public) ─────────────────────────────────────────────────
+
+router.get("/api/portal/:slug/info", async (req, res) => {
+  try {
+    const tenant = await bookings.getTenantByPortalSlug(req.params.slug);
+    if (!tenant) return res.status(404).json({ error: "Club not found" });
+    const settings = await bookings.getBookingSettings(tenant.id as string);
+    res.json({
+      name: tenant.name,
+      slug: tenant.slug,
+      portalEnabled: settings.portalEnabled,
+    });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+router.post("/api/portal/:slug/login", async (req, res) => {
+  try {
+    const { phone, password } = req.body;
+    if (!phone || !password) return res.status(400).json({ error: "Phone and password required" });
+    const result = await data.portalLogin(req.params.slug, phone, password);
+    const token = signToken({
+      userId: result.accountId,
+      tenantId: result.tenantId,
+      memberId: result.memberId,
+      email: result.phone,
+      role: "member",
+      isPlatformAdmin: false,
+      accountType: "member",
+    });
+    res.json({
+      token,
+      member: { id: result.memberId, name: result.memberName, phone: result.phone },
+      tenant: { id: result.tenantId, name: result.tenantName, slug: result.tenantSlug },
+    });
+  } catch (err) {
+    res.status(401).json({ error: (err as Error).message });
+  }
+});
+
 router.post("/api/auth/register", async (req, res) => {
   try {
     const { clubName, email, password, adminName, phone, planSlug, clubType } = req.body;
@@ -73,6 +115,7 @@ router.post("/api/auth/register", async (req, res) => {
       email: email,
       role: "admin",
       isPlatformAdmin: false,
+      accountType: "staff",
     });
     res.status(201).json({ token, tenant, user: { id: user.id, email: user.email, displayName: user.displayName, role: "admin" } });
   } catch (err) {
@@ -135,6 +178,7 @@ router.post("/api/auth/login", async (req, res) => {
       email: row.email,
       role: row.role,
       isPlatformAdmin: false,
+      accountType: "staff",
     });
     const subscription = await data.getTenantSubscription(row.tenant_id);
     const access = await data.checkTenantAccess(row.tenant_id);
@@ -162,8 +206,71 @@ router.post("/api/auth/login", async (req, res) => {
 
 router.use(authMiddleware);
 
+// ─── Member portal (authenticated) ─────────────────────────────────────────
+
+router.get("/api/portal/me", requireMemberAccount, async (req, res) => {
+  const auth = getAuth(req);
+  const profile = await data.getPortalMemberProfile(auth.tenantId!, auth.memberId!);
+  if (!profile) return res.status(404).json({ error: "Member not found" });
+  res.json(profile);
+});
+
+router.get("/api/portal/classes", requireMemberAccount, async (req, res) => {
+  const auth = getAuth(req);
+  const from = (req.query.from as string) || new Date().toISOString();
+  const to = (req.query.to as string) || new Date(Date.now() + 14 * 86400000).toISOString();
+  const sessions = await data.getClassSessions(auth.tenantId!, from, to);
+  const active = sessions.filter((s) => (s as { status?: string }).status === "scheduled");
+  res.json(active);
+});
+
+router.get("/api/portal/bookings", requireMemberAccount, async (req, res) => {
+  const auth = getAuth(req);
+  res.json(await bookings.getBookings(auth.tenantId!, { memberId: auth.memberId }));
+});
+
+router.post("/api/portal/bookings", requireMemberAccount, async (req, res) => {
+  try {
+    const auth = getAuth(req);
+    const member = await data.getMember(auth.tenantId!, auth.memberId!);
+    if (!member) return res.status(404).json({ error: "Member not found" });
+    const booking = await bookings.createBooking({
+      tenantId: auth.tenantId!,
+      sessionId: req.body.sessionId,
+      memberId: auth.memberId!,
+      memberName: (member as { name: string }).name,
+      bookedBy: "member",
+    });
+    res.status(201).json(booking);
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+router.delete("/api/portal/bookings/:id", requireMemberAccount, async (req, res) => {
+  try {
+    const auth = getAuth(req);
+    const list = await bookings.getBookings(auth.tenantId!, { memberId: auth.memberId });
+    const owns = list.some((b) => (b as { id: string }).id === req.params.id);
+    if (!owns) return res.status(404).json({ error: "Booking not found" });
+    await bookings.cancelBooking(auth.tenantId!, req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
 router.get("/api/auth/me", async (req, res) => {
   const auth = getAuth(req);
+  if (auth.accountType === "member") {
+    const profile = await data.getPortalMemberProfile(auth.tenantId!, auth.memberId!);
+    if (!profile) return res.status(404).json({ error: "Member not found" });
+    return res.json({
+      accountType: "member",
+      member: profile.member,
+      activeSubscription: profile.activeSubscription,
+    });
+  }
   if (auth.isPlatformAdmin) {
     const result = await query("SELECT id, email, display_name FROM platform_admins WHERE id = $1", [auth.userId]);
     if (!result.rows[0]) return res.status(404).json({ error: "User not found" });
@@ -337,6 +444,7 @@ router.delete("/api/platform/plans/:id", requirePlatformAdmin, requirePlatformPe
 
 // ─── Tenant API ──────────────────────────────────────────────────────────────
 
+router.use("/api", requireStaffAccount as unknown as import("express").RequestHandler);
 router.use("/api", tenantAccess as unknown as import("express").RequestHandler);
 router.use("/api", requireTenant);
 
@@ -643,6 +751,64 @@ router.post("/api/classes/sessions/generate", async (req, res) => {
   to.setDate(to.getDate() + days);
   const created = await data.generateClassSessionsForTenant(tid(req), from, to);
   res.json({ created });
+});
+
+// Bookings
+router.get("/api/bookings", async (req, res) => {
+  const filters: { sessionId?: string; memberId?: string; from?: string; to?: string } = {};
+  if (req.query.sessionId) filters.sessionId = req.query.sessionId as string;
+  if (req.query.memberId) filters.memberId = req.query.memberId as string;
+  if (req.query.from) filters.from = req.query.from as string;
+  if (req.query.to) filters.to = req.query.to as string;
+  res.json(await bookings.getBookings(tid(req), filters));
+});
+router.post("/api/bookings", async (req, res) => {
+  try {
+    const member = await data.getMember(tid(req), req.body.memberId);
+    if (!member) return res.status(404).json({ error: "Member not found" });
+    const booking = await bookings.createBooking({
+      tenantId: tid(req),
+      sessionId: req.body.sessionId,
+      memberId: req.body.memberId,
+      memberName: (member as { name: string }).name,
+      bookedBy: "staff",
+    });
+    res.status(201).json(booking);
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+router.delete("/api/bookings/:id", async (req, res) => {
+  try {
+    await bookings.cancelBooking(tid(req), req.params.id, { force: true });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+router.get("/api/booking-settings", async (req, res) => {
+  res.json(await bookings.getBookingSettings(tid(req)));
+});
+router.patch("/api/booking-settings", async (req, res) => {
+  res.json(await bookings.updateBookingSettings(tid(req), req.body));
+});
+
+router.post("/api/members/:id/portal-access", async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (!password || password.length < 4) {
+      return res.status(400).json({ error: "Password must be at least 4 characters" });
+    }
+    const account = await data.enableMemberPortalAccess(tid(req), req.params.id, password);
+    res.status(201).json(account);
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+router.get("/api/members/:id/portal-access", async (req, res) => {
+  const account = await data.getMemberAccount(tid(req), req.params.id);
+  res.json(account || { enabled: false });
 });
 
 // Settings

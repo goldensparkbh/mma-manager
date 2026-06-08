@@ -36,6 +36,7 @@ import { SupportChatProvider } from "@/context/support-chat-context";
 import { ImpersonationBanner } from "@/components/impersonation-banner";
 import { useEffect } from "react";
 import { PERMISSIONS } from "@/lib/permissions";
+import PortalApp from "@/pages/portal";
 
 function AccessDenied() {
   const { t } = useLanguage();
@@ -114,6 +115,10 @@ function AppShell() {
   const { t, language } = useLanguage();
   const [location] = useLocation();
   const style = { "--sidebar-width": "17rem", "--sidebar-width-icon": "4rem" };
+
+  if (location.startsWith("/portal/")) {
+    return <PortalApp />;
+  }
 
   if (loading) {
     return (

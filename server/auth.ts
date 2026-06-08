@@ -73,6 +73,22 @@ export function requirePlatformAdmin(req: Request, res: Response, next: NextFunc
   next();
 }
 
+export function requireMemberAccount(req: Request, res: Response, next: NextFunction) {
+  const auth = (req as Request & { auth?: AuthPayload }).auth;
+  if (!auth || auth.accountType !== "member" || !auth.tenantId || !auth.memberId) {
+    return res.status(403).json({ error: "Member portal access required" });
+  }
+  next();
+}
+
+export function requireStaffAccount(req: Request, res: Response, next: NextFunction) {
+  const auth = (req as Request & { auth?: AuthPayload }).auth;
+  if (auth?.accountType === "member") {
+    return res.status(403).json({ error: "Staff access required" });
+  }
+  next();
+}
+
 export function requirePlatformPermission(...permissions: string[]) {
   return (req: Request, res: Response, next: NextFunction) => {
     const auth = (req as Request & { auth?: AuthPayload }).auth;

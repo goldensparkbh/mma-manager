@@ -48,6 +48,8 @@ import { PERMISSIONS } from "@/lib/permissions";
 import { apiJson, apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { ClassSession, ClassTemplate, Coach, RecurrenceSlot } from "@shared/schema";
+import { SessionRosterDialog } from "@/components/session-roster-dialog";
+import { BookingSettingsPanel } from "@/components/booking-settings-panel";
 
 const WEEK_STARTS_ON = 6 as const; // Saturday
 const ORDERED_DAYS = [6, 0, 1, 2, 3, 4, 5] as const;
@@ -88,6 +90,8 @@ export default function SchedulePage() {
   const [coachDialog, setCoachDialog] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<Partial<ClassTemplate> | null>(null);
   const [editingCoach, setEditingCoach] = useState<Partial<Coach> | null>(null);
+  const [rosterSession, setRosterSession] = useState<ClassSession | null>(null);
+  const canBook = hasPermission(PERMISSIONS.BOOKINGS_MANAGE) || canManage;
 
   const weekEnd = endOfWeek(weekStart, { weekStartsOn: WEEK_STARTS_ON });
   const fromIso = weekStart.toISOString();
@@ -292,6 +296,7 @@ export default function SchedulePage() {
           <TabsTrigger value="week">{t("schedule.weekView")}</TabsTrigger>
           <TabsTrigger value="templates">{t("schedule.templates")}</TabsTrigger>
           <TabsTrigger value="coaches">{t("schedule.coaches")}</TabsTrigger>
+          <TabsTrigger value="settings">{t("bookings.settings")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="week" className="space-y-4">
@@ -333,8 +338,12 @@ export default function SchedulePage() {
                         daySessions.map((session) => (
                           <div
                             key={session.id}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => setRosterSession(session)}
+                            onKeyDown={(e) => e.key === "Enter" && setRosterSession(session)}
                             className={cn(
-                              "rounded-lg border p-2 text-xs space-y-1",
+                              "w-full text-start rounded-lg border p-2 text-xs space-y-1 transition-colors hover:bg-muted/50 cursor-pointer",
                               session.status === "cancelled" && "opacity-50 line-through",
                             )}
                             style={{ borderInlineStartWidth: 3, borderInlineStartColor: session.status === "scheduled" ? "#3b82f6" : undefined }}
@@ -362,7 +371,10 @@ export default function SchedulePage() {
                                   size="sm"
                                   variant="ghost"
                                   className="h-6 text-[10px] px-2"
-                                  onClick={() => updateSession.mutate({ id: session.id, status: "cancelled" })}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    updateSession.mutate({ id: session.id, status: "cancelled" });
+                                  }}
                                 >
                                   {t("schedule.cancelSession")}
                                 </Button>
@@ -377,6 +389,10 @@ export default function SchedulePage() {
               })}
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="settings" className="space-y-4">
+          <BookingSettingsPanel />
         </TabsContent>
 
         <TabsContent value="templates" className="space-y-4">
@@ -701,6 +717,13 @@ export default function SchedulePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <SessionRosterDialog
+        session={rosterSession}
+        open={!!rosterSession}
+        onOpenChange={(open) => !open && setRosterSession(null)}
+        canManage={canBook}
+      />
     </div>
   );
 }

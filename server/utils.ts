@@ -57,6 +57,8 @@ export interface AuthPayload {
   isPlatformAdmin: boolean;
   platformPermissions?: string[];
   impersonatedBy?: string | null;
+  accountType?: "staff" | "member";
+  memberId?: string;
 }
 
 export function getAuth(req: Request): AuthPayload {

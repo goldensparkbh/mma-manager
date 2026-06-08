@@ -1,6 +1,6 @@
 import { query } from "./db/index.js";
 import { rowsToCamel, toCamelCase, formatDate, formatTimestamp, uniqueSlug } from "./utils.js";
-import { hashPassword } from "./auth.js";
+import { hashPassword, comparePassword } from "./auth.js";
 import { createTapCharge, getAppBaseUrl, isTapChargeSuccessful, isTapConfigured, retrieveTapCharge } from "./tap.js";
 import { sendPaymentInvoiceEmail, sendTrialExpiredEmail, sendTrialReminderEmail } from "./email.js";
 import { PLATFORM_ROLE_PRESETS } from "../shared/platformPermissions.js";
@@ -129,6 +129,8 @@ export async function createAttendance(tenantId: string, data: Record<string, un
     [tenantId, data.memberId, data.memberName, data.date, data.checkIn || null, data.checkOut || null, data.notes || null],
   );
   await decrementSessionOnAttendance(tenantId, data.memberId as string);
+  const { markBookingAttended } = await import("./bookings.js");
+  await markBookingAttended(tenantId, data.memberId as string, data.date as string);
   return toCamelCase(result.rows[0]);
 }
 
@@ -838,6 +840,10 @@ export async function provisionTenant(params: {
     ],
   );
   await query("INSERT INTO tenant_counters (tenant_id, member_count) VALUES ($1, 1000)", [tenantId]);
+  await query(
+    "INSERT INTO tenant_booking_settings (tenant_id, public_slug, portal_enabled) VALUES ($1, $2, true) ON CONFLICT DO NOTHING",
+    [tenantId, slug],
+  );
 
   if (template.defaultBelts?.length) {
     for (const belt of template.defaultBelts) {
@@ -1781,3 +1787,94 @@ export async function deleteClassSession(tenantId: string, id: string) {
 }
 
 export { generateClassSessionsForTenant, generateClassSessionsForAllTenants } from "./scheduling.js";
+
+// ─── Member portal accounts ────────────────────────────────────────────────
+
+export async function getMemberAccount(tenantId: string, memberId: string) {
+  const result = await query(
+    "SELECT id, member_id, phone, email, is_active, last_login, created_at FROM member_accounts WHERE tenant_id = $1 AND member_id = $2",
+    [tenantId, memberId],
+  );
+  return result.rows[0] ? toCamelCase(result.rows[0]) : null;
+}
+
+export async function enableMemberPortalAccess(
+  tenantId: string,
+  memberId: string,
+  password: string,
+) {
+  const member = await getMember(tenantId, memberId);
+  if (!member) throw new Error("Member not found");
+  const hash = await hashPassword(password);
+  const phone = (member as { phone?: string }).phone;
+  if (!phone) throw new Error("Member must have a phone number");
+
+  const existing = await query(
+    "SELECT id FROM member_accounts WHERE tenant_id = $1 AND member_id = $2",
+    [tenantId, memberId],
+  );
+
+  if (existing.rows[0]) {
+    await query(
+      `UPDATE member_accounts SET password_hash = $3, phone = $4, is_active = true WHERE tenant_id = $1 AND member_id = $2`,
+      [tenantId, memberId, hash, phone],
+    );
+  } else {
+    await query(
+      `INSERT INTO member_accounts (tenant_id, member_id, phone, email, password_hash, is_active)
+       VALUES ($1,$2,$3,$4,$5,true)`,
+      [tenantId, memberId, phone, (member as { email?: string }).email || null, hash],
+    );
+  }
+  return getMemberAccount(tenantId, memberId);
+}
+
+export async function portalLogin(slug: string, phone: string, password: string) {
+  const { getTenantByPortalSlug, getBookingSettings } = await import("./bookings.js");
+  const tenant = await getTenantByPortalSlug(slug);
+  if (!tenant) throw new Error("Club not found");
+  const tenantId = tenant.id as string;
+  const settings = await getBookingSettings(tenantId);
+  if (!settings.portalEnabled) throw new Error("Member portal is disabled");
+
+  const normalized = phone.replace(/\s+/g, "");
+  const result = await query(
+    `SELECT ma.*, m.name AS member_name, m.status AS member_status
+     FROM member_accounts ma
+     JOIN members m ON m.id = ma.member_id
+     WHERE ma.tenant_id = $1 AND ma.is_active = true
+       AND REPLACE(ma.phone, ' ', '') = $2`,
+    [tenantId, normalized],
+  );
+  const row = result.rows[0];
+  if (!row) throw new Error("Invalid credentials");
+  const valid = await comparePassword(password, row.password_hash);
+  if (!valid) throw new Error("Invalid credentials");
+
+  await query("UPDATE member_accounts SET last_login = NOW() WHERE id = $1", [row.id]);
+  return {
+    accountId: row.id as string,
+    tenantId,
+    memberId: row.member_id as string,
+    memberName: row.member_name as string,
+    phone: row.phone as string,
+    tenantName: tenant.name as string,
+    tenantSlug: tenant.slug as string,
+  };
+}
+
+export async function getPortalMemberProfile(tenantId: string, memberId: string) {
+  const member = await getMember(tenantId, memberId);
+  if (!member) return null;
+  const subs = await getSubscriptionsByMember(tenantId, memberId);
+  const today = new Date().toISOString().split("T")[0];
+  const activeSub = subs.find(
+    (s) =>
+      s.status !== "cancelled" &&
+      s.status !== "expired" &&
+      s.startDate <= today &&
+      s.endDate >= today &&
+      (s.packageType !== "sessions" || (s.sessionsRemaining ?? 0) > 0),
+  );
+  return { member, activeSubscription: activeSub || null, subscriptions: subs };
+}
