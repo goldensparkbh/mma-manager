@@ -1,13 +1,15 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { endOfDay, isWithinInterval, parseISO, startOfDay } from "date-fns";
-import { Calendar, LogIn, Search } from "lucide-react";
+import { Calendar, LogIn, QrCode, Search } from "lucide-react";
+import { Link } from "wouter";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import type { Attendance, Member, InsertAttendance } from "@shared/schema";
@@ -190,6 +192,14 @@ export default function AttendancePage() {
           <p className="text-sm text-muted-foreground">{formatDate(selectedDate)}</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
+          {canAdd && (
+            <Link href="/scan">
+              <Button variant="outline" className="w-full sm:w-auto">
+                <QrCode className="h-4 w-4 me-2" />
+                {t("checkin.scannerTitle")}
+              </Button>
+            </Link>
+          )}
           <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4 text-muted-foreground" />
             <Input

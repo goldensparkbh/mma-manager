@@ -126,6 +126,19 @@ router.get("/api/public/:slug/camps", async (req, res) => {
   }
 });
 
+router.post("/api/public/:slug/camps/:id/register", async (req, res) => {
+  try {
+    const tenant = await bookings.getTenantByPortalSlug(req.params.slug);
+    if (!tenant) return res.status(404).json({ error: "Club not found" });
+    const { memberName, phone } = req.body;
+    if (!memberName) return res.status(400).json({ error: "Name required" });
+    const { registerForCamp } = await import("./camps.js");
+    res.status(201).json(await registerForCamp(tenant.id as string, req.params.id, { memberName, phone }));
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
 router.post("/api/leads", async (req, res) => {
   try {
     const { clubName, contactName, email, phone, message } = req.body;
@@ -346,6 +359,16 @@ router.get("/api/portal/me", requireMemberAccount, async (req, res) => {
   res.json(profile);
 });
 
+router.get("/api/portal/qr", requireMemberAccount, async (req, res) => {
+  const auth = getAuth(req);
+  const { ensureMemberQrToken } = await import("./checkin.js");
+  const token = await ensureMemberQrToken(auth.tenantId!, auth.memberId!);
+  const tenant = await query("SELECT slug FROM tenants WHERE id = $1", [auth.tenantId]);
+  const slug = tenant.rows[0]?.slug as string;
+  const baseUrl = process.env.APP_URL || "http://localhost:5173";
+  res.json({ token, checkInUrl: `${baseUrl}/checkin/${slug}?t=${token}` });
+});
+
 router.get("/api/portal/classes", requireMemberAccount, async (req, res) => {
   const auth = getAuth(req);
   const from = (req.query.from as string) || new Date().toISOString();
@@ -394,6 +417,31 @@ router.delete("/api/portal/bookings/:id", requireMemberAccount, async (req, res)
 router.get("/api/portal/packages", requireMemberAccount, async (req, res) => {
   const auth = getAuth(req);
   res.json(await data.getPackages(auth.tenantId!));
+});
+
+router.get("/api/portal/camps", requireMemberAccount, async (req, res) => {
+  const auth = getAuth(req);
+  const { getCamps } = await import("./camps.js");
+  res.json(await getCamps(auth.tenantId!, true));
+});
+
+router.post("/api/portal/camps/:id/register", requireMemberAccount, async (req, res) => {
+  try {
+    const auth = getAuth(req);
+    const member = await data.getMember(auth.tenantId!, auth.memberId!);
+    if (!member) return res.status(404).json({ error: "Member not found" });
+    const m = member as Record<string, unknown>;
+    const { registerForCamp } = await import("./camps.js");
+    res.status(201).json(
+      await registerForCamp(auth.tenantId!, req.params.id, {
+        memberId: auth.memberId,
+        memberName: String(m.name),
+        phone: String(m.phone || ""),
+      }),
+    );
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
 });
 
 router.get("/api/portal/payments", requireMemberAccount, async (req, res) => {
@@ -943,7 +991,11 @@ router.get("/api/classes/sessions", async (req, res) => {
     coachId = (await data.getCoachForUser(tid(req), auth.userId!)) || undefined;
     if (!coachId) return res.json([]);
   }
-  res.json(await data.getClassSessions(tid(req), from, to, coachId ? { coachId } : undefined));
+  const branchId = req.query.branchId as string | undefined;
+  res.json(await data.getClassSessions(tid(req), from, to, {
+    ...(coachId ? { coachId } : {}),
+    ...(branchId ? { branchId } : {}),
+  }));
 });
 router.post("/api/classes/sessions", async (req, res) => {
   res.status(201).json(await data.createClassSession(tid(req), req.body));

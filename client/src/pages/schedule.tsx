@@ -53,6 +53,7 @@ import { BookingSettingsPanel } from "@/components/booking-settings-panel";
 import { NotificationTemplatesPanel } from "@/components/notification-templates-panel";
 import { MemberPaymentsPanel } from "@/components/member-payments-panel";
 import { FamiliesPanel } from "@/components/families-panel";
+import { BranchSelect } from "@/components/branch-select";
 
 const WEEK_STARTS_ON = 6 as const; // Saturday
 const ORDERED_DAYS = [6, 0, 1, 2, 3, 4, 5] as const;
@@ -95,6 +96,7 @@ export default function SchedulePage() {
   const [editingTemplate, setEditingTemplate] = useState<Partial<ClassTemplate> | null>(null);
   const [editingCoach, setEditingCoach] = useState<Partial<Coach> | null>(null);
   const [rosterSession, setRosterSession] = useState<ClassSession | null>(null);
+  const [branchFilter, setBranchFilter] = useState<string | null>(null);
   const canBook = hasPermission(PERMISSIONS.BOOKINGS_MANAGE) || canManage || isCoach;
 
   const weekEnd = endOfWeek(weekStart, { weekStartsOn: WEEK_STARTS_ON });
@@ -102,9 +104,13 @@ export default function SchedulePage() {
   const toIso = weekEnd.toISOString();
 
   const { data: sessions = [], isLoading: loadingSessions } = useQuery<ClassSession[]>({
-    queryKey: ["/api/classes/sessions", fromIso, toIso],
-    queryFn: () =>
-      apiJson(`/api/classes/sessions?from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}`),
+    queryKey: ["/api/classes/sessions", fromIso, toIso, branchFilter],
+    queryFn: () => {
+      const branchQ = branchFilter ? `&branchId=${encodeURIComponent(branchFilter)}` : "";
+      return apiJson(
+        `/api/classes/sessions?from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}${branchQ}`,
+      );
+    },
   });
 
   const { data: templates = [], isLoading: loadingTemplates } = useQuery<ClassTemplate[]>({
@@ -305,6 +311,16 @@ export default function SchedulePage() {
             </Button>
           </div>
         )}
+      </div>
+
+      <div className="flex flex-wrap items-end gap-3">
+        <BranchSelect
+          allowAll
+          label={t("branches.title")}
+          value={branchFilter}
+          onChange={setBranchFilter}
+          className="w-full sm:w-56"
+        />
       </div>
 
       <Tabs defaultValue="week">
@@ -600,6 +616,11 @@ export default function SchedulePage() {
                   />
                 </div>
               </div>
+              <BranchSelect
+                label={t("branches.title")}
+                value={editingTemplate.branchId}
+                onChange={(v) => setEditingTemplate({ ...editingTemplate, branchId: v })}
+              />
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <Label>{t("schedule.capacity")}</Label>

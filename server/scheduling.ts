@@ -65,8 +65,8 @@ export async function generateClassSessionsForTenant(
 
         await query(
           `INSERT INTO class_sessions
-           (tenant_id, template_id, name, coach_id, location, starts_at, ends_at, capacity, status)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'scheduled')`,
+           (tenant_id, template_id, name, coach_id, location, starts_at, ends_at, capacity, status, branch_id)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'scheduled',$9)`,
           [
             tenantId,
             row.id,
@@ -76,6 +76,7 @@ export async function generateClassSessionsForTenant(
             startsAt.toISOString(),
             endsAt.toISOString(),
             row.capacity,
+            row.branch_id || null,
           ],
         );
         created++;

@@ -50,8 +50,8 @@ export async function createMember(tenantId: string, data: Record<string, unknow
   const result = await query(
     `INSERT INTO members (tenant_id, member_id, name, first_name, father_name, last_name, cpr, phone, email,
       dob, gender, age, height, weight, blood_type, belt_size, suit_size, health_notes,
-      subscription_start, subscription_end, status, balance, image_url, documents, custom_fields)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
+      subscription_start, subscription_end, status, balance, image_url, documents, custom_fields, branch_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
      RETURNING *`,
     [
       tenantId, memberId, data.name, data.firstName || null, data.fatherName || null, data.lastName || null,
@@ -62,6 +62,7 @@ export async function createMember(tenantId: string, data: Record<string, unknow
       data.status || "inactive", data.balance ?? 0, data.imageUrl || null,
       JSON.stringify(data.documents || []),
       JSON.stringify(data.customFields || {}),
+      data.branchId || null,
     ],
   );
   const member = toCamelCase(result.rows[0]);
@@ -81,6 +82,7 @@ export async function updateMember(tenantId: string, id: string, updates: Record
     subscriptionEnd: "subscription_end", status: "status", balance: "balance", imageUrl: "image_url",
     documents: "documents",
     customFields: "custom_fields",
+    branchId: "branch_id",
   };
   for (const [key, col] of Object.entries(map)) {
     if (key in updates) {
@@ -1678,8 +1680,8 @@ export async function getClassTemplates(tenantId: string) {
 export async function createClassTemplate(tenantId: string, data: Record<string, unknown>) {
   const result = await query(
     `INSERT INTO class_templates
-     (tenant_id, name, description, coach_id, location, capacity, duration_minutes, color, recurrence, is_active, allowed_package_ids, deduct_session)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+     (tenant_id, name, description, coach_id, location, capacity, duration_minutes, color, recurrence, is_active, allowed_package_ids, deduct_session, branch_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
     [
       tenantId,
       data.name,
@@ -1693,6 +1695,7 @@ export async function createClassTemplate(tenantId: string, data: Record<string,
       data.isActive ?? true,
       data.allowedPackageIds || [],
       data.deductSession ?? false,
+      data.branchId || null,
     ],
   );
   const template = mapClassTemplate(result.rows[0]);
@@ -1716,6 +1719,7 @@ export async function updateClassTemplate(tenantId: string, id: string, updates:
     color: "color",
     isActive: "is_active",
     deductSession: "deduct_session",
+    branchId: "branch_id",
   };
   const fields: string[] = [];
   const values: unknown[] = [tenantId, id];
@@ -1760,13 +1764,17 @@ export async function getClassSessions(
   tenantId: string,
   from: string,
   to: string,
-  options?: { coachId?: string },
+  options?: { coachId?: string; branchId?: string },
 ) {
   const clauses = ["s.tenant_id = $1", "s.starts_at >= $2", "s.starts_at <= $3"];
   const values: unknown[] = [tenantId, from, to];
   if (options?.coachId) {
-    clauses.push("s.coach_id = $4");
+    clauses.push(`s.coach_id = $${values.length + 1}`);
     values.push(options.coachId);
+  }
+  if (options?.branchId) {
+    clauses.push(`s.branch_id = $${values.length + 1}`);
+    values.push(options.branchId);
   }
   const result = await query(
     `SELECT s.*, c.name AS coach_name
@@ -1782,8 +1790,8 @@ export async function getClassSessions(
 export async function createClassSession(tenantId: string, data: Record<string, unknown>) {
   const result = await query(
     `INSERT INTO class_sessions
-     (tenant_id, template_id, name, coach_id, location, starts_at, ends_at, capacity, status, notes)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+     (tenant_id, template_id, name, coach_id, location, starts_at, ends_at, capacity, status, notes, branch_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
     [
       tenantId,
       data.templateId || null,
@@ -1795,6 +1803,7 @@ export async function createClassSession(tenantId: string, data: Record<string, 
       data.capacity ?? 20,
       data.status || "scheduled",
       data.notes || null,
+      data.branchId || null,
     ],
   );
   return mapClassSession(result.rows[0]);
@@ -1810,6 +1819,7 @@ export async function updateClassSession(tenantId: string, id: string, updates: 
     capacity: "capacity",
     status: "status",
     notes: "notes",
+    branchId: "branch_id",
   };
   const fields: string[] = [];
   const values: unknown[] = [tenantId, id];

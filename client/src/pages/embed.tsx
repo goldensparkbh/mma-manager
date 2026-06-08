@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
 import { format, addDays } from "date-fns";
 import { ar, enUS } from "date-fns/locale";
@@ -6,6 +7,16 @@ import { Calendar, ExternalLink, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/context/language-context";
 import { useRoute } from "wouter";
 import type { ClassSession, SubscriptionPackage } from "@shared/schema";
@@ -20,8 +31,8 @@ type CampEvent = {
   capacity?: number;
 };
 
-async function publicJson<T>(path: string): Promise<T> {
-  const res = await fetch(path);
+async function publicJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(path, init);
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error((err as { error?: string }).error || "Request failed");
@@ -31,9 +42,13 @@ async function publicJson<T>(path: string): Promise<T> {
 
 export default function EmbedWidget() {
   const { t, language } = useLanguage();
+  const { toast } = useToast();
   const [, params] = useRoute("/embed/:slug");
   const slug = params?.slug || "";
   const locale = language === "ar" ? ar : enUS;
+  const [registerCamp, setRegisterCamp] = useState<CampEvent | null>(null);
+  const [guestName, setGuestName] = useState("");
+  const [guestPhone, setGuestPhone] = useState("");
 
   const from = new Date().toISOString();
   const to = addDays(new Date(), 14).toISOString();
@@ -61,6 +76,23 @@ export default function EmbedWidget() {
     queryKey: ["/api/public", slug, "camps"],
     queryFn: () => publicJson(`/api/public/${slug}/camps`),
     enabled: !!slug && !!info?.widgetEnabled,
+  });
+
+  const campRegister = useMutation({
+    mutationFn: () =>
+      publicJson(`/api/public/${slug}/camps/${registerCamp!.id}/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberName: guestName, phone: guestPhone }),
+      }),
+    onSuccess: () => {
+      toast({ title: t("camps.registered") });
+      setRegisterCamp(null);
+      setGuestName("");
+      setGuestPhone("");
+    },
+    onError: (err) =>
+      toast({ variant: "destructive", title: t("common.error"), description: (err as Error).message }),
   });
 
   const portalUrl = useMemo(() => `${window.location.origin}/portal/${slug}`, [slug]);
@@ -115,17 +147,22 @@ export default function EmbedWidget() {
           </CardHeader>
           <CardContent className="space-y-3">
             {camps.slice(0, 6).map((camp) => (
-              <div key={camp.id} className="text-sm border-b pb-2 last:border-0">
-                <p className="font-medium">{camp.title}</p>
-                <p className="text-muted-foreground flex items-center gap-1">
-                  <Calendar className="h-3.5 w-3.5" />
-                  {format(new Date(camp.startDate), "EEE d MMM", { locale })}
-                </p>
-                {camp.price != null && (
-                  <Badge variant="secondary" className="mt-1 text-[10px]">
-                    {camp.price} {t("embed.currency")}
-                  </Badge>
-                )}
+              <div key={camp.id} className="text-sm border-b pb-2 last:border-0 flex justify-between gap-2 items-start">
+                <div>
+                  <p className="font-medium">{camp.title}</p>
+                  <p className="text-muted-foreground flex items-center gap-1">
+                    <Calendar className="h-3.5 w-3.5" />
+                    {format(new Date(camp.startDate), "EEE d MMM", { locale })}
+                  </p>
+                  {camp.price != null && (
+                    <Badge variant="secondary" className="mt-1 text-[10px]">
+                      {camp.price} {t("embed.currency")}
+                    </Badge>
+                  )}
+                </div>
+                <Button size="sm" variant="outline" onClick={() => setRegisterCamp(camp)}>
+                  {t("camps.register")}
+                </Button>
               </div>
             ))}
           </CardContent>
@@ -166,6 +203,32 @@ export default function EmbedWidget() {
           </a>
         </Button>
       )}
+
+      <Dialog open={!!registerCamp} onOpenChange={(o) => !o && setRegisterCamp(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{registerCamp?.title}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label>{t("camps.guestName")}</Label>
+              <Input value={guestName} onChange={(e) => setGuestName(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>{t("members.phone")}</Label>
+              <Input value={guestPhone} onChange={(e) => setGuestPhone(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              disabled={!guestName || campRegister.isPending}
+              onClick={() => campRegister.mutate()}
+            >
+              {t("camps.register")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

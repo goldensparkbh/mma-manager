@@ -567,7 +567,9 @@ export const translations = {
             totalItemsLabel: "إجمالي القطع",
             totalSalesLabel: "إجمالي المبيعات",
             uniqueProductsLabel: "عدد المنتجات",
-            unitPrice: "سعر الوحدة"
+            unitPrice: "سعر الوحدة",
+            receipt: "رقم الإيصال",
+            exportCsv: "تصدير CSV",
         },
         users: {
             title: "إدارة النظام",
@@ -1151,6 +1153,9 @@ export const translations = {
             welcomeMessage: "رسالة ترحيب",
             welcomePlaceholder: "مرحباً بك في نادينا!",
             switchMember: "التبديل بين أفراد العائلة",
+            installTitle: "ثبّت تطبيق البوابة",
+            installHint: "أضفه إلى الشاشة الرئيسية للوصول السريع",
+            install: "تثبيت",
         },
         payments: {
             title: "مدفوعات الأعضاء",
@@ -1238,6 +1243,12 @@ export const translations = {
             start: "البداية",
             capacity: "السعة",
             public: "عام",
+            empty: "لا توجد فعاليات بعد",
+            register: "تسجيل",
+            registered: "تم التسجيل بنجاح",
+            registrations: "المسجلون",
+            noRegistrations: "لا يوجد مسجلون بعد",
+            guestName: "الاسم",
         },
         branches: {
             title: "الفروع",
@@ -1256,6 +1267,12 @@ export const translations = {
             success: "تم تسجيل الحضور بنجاح",
             already: "تم تسجيل الحضور مسبقاً اليوم",
             scanHint: "امسح رمز QR الخاص بك عند المدخل",
+            scannerTitle: "ماسح QR",
+            scannerHint: "وجّه الكاميرا نحو رمز العضو",
+            startingCamera: "جاري تشغيل الكاميرا…",
+            cameraError: "تعذر الوصول إلى الكاميرا",
+            noSlug: "لم يتم إعداد رابط النادي بعد",
+            scanAgain: "جاهز للمسح التالي",
         },
         permissions: {
             groups: {
@@ -1851,7 +1868,9 @@ export const translations = {
             totalItemsLabel: "Total items",
             totalSalesLabel: "Total sales",
             uniqueProductsLabel: "Unique products",
-            unitPrice: "Unit price"
+            unitPrice: "Unit price",
+            receipt: "Receipt #",
+            exportCsv: "Export CSV",
         },
         users: {
             title: "System Management",
@@ -2433,6 +2452,9 @@ export const translations = {
             welcomeMessage: "Welcome message",
             welcomePlaceholder: "Welcome to our club!",
             switchMember: "Switch family member",
+            installTitle: "Install member portal",
+            installHint: "Add to your home screen for quick access",
+            install: "Install",
         },
         payments: {
             title: "Member payments",
@@ -2520,6 +2542,12 @@ export const translations = {
             start: "Start",
             capacity: "Capacity",
             public: "Public",
+            empty: "No events yet",
+            register: "Register",
+            registered: "Registered successfully",
+            registrations: "Registrations",
+            noRegistrations: "No registrations yet",
+            guestName: "Your name",
         },
         branches: {
             title: "Branches",
@@ -2538,6 +2566,12 @@ export const translations = {
             success: "Checked in successfully",
             already: "Already checked in today",
             scanHint: "Scan your member QR at the entrance",
+            scannerTitle: "QR Scanner",
+            scannerHint: "Point the camera at the member QR code",
+            startingCamera: "Starting camera…",
+            cameraError: "Could not access camera",
+            noSlug: "Club portal URL is not configured yet",
+            scanAgain: "Ready for next scan",
         },
         permissions: {
             groups: {

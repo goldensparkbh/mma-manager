@@ -14,7 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Search, ShoppingBag, TrendingUp, Package, Printer, Trash2, MessageSquare } from "lucide-react";
+import { Search, ShoppingBag, TrendingUp, Package, Printer, Trash2, MessageSquare, Download } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Sale, Member } from "@shared/schema";
 import { printReceipt as fireReceipt } from "@/lib/receipt-printer";
@@ -189,6 +189,43 @@ export default function Sales() {
     return label === key ? method : label;
   };
 
+  const exportCsv = () => {
+    if (!filteredSales?.length) return;
+    const headers = [
+      t("sales.product"),
+      t("sales.buyer"),
+      t("members.phone"),
+      t("sales.receipt"),
+      t("sales.quantity"),
+      t("sales.unitPrice"),
+      t("sales.total"),
+      t("common.date"),
+      t("finance.paymentMethod"),
+      t("common.status"),
+    ];
+    const rows = filteredSales.map((sale) => {
+      const member = members?.find((m) => m.id === sale.memberId);
+      return [
+        sale.productName,
+        sale.buyerName || member?.name || "",
+        sale.buyerPhone || member?.phone || "",
+        sale.receiptId || "",
+        sale.quantity,
+        sale.unitPrice,
+        sale.totalPrice,
+        sale.date.split("T")[0],
+        getPaymentMethodLabel(sale.paymentMethod),
+        sale.status || "",
+      ];
+    });
+    const csv = [headers, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `sales_${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -210,6 +247,10 @@ export default function Sales() {
           <h1 className="text-2xl font-bold" data-testid="text-page-title">{t('sales.title')}</h1>
           <p className="text-sm text-muted-foreground">{t('sales.subtitle')}</p>
         </div>
+        <Button variant="outline" onClick={exportCsv} disabled={!filteredSales?.length}>
+          <Download className="h-4 w-4 me-2" />
+          {t("sales.exportCsv")}
+        </Button>
       </div>
 
       <Dialog open={isCancelDialogOpen} onOpenChange={handleCancelDialogChange}>

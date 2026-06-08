@@ -33,6 +33,7 @@ import { getEffectiveMemberSubscriptionStatus } from "@/lib/memberSubscriptionSt
 import { useClubConfig } from "@/lib/clubConfig";
 import { MemberCustomFields } from "@/components/member-custom-fields";
 import { MemberQrPanel } from "@/components/member-qr-panel";
+import { BranchSelect } from "@/components/branch-select";
 
 interface MemberDetailsDialogProps {
     member: Member | null;
@@ -559,6 +560,7 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                     status: member.status,
                     balance: member.balance || 0,
                     customFields: member.customFields || {},
+                    branchId: member.branchId || null,
                 });
                 setImagePreview(member.imageUrl || null);
                 setIsEditing(false);
@@ -1880,6 +1882,11 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                                                         </SelectContent>
                                                     </Select>
                                                 </div>
+                                                <BranchSelect
+                                                    label={t("branches.title")}
+                                                    value={formData.branchId}
+                                                    onChange={(v) => setFormData({ ...formData, branchId: v })}
+                                                />
                                             </div>
                                         </CardContent>
                                     </Card>

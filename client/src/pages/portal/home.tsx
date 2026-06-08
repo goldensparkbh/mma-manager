@@ -14,6 +14,7 @@ import { portalApiJson, setPortalToken } from "@/lib/portal-api";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Booking, ClassSession, MemberPayment, SubscriptionPackage } from "@shared/schema";
 import { useLocation } from "wouter";
+import { PortalInstallBanner } from "@/components/portal-install-banner";
 
 export default function PortalHome() {
   const { t, language } = useLanguage();
@@ -61,6 +62,24 @@ export default function PortalHome() {
     queryKey: ["/api/portal/payments"],
     queryFn: () => portalApiJson("/api/portal/payments"),
     enabled: !!member,
+  });
+
+  const { data: camps = [], isLoading: loadingCamps } = useQuery<
+    { id: string; title: string; startDate: string; price?: number; capacity?: number }[]
+  >({
+    queryKey: ["/api/portal/camps"],
+    queryFn: () => portalApiJson("/api/portal/camps"),
+    enabled: !!member,
+  });
+
+  const registerCamp = useMutation({
+    mutationFn: (campId: string) =>
+      portalApiJson(`/api/portal/camps/${campId}/register`, { method: "POST", body: JSON.stringify({}) }),
+    onSuccess: () => {
+      toast({ title: t("common.success"), description: t("camps.registered") });
+    },
+    onError: (err) =>
+      toast({ variant: "destructive", title: t("common.error"), description: (err as Error).message }),
   });
 
   const bookedSessionIds = useMemo(
@@ -154,6 +173,7 @@ export default function PortalHome() {
       </header>
 
       <main className="max-w-lg mx-auto p-4 space-y-4">
+        <PortalInstallBanner />
         {portalInfo?.welcomeMessage && (
           <p className="text-sm text-center text-muted-foreground">{portalInfo.welcomeMessage}</p>
         )}
@@ -187,9 +207,10 @@ export default function PortalHome() {
         </Card>
 
         <Tabs defaultValue="classes">
-          <TabsList className="w-full">
+          <TabsList className="w-full flex-wrap h-auto">
             <TabsTrigger value="classes" className="flex-1">{t("portal.availableClasses")}</TabsTrigger>
             <TabsTrigger value="bookings" className="flex-1">{t("portal.myBookings")}</TabsTrigger>
+            <TabsTrigger value="camps" className="flex-1">{t("camps.title")}</TabsTrigger>
             <TabsTrigger value="payments" className="flex-1">{t("portal.payments")}</TabsTrigger>
           </TabsList>
 
@@ -268,6 +289,37 @@ export default function PortalHome() {
                       onClick={() => cancelBooking.mutate(booking.id)}
                     >
                       {t("portal.cancel")}
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </TabsContent>
+
+          <TabsContent value="camps" className="space-y-3 mt-4">
+            {loadingCamps ? (
+              <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+            ) : camps.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">{t("camps.empty")}</p>
+            ) : (
+              camps.map((camp) => (
+                <Card key={camp.id}>
+                  <CardContent className="p-4 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-medium">{camp.title}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {format(new Date(camp.startDate), "EEE d MMM · HH:mm", { locale })}
+                      </p>
+                      {camp.price != null && (
+                        <p className="text-xs text-muted-foreground mt-1">{camp.price} {t("embed.currency")}</p>
+                      )}
+                    </div>
+                    <Button
+                      size="sm"
+                      disabled={registerCamp.isPending}
+                      onClick={() => registerCamp.mutate(camp.id)}
+                    >
+                      {t("camps.register")}
                     </Button>
                   </CardContent>
                 </Card>

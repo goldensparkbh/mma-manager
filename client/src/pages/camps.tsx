@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarRange, Loader2, Plus } from "lucide-react";
+import { CalendarRange, Loader2, Plus, Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/context/language-context";
 import { apiJson } from "@/lib/api";
+import { BranchSelect } from "@/components/branch-select";
 
 type Camp = {
   id: string;
@@ -23,6 +24,15 @@ type Camp = {
   capacity?: number;
   price?: number;
   isPublic?: boolean;
+  branchId?: string | null;
+};
+
+type Registration = {
+  id: string;
+  memberName: string;
+  phone?: string;
+  status: string;
+  registeredAt?: string;
 };
 
 const empty = (): Partial<Camp> => ({
@@ -42,10 +52,17 @@ export default function CampsPage() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Partial<Camp>>(empty());
+  const [regsCampId, setRegsCampId] = useState<string | null>(null);
 
   const { data: camps = [], isLoading } = useQuery<Camp[]>({
     queryKey: ["/api/camps"],
     queryFn: () => apiJson("/api/camps"),
+  });
+
+  const { data: registrations = [], isLoading: loadingRegs } = useQuery<Registration[]>({
+    queryKey: ["/api/camps", regsCampId, "registrations"],
+    queryFn: () => apiJson(`/api/camps/${regsCampId}/registrations`),
+    enabled: !!regsCampId,
   });
 
   const save = useMutation({
@@ -69,10 +86,17 @@ export default function CampsPage() {
             <p className="text-sm text-muted-foreground">{t("camps.subtitle")}</p>
           </div>
         </div>
-        <Button onClick={() => { setForm(empty()); setOpen(true); }}><Plus className="h-4 w-4 me-2" />{t("camps.new")}</Button>
+        <Button onClick={() => { setForm(empty()); setOpen(true); }}>
+          <Plus className="h-4 w-4 me-2" />
+          {t("camps.new")}
+        </Button>
       </div>
 
-      {isLoading ? <Loader2 className="h-8 w-8 animate-spin mx-auto" /> : (
+      {isLoading ? (
+        <Loader2 className="h-8 w-8 animate-spin mx-auto" />
+      ) : camps.length === 0 ? (
+        <p className="text-center text-muted-foreground py-8">{t("camps.empty")}</p>
+      ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {camps.map((camp) => (
             <Card key={camp.id}>
@@ -82,11 +106,15 @@ export default function CampsPage() {
                   <Badge variant="outline">{camp.eventType || "camp"}</Badge>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="text-sm space-y-1 text-muted-foreground">
+              <CardContent className="text-sm space-y-2 text-muted-foreground">
                 <p>{new Date(camp.startDate).toLocaleString()}</p>
                 {camp.capacity && <p>{t("camps.capacity")}: {camp.capacity}</p>}
                 {camp.price != null && <p>{camp.price} BHD</p>}
                 {camp.isPublic && <Badge>{t("camps.public")}</Badge>}
+                <Button size="sm" variant="outline" onClick={() => setRegsCampId(camp.id)}>
+                  <Users className="h-4 w-4 me-1" />
+                  {t("camps.registrations")}
+                </Button>
               </CardContent>
             </Card>
           ))}
@@ -97,17 +125,57 @@ export default function CampsPage() {
         <DialogContent>
           <DialogHeader><DialogTitle>{t("camps.new")}</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <div className="space-y-2"><Label>{t("camps.name")}</Label><Input value={form.title || ""} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
-            <div className="space-y-2"><Label>{t("schedule.description")}</Label><Textarea value={form.description || ""} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2"><Label>{t("camps.start")}</Label><Input type="datetime-local" value={(form.startDate || "").slice(0, 16)} onChange={(e) => setForm({ ...form, startDate: e.target.value })} /></div>
-              <div className="space-y-2"><Label>{t("camps.capacity")}</Label><Input type="number" value={form.capacity ?? 30} onChange={(e) => setForm({ ...form, capacity: Number(e.target.value) })} /></div>
+            <div className="space-y-2">
+              <Label>{t("camps.name")}</Label>
+              <Input value={form.title || ""} onChange={(e) => setForm({ ...form, title: e.target.value })} />
             </div>
-            <div className="flex items-center gap-2"><Switch checked={form.isPublic !== false} onCheckedChange={(v) => setForm({ ...form, isPublic: v })} /><Label>{t("camps.public")}</Label></div>
+            <div className="space-y-2">
+              <Label>{t("schedule.description")}</Label>
+              <Textarea value={form.description || ""} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>{t("camps.start")}</Label>
+                <Input type="datetime-local" value={(form.startDate || "").slice(0, 16)} onChange={(e) => setForm({ ...form, startDate: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>{t("camps.capacity")}</Label>
+                <Input type="number" value={form.capacity ?? 30} onChange={(e) => setForm({ ...form, capacity: Number(e.target.value) })} />
+              </div>
+            </div>
+            <BranchSelect
+              label={t("branches.title")}
+              value={form.branchId}
+              onChange={(v) => setForm({ ...form, branchId: v })}
+            />
+            <div className="flex items-center gap-2">
+              <Switch checked={form.isPublic !== false} onCheckedChange={(v) => setForm({ ...form, isPublic: v })} />
+              <Label>{t("camps.public")}</Label>
+            </div>
           </div>
           <DialogFooter>
             <Button onClick={() => save.mutate()} disabled={!form.title || save.isPending}>{t("common.save")}</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!regsCampId} onOpenChange={(o) => !o && setRegsCampId(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{t("camps.registrations")}</DialogTitle></DialogHeader>
+          {loadingRegs ? (
+            <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+          ) : registrations.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">{t("camps.noRegistrations")}</p>
+          ) : (
+            <div className="space-y-2 text-sm max-h-80 overflow-y-auto">
+              {registrations.map((r) => (
+                <div key={r.id} className="flex justify-between border-b pb-2">
+                  <span>{r.memberName}</span>
+                  <span className="text-muted-foreground">{r.phone || "—"}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

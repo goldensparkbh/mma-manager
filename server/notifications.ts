@@ -271,7 +271,7 @@ export async function processOwnerDigest(): Promise<number> {
     const failed = await query(
       `SELECT COUNT(*)::int AS count FROM member_payments
        WHERE tenant_id = $1 AND status = 'failed' AND created_at >= NOW() - INTERVAL '24 hours'`,
-      [tenantId, today],
+      [tenantId],
     );
 
     const admins = await query(

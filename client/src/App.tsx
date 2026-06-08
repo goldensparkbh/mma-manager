@@ -41,6 +41,7 @@ import EmbedWidget from "@/pages/embed";
 import AnalyticsPage from "@/pages/analytics";
 import CampsPage from "@/pages/camps";
 import CheckInPage from "@/pages/checkin";
+import StaffScanPage from "@/pages/scan";
 
 function AccessDenied() {
   const { t } = useLanguage();
@@ -68,6 +69,9 @@ function Router() {
       </Route>
       <Route path="/attendance">
         <RequirePermission permission={PERMISSIONS.ATTENDANCE_VIEW}><AttendancePage /></RequirePermission>
+      </Route>
+      <Route path="/scan">
+        <RequirePermission permission={PERMISSIONS.ATTENDANCE_CREATE}><StaffScanPage /></RequirePermission>
       </Route>
       <Route path="/schedule">
         <RequirePermission permission={PERMISSIONS.CLASSES_VIEW}><SchedulePage /></RequirePermission>

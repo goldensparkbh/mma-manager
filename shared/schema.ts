@@ -104,6 +104,7 @@ export interface Member {
     uploadedAt: string;
   }[] | null;
   customFields?: Record<string, string | number | null> | null;
+  branchId?: string | null;
 }
 
 export type InsertMember = Omit<Member, "id">;
@@ -287,6 +288,7 @@ export interface ClassTemplate {
   allowedPackageIds?: string[];
   deductSession?: boolean;
   isActive?: boolean;
+  branchId?: string | null;
   createdAt?: string;
 }
 
@@ -305,6 +307,7 @@ export interface ClassSession {
   bookedCount?: number;
   status: "scheduled" | "cancelled" | "completed";
   notes?: string | null;
+  branchId?: string | null;
   createdAt?: string;
 }
 
