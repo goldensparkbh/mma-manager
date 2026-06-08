@@ -40,12 +40,14 @@ export async function createTapCharge(params: {
   metadata: Record<string, string>;
   redirectUrl: string;
   webhookUrl: string;
+  saveCard?: boolean;
+  sourceId?: string;
 }): Promise<TapChargeResponse> {
   const body = {
     amount: params.amount,
     currency: params.currency,
     threeDSecure: true,
-    save_card: false,
+    save_card: params.saveCard ?? false,
     description: params.description,
     statement_descriptor: "Dojo Manager",
     metadata: params.metadata,
@@ -58,7 +60,7 @@ export async function createTapCharge(params: {
         ? { country_code: getTapPhoneCountryCode(), number: params.customer.phone.replace(/\D/g, "").slice(-8) }
         : undefined,
     },
-    source: { id: process.env.TAP_SOURCE_ID || "src_all" },
+    source: { id: params.sourceId || process.env.TAP_SOURCE_ID || "src_all" },
     post: { url: params.webhookUrl },
     redirect: { url: params.redirectUrl },
   };

@@ -50,6 +50,8 @@ import { cn } from "@/lib/utils";
 import type { ClassSession, ClassTemplate, Coach, RecurrenceSlot } from "@shared/schema";
 import { SessionRosterDialog } from "@/components/session-roster-dialog";
 import { BookingSettingsPanel } from "@/components/booking-settings-panel";
+import { NotificationTemplatesPanel } from "@/components/notification-templates-panel";
+import { MemberPaymentsPanel } from "@/components/member-payments-panel";
 
 const WEEK_STARTS_ON = 6 as const; // Saturday
 const ORDERED_DAYS = [6, 0, 1, 2, 3, 4, 5] as const;
@@ -297,6 +299,8 @@ export default function SchedulePage() {
           <TabsTrigger value="templates">{t("schedule.templates")}</TabsTrigger>
           <TabsTrigger value="coaches">{t("schedule.coaches")}</TabsTrigger>
           <TabsTrigger value="settings">{t("bookings.settings")}</TabsTrigger>
+          <TabsTrigger value="notifications">{t("notifications.title")}</TabsTrigger>
+          <TabsTrigger value="payments">{t("payments.title")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="week" className="space-y-4">
@@ -393,6 +397,14 @@ export default function SchedulePage() {
 
         <TabsContent value="settings" className="space-y-4">
           <BookingSettingsPanel />
+        </TabsContent>
+
+        <TabsContent value="notifications" className="space-y-4">
+          <NotificationTemplatesPanel />
+        </TabsContent>
+
+        <TabsContent value="payments" className="space-y-4">
+          <MemberPaymentsPanel />
         </TabsContent>
 
         <TabsContent value="templates" className="space-y-4">

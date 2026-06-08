@@ -37,10 +37,28 @@ router.get("/api/club-types", (_req, res) => {
   })));
 });
 
+router.get("/api/portal/payments/confirm", async (req, res) => {
+  try {
+    const tapId = req.query.tap_id as string;
+    if (!tapId) return res.status(400).json({ error: "Missing tap_id" });
+    const { confirmMemberPayment } = await import("./memberPayments.js");
+    res.json(await confirmMemberPayment(tapId));
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 router.post("/api/webhooks/tap", async (req, res) => {
   try {
     const chargeId = req.body?.id as string;
     if (!chargeId) return res.status(400).json({ error: "Missing charge id" });
+    const { retrieveTapCharge } = await import("./tap.js");
+    const charge = await retrieveTapCharge(chargeId);
+    const type = charge.metadata?.type;
+    if (type === "member") {
+      const { confirmMemberPayment } = await import("./memberPayments.js");
+      return res.json(await confirmMemberPayment(chargeId));
+    }
     const result = await data.confirmPlatformPayment(chargeId);
     res.json(result);
   } catch (err) {
@@ -57,6 +75,45 @@ router.get("/api/settings/public", optionalAuth, async (req, res) => {
 });
 
 // ─── Member portal (public) ─────────────────────────────────────────────────
+
+router.get("/api/public/:slug/info", async (req, res) => {
+  try {
+    const tenant = await bookings.getTenantByPortalSlug(req.params.slug);
+    if (!tenant) return res.status(404).json({ error: "Club not found" });
+    const settings = await bookings.getBookingSettings(tenant.id as string);
+    res.json({
+      name: tenant.name,
+      slug: tenant.slug,
+      portalEnabled: settings.portalEnabled,
+      widgetEnabled: (settings as { widgetEnabled?: boolean }).widgetEnabled !== false,
+    });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+router.get("/api/public/:slug/schedule", async (req, res) => {
+  try {
+    const tenant = await bookings.getTenantByPortalSlug(req.params.slug);
+    if (!tenant) return res.status(404).json({ error: "Club not found" });
+    const from = (req.query.from as string) || new Date().toISOString();
+    const to = (req.query.to as string) || new Date(Date.now() + 14 * 86400000).toISOString();
+    const sessions = await data.getClassSessions(tenant.id as string, from, to);
+    res.json(sessions.filter((s) => (s as { status?: string }).status === "scheduled"));
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+router.get("/api/public/:slug/packages", async (req, res) => {
+  try {
+    const tenant = await bookings.getTenantByPortalSlug(req.params.slug);
+    if (!tenant) return res.status(404).json({ error: "Club not found" });
+    res.json(await data.getPackages(tenant.id as string));
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
 
 router.get("/api/portal/:slug/info", async (req, res) => {
   try {
@@ -255,6 +312,36 @@ router.delete("/api/portal/bookings/:id", requireMemberAccount, async (req, res)
     if (!owns) return res.status(404).json({ error: "Booking not found" });
     await bookings.cancelBooking(auth.tenantId!, req.params.id);
     res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+router.get("/api/portal/packages", requireMemberAccount, async (req, res) => {
+  const auth = getAuth(req);
+  res.json(await data.getPackages(auth.tenantId!));
+});
+
+router.get("/api/portal/payments", requireMemberAccount, async (req, res) => {
+  const auth = getAuth(req);
+  const { getMemberPayments } = await import("./memberPayments.js");
+  res.json(await getMemberPayments(auth.tenantId!, auth.memberId));
+});
+
+router.post("/api/portal/payments/checkout", requireMemberAccount, async (req, res) => {
+  try {
+    const auth = getAuth(req);
+    const { createMemberCheckout, isMemberTapEnabled } = await import("./memberPayments.js");
+    if (!(await isMemberTapEnabled(auth.tenantId!))) {
+      return res.status(400).json({ error: "Online payments are not enabled for this club" });
+    }
+    const result = await createMemberCheckout({
+      tenantId: auth.tenantId!,
+      memberId: auth.memberId!,
+      packageId: req.body.packageId,
+      saveCard: req.body.saveCard !== false,
+    });
+    res.json(result);
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
   }
@@ -792,6 +879,28 @@ router.get("/api/booking-settings", async (req, res) => {
 });
 router.patch("/api/booking-settings", async (req, res) => {
   res.json(await bookings.updateBookingSettings(tid(req), req.body));
+});
+
+router.get("/api/member-payments", async (req, res) => {
+  const { getMemberPayments } = await import("./memberPayments.js");
+  const memberId = req.query.memberId as string | undefined;
+  res.json(await getMemberPayments(tid(req), memberId));
+});
+
+router.get("/api/notifications/templates", async (req, res) => {
+  const { getNotificationTemplates } = await import("./notifications.js");
+  res.json(await getNotificationTemplates(tid(req)));
+});
+
+router.patch("/api/notifications/templates/:id", async (req, res) => {
+  try {
+    const { updateNotificationTemplate } = await import("./notifications.js");
+    const updated = await updateNotificationTemplate(tid(req), req.params.id, req.body);
+    if (!updated) return res.status(404).json({ error: "Template not found" });
+    res.json(updated);
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
 });
 
 router.post("/api/members/:id/portal-access", async (req, res) => {

@@ -523,6 +523,73 @@ CREATE INDEX IF NOT EXISTS idx_bookings_member ON bookings(tenant_id, member_id)
 CREATE UNIQUE INDEX IF NOT EXISTS idx_tenant_booking_slug ON tenant_booking_settings(public_slug)
   WHERE public_slug IS NOT NULL;
 
+-- Member payments (Sprint 3)
+CREATE TABLE IF NOT EXISTS member_payments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+  package_id UUID REFERENCES packages(id) ON DELETE SET NULL,
+  subscription_id UUID REFERENCES subscriptions(id) ON DELETE SET NULL,
+  tap_charge_id VARCHAR(100),
+  amount DECIMAL(10,2) NOT NULL,
+  currency VARCHAR(3) DEFAULT 'BHD',
+  status VARCHAR(20) DEFAULT 'pending'
+    CHECK (status IN ('pending', 'captured', 'failed', 'refunded')),
+  payment_type VARCHAR(20) DEFAULT 'one_time'
+    CHECK (payment_type IN ('one_time', 'recurring', 'manual')),
+  package_name VARCHAR(255),
+  invoice_number VARCHAR(50),
+  metadata JSONB DEFAULT '{}',
+  paid_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS member_payment_methods (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+  tap_card_id VARCHAR(100),
+  tap_customer_id VARCHAR(100),
+  last_four VARCHAR(4),
+  brand VARCHAR(20),
+  is_default BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS notification_templates (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  event_key VARCHAR(50) NOT NULL,
+  channel VARCHAR(20) NOT NULL CHECK (channel IN ('email', 'whatsapp', 'sms')),
+  subject VARCHAR(255),
+  body TEXT NOT NULL,
+  is_enabled BOOLEAN DEFAULT true,
+  UNIQUE (tenant_id, event_key, channel)
+);
+
+CREATE TABLE IF NOT EXISTS notification_queue (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  member_id UUID REFERENCES members(id) ON DELETE SET NULL,
+  channel VARCHAR(20) NOT NULL,
+  recipient VARCHAR(255) NOT NULL,
+  subject VARCHAR(255),
+  body TEXT NOT NULL,
+  status VARCHAR(20) DEFAULT 'pending'
+    CHECK (status IN ('pending', 'sent', 'failed')),
+  scheduled_at TIMESTAMPTZ DEFAULT NOW(),
+  sent_at TIMESTAMPTZ,
+  error TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE tenant_booking_settings ADD COLUMN IF NOT EXISTS tap_enabled BOOLEAN DEFAULT true;
+ALTER TABLE tenant_booking_settings ADD COLUMN IF NOT EXISTS widget_enabled BOOLEAN DEFAULT true;
+
+CREATE INDEX IF NOT EXISTS idx_member_payments_tenant ON member_payments(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_member_payments_member ON member_payments(tenant_id, member_id);
+CREATE INDEX IF NOT EXISTS idx_notification_queue_pending ON notification_queue(status, scheduled_at);
+
 -- Backfill portal slug from tenant slug
 INSERT INTO tenant_booking_settings (tenant_id, public_slug, portal_enabled)
 SELECT t.id, t.slug, true FROM tenants t

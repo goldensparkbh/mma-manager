@@ -37,6 +37,7 @@ import { ImpersonationBanner } from "@/components/impersonation-banner";
 import { useEffect } from "react";
 import { PERMISSIONS } from "@/lib/permissions";
 import PortalApp from "@/pages/portal";
+import EmbedWidget from "@/pages/embed";
 
 function AccessDenied() {
   const { t } = useLanguage();
@@ -118,6 +119,10 @@ function AppShell() {
 
   if (location.startsWith("/portal/")) {
     return <PortalApp />;
+  }
+
+  if (location.startsWith("/embed/")) {
+    return <EmbedWidget />;
   }
 
   if (loading) {

@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, addDays } from "date-fns";
 import { ar, enUS } from "date-fns/locale";
-import { Calendar, Loader2, LogOut, MapPin, User } from "lucide-react";
+import { Calendar, CreditCard, Loader2, LogOut, MapPin, User } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/context/language-context";
 import { usePortalAuth } from "@/context/portal-auth-context";
 import { portalApiJson } from "@/lib/portal-api";
-import type { Booking, ClassSession } from "@shared/schema";
+import type { Booking, ClassSession, MemberPayment, SubscriptionPackage } from "@shared/schema";
 import { useLocation } from "wouter";
 
 export default function PortalHome() {
@@ -38,6 +38,18 @@ export default function PortalHome() {
     enabled: !!member,
   });
 
+  const { data: packages = [], isLoading: loadingPackages } = useQuery<SubscriptionPackage[]>({
+    queryKey: ["/api/portal/packages"],
+    queryFn: () => portalApiJson("/api/portal/packages"),
+    enabled: !!member,
+  });
+
+  const { data: payments = [], isLoading: loadingPayments } = useQuery<MemberPayment[]>({
+    queryKey: ["/api/portal/payments"],
+    queryFn: () => portalApiJson("/api/portal/payments"),
+    enabled: !!member,
+  });
+
   const bookedSessionIds = useMemo(
     () => new Set(bookings.filter((b) => b.status === "confirmed" || b.status === "waitlist").map((b) => b.sessionId)),
     [bookings],
@@ -52,6 +64,19 @@ export default function PortalHome() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/portal/bookings"] });
       toast({ title: t("common.success"), description: t("portal.booked") });
+    },
+    onError: (err) =>
+      toast({ variant: "destructive", title: t("common.error"), description: (err as Error).message }),
+  });
+
+  const checkout = useMutation({
+    mutationFn: (packageId: string) =>
+      portalApiJson<{ url: string }>("/api/portal/payments/checkout", {
+        method: "POST",
+        body: JSON.stringify({ packageId }),
+      }),
+    onSuccess: (data) => {
+      if (data.url) window.location.href = data.url;
     },
     onError: (err) =>
       toast({ variant: "destructive", title: t("common.error"), description: (err as Error).message }),
@@ -118,6 +143,7 @@ export default function PortalHome() {
           <TabsList className="w-full">
             <TabsTrigger value="classes" className="flex-1">{t("portal.availableClasses")}</TabsTrigger>
             <TabsTrigger value="bookings" className="flex-1">{t("portal.myBookings")}</TabsTrigger>
+            <TabsTrigger value="payments" className="flex-1">{t("portal.payments")}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="classes" className="space-y-3 mt-4">
@@ -199,6 +225,64 @@ export default function PortalHome() {
                   </CardContent>
                 </Card>
               ))
+            )}
+          </TabsContent>
+
+          <TabsContent value="payments" className="space-y-3 mt-4">
+            <Card>
+              <CardHeader className="pb-2 p-4">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <CreditCard className="h-4 w-4" />
+                  {t("portal.renewTitle")}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0 space-y-3">
+                {loadingPackages ? (
+                  <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                ) : packages.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">{t("portal.noPackages")}</p>
+                ) : (
+                  packages.map((pkg) => (
+                    <div key={pkg.id} className="flex items-center justify-between gap-3 border-b pb-3 last:border-0">
+                      <div>
+                        <p className="font-medium">{pkg.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {pkg.packageType === "sessions"
+                            ? `${pkg.sessionCount} ${t("portal.sessions")}`
+                            : `${pkg.duration} ${t("portal.days")}`}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        disabled={checkout.isPending}
+                        onClick={() => checkout.mutate(pkg.id)}
+                      >
+                        {pkg.price} {t("embed.currency")}
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+
+            {loadingPayments ? (
+              <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+            ) : payments.length > 0 && (
+              <Card>
+                <CardHeader className="pb-2 p-4">
+                  <CardTitle className="text-base">{t("portal.paymentHistory")}</CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 pt-0 space-y-2">
+                  {payments.slice(0, 10).map((payment) => (
+                    <div key={payment.id} className="flex justify-between text-sm">
+                      <span>{payment.packageName}</span>
+                      <Badge variant={payment.status === "captured" ? "default" : "secondary"}>
+                        {payment.amount} {payment.currency}
+                      </Badge>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
             )}
           </TabsContent>
         </Tabs>

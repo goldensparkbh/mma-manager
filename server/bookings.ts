@@ -8,6 +8,8 @@ export type BookingSettings = {
   allowWaitlist: boolean;
   autoPromoteWaitlist: boolean;
   portalEnabled: boolean;
+  tapEnabled: boolean;
+  widgetEnabled: boolean;
   publicSlug: string | null;
 };
 
@@ -17,6 +19,8 @@ const DEFAULT_SETTINGS: Omit<BookingSettings, "tenantId" | "publicSlug"> = {
   allowWaitlist: true,
   autoPromoteWaitlist: true,
   portalEnabled: true,
+  tapEnabled: true,
+  widgetEnabled: true,
 };
 
 export async function getBookingSettings(tenantId: string): Promise<BookingSettings> {
@@ -57,6 +61,8 @@ export async function updateBookingSettings(tenantId: string, updates: Record<st
     allowWaitlist: "allow_waitlist",
     autoPromoteWaitlist: "auto_promote_waitlist",
     portalEnabled: "portal_enabled",
+    tapEnabled: "tap_enabled",
+    widgetEnabled: "widget_enabled",
     publicSlug: "public_slug",
   };
   await getBookingSettings(tenantId);
@@ -227,7 +233,35 @@ export async function createBooking(params: {
   }
 
   await syncSessionBookedCount(params.sessionId);
-  return mapBooking(booking);
+  const mapped = mapBooking(booking);
+
+  try {
+    const { enqueueNotification } = await import("./notifications.js");
+    const sessionRow = await query(
+      `SELECT s.name, s.starts_at, m.email FROM class_sessions s
+       JOIN members m ON m.id = $2 WHERE s.id = $1`,
+      [params.sessionId, params.memberId],
+    );
+    const row = sessionRow.rows[0];
+    if (row?.email) {
+      const startsAt = new Date(row.starts_at as string);
+      await enqueueNotification({
+        tenantId: params.tenantId,
+        memberId: params.memberId,
+        eventKey: "booking_confirmed",
+        recipient: row.email as string,
+        vars: {
+          name: params.memberName,
+          className: row.name as string,
+          classTime: startsAt.toLocaleString(),
+        },
+      });
+    }
+  } catch (err) {
+    console.error("[notify] booking_confirmed:", err);
+  }
+
+  return mapped;
 }
 
 export async function cancelBooking(
@@ -261,6 +295,27 @@ export async function cancelBooking(
   await syncSessionBookedCount(booking.session_id as string);
   if (settings.autoPromoteWaitlist) {
     await promoteWaitlist(booking.session_id as string);
+  }
+
+  try {
+    const { enqueueNotification } = await import("./notifications.js");
+    const memberRow = await query("SELECT email FROM members WHERE id = $1", [booking.member_id]);
+    if (memberRow.rows[0]?.email) {
+      const startsAt = new Date(booking.starts_at as string);
+      await enqueueNotification({
+        tenantId,
+        memberId: booking.member_id as string,
+        eventKey: "booking_cancelled",
+        recipient: memberRow.rows[0].email as string,
+        vars: {
+          name: booking.member_name as string,
+          className: (await query("SELECT name FROM class_sessions WHERE id = $1", [booking.session_id])).rows[0]?.name as string || "Class",
+          classTime: startsAt.toLocaleString(),
+        },
+      });
+    }
+  } catch (err) {
+    console.error("[notify] booking_cancelled:", err);
   }
 }
 

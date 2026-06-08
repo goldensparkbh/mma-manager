@@ -2,6 +2,7 @@ import { Route, Switch, useRoute } from "wouter";
 import { PortalAuthProvider } from "@/context/portal-auth-context";
 import PortalLogin from "./login";
 import PortalHome from "./home";
+import PortalPaymentResult from "./payment-result";
 
 export default function PortalApp() {
   const [, params] = useRoute("/portal/:slug");
@@ -18,6 +19,7 @@ export default function PortalApp() {
   return (
     <PortalAuthProvider slug={slug}>
       <Switch>
+        <Route path="/portal/:slug/payment/result" component={PortalPaymentResult} />
         <Route path="/portal/:slug/home" component={PortalHome} />
         <Route path="/portal/:slug" component={PortalLogin} />
       </Switch>

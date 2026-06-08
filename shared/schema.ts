@@ -315,7 +315,33 @@ export interface BookingSettings {
   allowWaitlist: boolean;
   autoPromoteWaitlist: boolean;
   portalEnabled: boolean;
+  tapEnabled?: boolean;
+  widgetEnabled?: boolean;
   publicSlug?: string | null;
+}
+
+export interface MemberPayment {
+  id: string;
+  memberId: string;
+  packageId?: string | null;
+  subscriptionId?: string | null;
+  amount: number;
+  currency: string;
+  status: "pending" | "captured" | "failed" | "refunded";
+  paymentType?: "one_time" | "recurring" | "manual";
+  packageName?: string | null;
+  invoiceNumber?: string | null;
+  paidAt?: string | null;
+  createdAt?: string;
+}
+
+export interface NotificationTemplate {
+  id: string;
+  eventKey: string;
+  channel: "email" | "whatsapp" | "sms";
+  subject?: string | null;
+  body: string;
+  isEnabled: boolean;
 }
 
 export interface MemberAccount {

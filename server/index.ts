@@ -47,6 +47,18 @@ async function main() {
   setInterval(() => {
     generateClassSessionsForAllTenants(28).catch((err) => console.error("Class session generator:", err));
   }, 24 * 60 * 60 * 1000);
+
+  const runNotificationJobs = async () => {
+    const { processNotificationQueue, processClassReminders, processSubscriptionExpiryReminders } =
+      await import("./notifications.js");
+    const { processRecurringBilling } = await import("./memberPayments.js");
+    await processNotificationQueue().catch((err) => console.error("Notification queue:", err));
+    await processClassReminders().catch((err) => console.error("Class reminders:", err));
+    await processSubscriptionExpiryReminders().catch((err) => console.error("Expiry reminders:", err));
+    await processRecurringBilling().catch((err) => console.error("Recurring billing:", err));
+  };
+  runNotificationJobs();
+  setInterval(runNotificationJobs, 15 * 60 * 1000);
 }
 
 main().catch((err) => {

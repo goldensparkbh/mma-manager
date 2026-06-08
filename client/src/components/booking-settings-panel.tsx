@@ -120,6 +120,20 @@ export function BookingSettingsPanel() {
             />
             <Label>{t("bookings.portalEnabled")}</Label>
           </div>
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={form.tapEnabled !== false}
+              onCheckedChange={(v) => setForm({ ...form, tapEnabled: v })}
+            />
+            <Label>{t("bookings.tapEnabled")}</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={form.widgetEnabled !== false}
+              onCheckedChange={(v) => setForm({ ...form, widgetEnabled: v })}
+            />
+            <Label>{t("bookings.widgetEnabled")}</Label>
+          </div>
           <Button onClick={() => save.mutate()} disabled={save.isPending}>
             {save.isPending && <Loader2 className="h-4 w-4 animate-spin me-2" />}
             {t("common.save")}
@@ -165,6 +179,20 @@ export function BookingSettingsPanel() {
           </div>
         </CardContent>
       </Card>
+
+      {form.widgetEnabled !== false && (
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-base">{t("embed.title")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <p className="text-sm text-muted-foreground">{t("embed.staffHint")}</p>
+            <div className="rounded-lg bg-muted p-3 text-xs font-mono break-all">
+              {`<iframe src="${window.location.origin}/embed/${form.publicSlug || tenant?.slug || ""}" width="100%" height="520" frameborder="0" style="border:1px solid #e5e7eb;border-radius:8px;"></iframe>`}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
