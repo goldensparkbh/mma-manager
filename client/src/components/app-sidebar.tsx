@@ -83,14 +83,18 @@ export function AppSidebar() {
       permission: PERMISSIONS.FINANCE_VIEW
     },
     {
+      key: "nav.analytics",
+      url: "/analytics",
+      icon: BarChart3,
+      permission: PERMISSIONS.FINANCE_VIEW
+    },
+    {
       key: "nav.finance",
       url: "/finance",
       icon: BarChart3,
       permission: PERMISSIONS.FINANCE_VIEW
     },
   ];
-
-  const systemItems = [];
 
   const memberItems = [
     {
@@ -112,12 +116,20 @@ export function AppSidebar() {
       permission: PERMISSIONS.CLASSES_VIEW
     },
     {
+      key: "nav.camps",
+      url: "/camps",
+      icon: CalendarDays,
+      permission: PERMISSIONS.CLASSES_VIEW
+    },
+    {
       key: "nav.belts",
       url: "/belts",
       icon: Award,
       permission: PERMISSIONS.BELTS_VIEW
     },
   ];
+
+  const systemItems: typeof memberItems = [];
 
   const visibleFinanceItems = financeItems
     .filter(item => hasPermission(item.permission))

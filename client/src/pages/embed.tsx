@@ -10,6 +10,16 @@ import { useLanguage } from "@/context/language-context";
 import { useRoute } from "wouter";
 import type { ClassSession, SubscriptionPackage } from "@shared/schema";
 
+type CampEvent = {
+  id: string;
+  title: string;
+  startDate: string;
+  endDate?: string;
+  eventType?: string;
+  price?: number;
+  capacity?: number;
+};
+
 async function publicJson<T>(path: string): Promise<T> {
   const res = await fetch(path);
   if (!res.ok) {
@@ -44,6 +54,12 @@ export default function EmbedWidget() {
   const { data: packages = [] } = useQuery<SubscriptionPackage[]>({
     queryKey: ["/api/public", slug, "packages"],
     queryFn: () => publicJson(`/api/public/${slug}/packages`),
+    enabled: !!slug && !!info?.widgetEnabled,
+  });
+
+  const { data: camps = [] } = useQuery<CampEvent[]>({
+    queryKey: ["/api/public", slug, "camps"],
+    queryFn: () => publicJson(`/api/public/${slug}/camps`),
     enabled: !!slug && !!info?.widgetEnabled,
   });
 
@@ -86,6 +102,30 @@ export default function EmbedWidget() {
               <div key={pkg.id} className="flex justify-between text-sm">
                 <span>{pkg.name}</span>
                 <Badge variant="secondary">{pkg.price} {t("embed.currency")}</Badge>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {camps.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">{t("embed.camps")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {camps.slice(0, 6).map((camp) => (
+              <div key={camp.id} className="text-sm border-b pb-2 last:border-0">
+                <p className="font-medium">{camp.title}</p>
+                <p className="text-muted-foreground flex items-center gap-1">
+                  <Calendar className="h-3.5 w-3.5" />
+                  {format(new Date(camp.startDate), "EEE d MMM", { locale })}
+                </p>
+                {camp.price != null && (
+                  <Badge variant="secondary" className="mt-1 text-[10px]">
+                    {camp.price} {t("embed.currency")}
+                  </Badge>
+                )}
               </div>
             ))}
           </CardContent>

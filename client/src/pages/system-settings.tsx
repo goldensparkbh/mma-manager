@@ -37,6 +37,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { PERMISSIONS } from "@/lib/permissions";
 import { ClubTypeSettings } from "@/components/club-type-settings";
+import { BranchesPanel } from "@/components/branches-panel";
+import { WebhooksPanel } from "@/components/webhooks-panel";
 
 type ClubProfile = {
     name: string;
@@ -410,6 +412,7 @@ export default function SystemSettings() {
                         <TabsTrigger value="receipts" className="px-6">{t("settings.tabs.receipts")}</TabsTrigger>
                         <TabsTrigger value="admin" className="px-6">{t("settings.tabs.admin")}</TabsTrigger>
                         <TabsTrigger value="backup" className="px-6">{t("settings.tabs.backup")}</TabsTrigger>
+                        <TabsTrigger value="integrations" className="px-6">{t("settings.tabs.integrations")}</TabsTrigger>
                     </TabsList>
                 </div>
 
@@ -800,6 +803,13 @@ export default function SystemSettings() {
                     </Card>
                 </TabsContent>
                 {/* Backup Tab */}
+                <TabsContent value="integrations" className="space-y-6">
+                    <div className="grid gap-4 lg:grid-cols-2">
+                        <BranchesPanel />
+                        <WebhooksPanel />
+                    </div>
+                </TabsContent>
+
                 <TabsContent value="backup">
                     <div className="space-y-6">
                         <Card>

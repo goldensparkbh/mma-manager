@@ -38,6 +38,9 @@ import { useEffect } from "react";
 import { PERMISSIONS } from "@/lib/permissions";
 import PortalApp from "@/pages/portal";
 import EmbedWidget from "@/pages/embed";
+import AnalyticsPage from "@/pages/analytics";
+import CampsPage from "@/pages/camps";
+import CheckInPage from "@/pages/checkin";
 
 function AccessDenied() {
   const { t } = useLanguage();
@@ -80,6 +83,12 @@ function Router() {
       </Route>
       <Route path="/belts">
         <RequirePermission permission={PERMISSIONS.BELTS_VIEW}><Belts /></RequirePermission>
+      </Route>
+      <Route path="/analytics">
+        <RequirePermission permission={PERMISSIONS.FINANCE_VIEW}><AnalyticsPage /></RequirePermission>
+      </Route>
+      <Route path="/camps">
+        <RequirePermission permission={PERMISSIONS.CLASSES_VIEW}><CampsPage /></RequirePermission>
       </Route>
       <Route path="/finance">
         <RequirePermission permission={PERMISSIONS.FINANCE_VIEW}><Finance /></RequirePermission>
@@ -125,6 +134,10 @@ function AppShell() {
     return <EmbedWidget />;
   }
 
+  if (location.startsWith("/checkin/")) {
+    return <CheckInPage />;
+  }
+
   if (loading) {
     return (
       <div className="flex flex-col gap-4 h-screen items-center justify-center text-muted-foreground">
@@ -136,6 +149,7 @@ function AppShell() {
 
   if (!user) {
     if (location === "/payment/result") return <PaymentResult />;
+    if (location.startsWith("/checkin/")) return <CheckInPage />;
     return <PublicRoutes />;
   }
 

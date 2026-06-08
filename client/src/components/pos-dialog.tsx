@@ -344,7 +344,7 @@ export function POSDialog({ isOpen, onClose, member }: POSDialogProps) {
 
                                     {paymentType === "pay_now" && (
                                         <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                                            <SelectTrigger anchor="bottom">
+                                            <SelectTrigger>
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>

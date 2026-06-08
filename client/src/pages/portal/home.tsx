@@ -10,14 +10,27 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/context/language-context";
 import { usePortalAuth } from "@/context/portal-auth-context";
-import { portalApiJson } from "@/lib/portal-api";
+import { portalApiJson, setPortalToken } from "@/lib/portal-api";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Booking, ClassSession, MemberPayment, SubscriptionPackage } from "@shared/schema";
 import { useLocation } from "wouter";
 
 export default function PortalHome() {
   const { t, language } = useLanguage();
   const { toast } = useToast();
-  const { member, activeSubscription, clubName, logout, loading, slug } = usePortalAuth();
+  const { member, activeSubscription, clubName, logout, loading, slug, refresh } = usePortalAuth();
+
+  const { data: portalInfo } = useQuery<{ logoUrl?: string; primaryColor?: string; welcomeMessage?: string }>({
+    queryKey: ["/api/portal/info", slug],
+    queryFn: () => fetch(`/api/portal/${slug}/info`).then((r) => r.json()),
+    enabled: !!slug,
+  });
+
+  const { data: familyMembers = [] } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ["/api/portal/family-members"],
+    queryFn: () => portalApiJson("/api/portal/family-members"),
+    enabled: !!member,
+  });
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const locale = language === "ar" ? ar : enUS;
@@ -109,12 +122,30 @@ export default function PortalHome() {
     (b) => (b.status === "confirmed" || b.status === "waitlist") && b.startsAt && new Date(b.startsAt) > new Date(),
   );
 
+  const switchMember = useMutation({
+    mutationFn: (memberId: string) =>
+      portalApiJson<{ token: string }>("/api/portal/switch-member", {
+        method: "POST",
+        body: JSON.stringify({ memberId }),
+      }),
+    onSuccess: async (data) => {
+      setPortalToken(data.token);
+      await refresh();
+      queryClient.invalidateQueries();
+    },
+  });
+
+  const accent = portalInfo?.primaryColor || "#3b82f6";
+
   return (
-    <div className="min-h-screen bg-muted/20">
-      <header className="border-b bg-card px-4 py-3 flex items-center justify-between">
-        <div>
-          <p className="font-bold">{clubName}</p>
-          <p className="text-sm text-muted-foreground">{member.name}</p>
+    <div className="min-h-screen bg-muted/20" style={{ "--portal-accent": accent } as React.CSSProperties}>
+      <header className="border-b bg-card px-4 py-3 flex items-center justify-between" style={{ borderTop: `3px solid ${accent}` }}>
+        <div className="flex items-center gap-3">
+          {portalInfo?.logoUrl && <img src={portalInfo.logoUrl} alt="" className="h-10 w-10 object-contain rounded" />}
+          <div>
+            <p className="font-bold">{clubName}</p>
+            <p className="text-sm text-muted-foreground">{member.name}</p>
+          </div>
         </div>
         <Button variant="ghost" size="sm" onClick={() => { logout(); setLocation(`/portal/${slug}`); }}>
           <LogOut className="h-4 w-4 me-1" />
@@ -123,6 +154,22 @@ export default function PortalHome() {
       </header>
 
       <main className="max-w-lg mx-auto p-4 space-y-4">
+        {portalInfo?.welcomeMessage && (
+          <p className="text-sm text-center text-muted-foreground">{portalInfo.welcomeMessage}</p>
+        )}
+        {familyMembers.length > 1 && (
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">{t("portal.switchMember")}</p>
+            <Select value={member.id} onValueChange={(v) => switchMember.mutate(v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {familyMembers.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         <Card>
           <CardContent className="pt-4 space-y-2 text-sm">
             <div className="flex justify-between">

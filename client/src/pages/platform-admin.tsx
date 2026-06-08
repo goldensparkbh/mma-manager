@@ -21,6 +21,7 @@ import {
   Plus, Trash2, Power,
 } from "lucide-react";
 import { PlatformPaymentsPanel, PlatformSupportPanel, PlatformAdminsPanel, ImpersonateTenantButton } from "@/components/platform-admin-panels";
+import { PlatformLeadsPanel } from "@/components/platform-leads-panel";
 
 type PlatformStats = {
   totalTenants: number;
@@ -282,12 +283,25 @@ export default function PlatformAdmin() {
 
         <Tabs defaultValue="tenants">
           <TabsList className="flex flex-wrap h-auto gap-1">
+            <TabsTrigger value="leads">Leads</TabsTrigger>
             <TabsTrigger value="tenants">Tenants</TabsTrigger>
             <TabsTrigger value="plans">Plans</TabsTrigger>
             <TabsTrigger value="payments">Payments</TabsTrigger>
             <TabsTrigger value="support">Support</TabsTrigger>
             <TabsTrigger value="admins">Admin users</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="leads">
+            <Card>
+              <CardHeader>
+                <CardTitle>Demo requests</CardTitle>
+                <CardDescription>Inbound leads from the landing page</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <PlatformLeadsPanel />
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           <TabsContent value="tenants">
             <Card>

@@ -160,24 +160,24 @@ export async function deleteAttendance(tenantId: string, id: string) {
 
 // ─── Subscriptions ─────────────────────────────────────────────────────────
 
-export async function getSubscriptions(tenantId: string) {
+export async function getSubscriptions(tenantId: string): Promise<Record<string, unknown>[]> {
   const result = await query("SELECT * FROM subscriptions WHERE tenant_id = $1 ORDER BY created_at DESC", [tenantId]);
-  return rowsToCamel(result.rows).map((s) => ({
+  return rowsToCamel<Record<string, unknown>>(result.rows).map((s) => ({
     ...s,
-    startDate: formatDate((s as Record<string, unknown>).startDate),
-    endDate: formatDate((s as Record<string, unknown>).endDate),
+    startDate: formatDate(s.startDate),
+    endDate: formatDate(s.endDate),
   }));
 }
 
-export async function getSubscriptionsByMember(tenantId: string, memberId: string) {
+export async function getSubscriptionsByMember(tenantId: string, memberId: string): Promise<Record<string, unknown>[]> {
   const result = await query(
     "SELECT * FROM subscriptions WHERE tenant_id = $1 AND member_id = $2 ORDER BY start_date DESC",
     [tenantId, memberId],
   );
-  return rowsToCamel(result.rows).map((s) => ({
+  return rowsToCamel<Record<string, unknown>>(result.rows).map((s) => ({
     ...s,
-    startDate: formatDate((s as Record<string, unknown>).startDate),
-    endDate: formatDate((s as Record<string, unknown>).endDate),
+    startDate: formatDate(s.startDate),
+    endDate: formatDate(s.endDate),
   }));
 }
 
@@ -192,9 +192,13 @@ export async function createSubscription(tenantId: string, data: Record<string, 
       data.packageType || "duration", data.sessionsTotal || null, data.sessionsRemaining ?? data.sessionsTotal ?? null,
     ],
   );
-  const sub = toCamelCase(result.rows[0]);
+  const sub = toCamelCase<Record<string, unknown>>(result.rows[0]);
   await syncMemberSubscriptionStatus(tenantId, data.memberId as string);
-  return { ...sub, startDate: formatDate(sub.startDate), endDate: formatDate(sub.endDate) };
+  return {
+    ...sub,
+    startDate: formatDate(sub.startDate),
+    endDate: formatDate(sub.endDate),
+  } as Record<string, unknown> & { id: string; startDate: string; endDate: string };
 }
 
 export async function updateSubscription(tenantId: string, id: string, updates: Record<string, unknown>) {
@@ -335,9 +339,9 @@ export async function getMemberBelts(tenantId: string, memberId?: string) {
     : "SELECT * FROM member_belts WHERE tenant_id = $1 ORDER BY awarded_at DESC";
   const params = memberId ? [tenantId, memberId] : [tenantId];
   const result = await query(sql, params);
-  return rowsToCamel(result.rows).map((b) => ({
+  return rowsToCamel<Record<string, unknown>>(result.rows).map((b) => ({
     ...b,
-    awardedAt: formatTimestamp((b as Record<string, unknown>).awardedAt),
+    awardedAt: formatTimestamp(b.awardedAt),
   }));
 }
 
@@ -391,9 +395,12 @@ export async function deleteProduct(tenantId: string, id: string) {
 
 // ─── Sales ─────────────────────────────────────────────────────────────────
 
-export async function getSales(tenantId: string) {
+export async function getSales(tenantId: string): Promise<Record<string, unknown>[]> {
   const result = await query("SELECT * FROM sales WHERE tenant_id = $1 ORDER BY date DESC", [tenantId]);
-  return rowsToCamel(result.rows).map((s) => ({ ...s, date: formatTimestamp((s as Record<string, unknown>).date) }));
+  return rowsToCamel<Record<string, unknown>>(result.rows).map((s) => ({
+    ...s,
+    date: formatTimestamp(s.date),
+  }));
 }
 
 export async function getSalesByMember(tenantId: string, memberId: string) {
@@ -401,7 +408,10 @@ export async function getSalesByMember(tenantId: string, memberId: string) {
     "SELECT * FROM sales WHERE tenant_id = $1 AND member_id = $2 ORDER BY date DESC",
     [tenantId, memberId],
   );
-  return rowsToCamel(result.rows).map((s) => ({ ...s, date: formatTimestamp((s as Record<string, unknown>).date) }));
+  return rowsToCamel<Record<string, unknown>>(result.rows).map((s) => ({
+    ...s,
+    date: formatTimestamp(s.date),
+  }));
 }
 
 export async function createSale(tenantId: string, data: Record<string, unknown>) {
@@ -469,9 +479,12 @@ export async function deleteReceipt(tenantId: string, receiptId: string) {
 
 // ─── Expenses ──────────────────────────────────────────────────────────────
 
-export async function getExpenses(tenantId: string) {
+export async function getExpenses(tenantId: string): Promise<Record<string, unknown>[]> {
   const result = await query("SELECT * FROM expenses WHERE tenant_id = $1 ORDER BY date DESC", [tenantId]);
-  return rowsToCamel(result.rows).map((e) => ({ ...e, date: formatDate((e as Record<string, unknown>).date) }));
+  return rowsToCamel<Record<string, unknown>>(result.rows).map((e) => ({
+    ...e,
+    date: formatDate(e.date),
+  }));
 }
 
 export async function createExpense(tenantId: string, data: Record<string, unknown>) {
@@ -722,21 +735,21 @@ export async function getDashboardStats(tenantId: string, startDate?: string, en
   const start = startDate || defaultStart;
   const end = endDate || defaultEnd;
 
-  const activeSubscriptions = members.filter((m) => (m as { status: string }).status === "active").length;
+  const activeSubscriptions = members.filter((m) => (m as Record<string, unknown>).status === "active").length;
   const monthlyIncome = subscriptions
-    .filter((s) => (s as { startDate: string }).startDate >= start && (s as { startDate: string }).startDate <= end)
-    .reduce((sum, s) => sum + Number((s as { amount: number }).amount), 0);
+    .filter((s) => String(s.startDate) >= start && String(s.startDate) <= end)
+    .reduce((sum, s) => sum + Number(s.amount), 0);
   const salesIncome = sales
-    .filter((s) => (s as { date: string; status: string }).date.split("T")[0] >= start
-      && (s as { date: string }).date.split("T")[0] <= end
-      && (s as { status: string }).status !== "cancelled")
-    .reduce((sum, s) => sum + Number((s as { totalPrice: number }).totalPrice), 0);
-  const filteredExpenses = expenses.filter((e) => (e as { date: string }).date >= start && (e as { date: string }).date <= end);
-  const totalExpenses = filteredExpenses.reduce((sum, e) => sum + Number((e as { amount: number }).amount), 0);
+    .filter((s) => String(s.date).split("T")[0] >= start
+      && String(s.date).split("T")[0] <= end
+      && s.status !== "cancelled")
+    .reduce((sum, s) => sum + Number(s.totalPrice), 0);
+  const filteredExpenses = expenses.filter((e) => String(e.date) >= start && String(e.date) <= end);
+  const totalExpenses = filteredExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
   const expensesByCategoryMap: Record<string, number> = {};
   filteredExpenses.forEach((e) => {
-    const cat = (e as { category: string }).category;
-    expensesByCategoryMap[cat] = (expensesByCategoryMap[cat] || 0) + Number((e as { amount: number }).amount);
+    const cat = String(e.category);
+    expensesByCategoryMap[cat] = (expensesByCategoryMap[cat] || 0) + Number(e.amount);
   });
 
   const todayStr = new Date().toISOString().split("T")[0];
@@ -747,19 +760,18 @@ export async function getDashboardStats(tenantId: string, startDate?: string, en
     const mem = m as { subscriptionEnd?: string; status: string; id: string };
     if (!mem.subscriptionEnd || mem.subscriptionEnd < todayStr || mem.subscriptionEnd > next10Str) return false;
     const hasFuture = subscriptions.some(
-      (s) => (s as { memberId: string; startDate: string }).memberId === mem.id
-        && (s as { startDate: string }).startDate > todayStr,
+      (s) => String(s.memberId) === mem.id && String(s.startDate) > todayStr,
     );
     return !hasFuture;
   });
 
   const recentTransactions = [
-    ...sales.filter((s) => (s as { date: string; status: string }).date.split("T")[0] >= start
-      && (s as { date: string }).date.split("T")[0] <= end
-      && (s as { status: string }).status !== "cancelled"),
-    ...subscriptions.filter((s) => (s as { startDate: string }).startDate >= start && (s as { startDate: string }).startDate <= end)
-      .map((s) => ({ ...s, date: (s as { startDate: string }).startDate })),
-  ].sort((a, b) => String((b as { date: string }).date).localeCompare(String((a as { date: string }).date))).slice(0, 10);
+    ...sales.filter((s) => String(s.date).split("T")[0] >= start
+      && String(s.date).split("T")[0] <= end
+      && s.status !== "cancelled"),
+    ...subscriptions.filter((s) => String(s.startDate) >= start && String(s.startDate) <= end)
+      .map((s) => ({ ...s, date: s.startDate })),
+  ].sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 10);
 
   return {
     totalMembers: members.length,
@@ -861,7 +873,9 @@ export async function provisionTenant(params: {
   }
   await query(
     `INSERT INTO roles (tenant_id, id, name, permissions, is_system) VALUES
-     ($1,'admin','Admin','["*"]',true), ($1,'staff','Staff','[]',true)`,
+     ($1,'admin','Admin','["*"]',true),
+     ($1,'staff','Staff','[]',true),
+     ($1,'coach','Coach','["classes.view","bookings.view","attendance.view","attendance.add"]',true)`,
     [tenantId],
   );
 
@@ -1554,6 +1568,14 @@ export async function impersonateTenant(platformAdminId: string, tenantId: strin
 
 // ─── Coaches ───────────────────────────────────────────────────────────────
 
+export async function getCoachForUser(tenantId: string, userId: string): Promise<string | null> {
+  const result = await query(
+    "SELECT id FROM coaches WHERE tenant_id = $1 AND user_id = $2 AND is_active = true LIMIT 1",
+    [tenantId, userId],
+  );
+  return (result.rows[0]?.id as string) || null;
+}
+
 export async function getCoaches(tenantId: string) {
   const result = await query(
     "SELECT * FROM coaches WHERE tenant_id = $1 ORDER BY name",
@@ -1628,6 +1650,12 @@ function mapClassTemplate(row: Record<string, unknown>) {
     }
   }
   if (!Array.isArray(t.recurrence)) t.recurrence = [];
+  if (Array.isArray(row.allowed_package_ids)) {
+    t.allowedPackageIds = row.allowed_package_ids;
+  } else {
+    t.allowedPackageIds = [];
+  }
+  t.deductSession = row.deduct_session === true;
   return t;
 }
 
@@ -1650,8 +1678,8 @@ export async function getClassTemplates(tenantId: string) {
 export async function createClassTemplate(tenantId: string, data: Record<string, unknown>) {
   const result = await query(
     `INSERT INTO class_templates
-     (tenant_id, name, description, coach_id, location, capacity, duration_minutes, color, recurrence, is_active)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+     (tenant_id, name, description, coach_id, location, capacity, duration_minutes, color, recurrence, is_active, allowed_package_ids, deduct_session)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
     [
       tenantId,
       data.name,
@@ -1663,6 +1691,8 @@ export async function createClassTemplate(tenantId: string, data: Record<string,
       data.color || "#3b82f6",
       JSON.stringify(data.recurrence || []),
       data.isActive ?? true,
+      data.allowedPackageIds || [],
+      data.deductSession ?? false,
     ],
   );
   const template = mapClassTemplate(result.rows[0]);
@@ -1685,6 +1715,7 @@ export async function updateClassTemplate(tenantId: string, id: string, updates:
     durationMinutes: "duration_minutes",
     color: "color",
     isActive: "is_active",
+    deductSession: "deduct_session",
   };
   const fields: string[] = [];
   const values: unknown[] = [tenantId, id];
@@ -1698,6 +1729,10 @@ export async function updateClassTemplate(tenantId: string, id: string, updates:
   if ("recurrence" in updates) {
     fields.push(`recurrence = $${idx++}`);
     values.push(JSON.stringify(updates.recurrence || []));
+  }
+  if ("allowedPackageIds" in updates) {
+    fields.push(`allowed_package_ids = $${idx++}`);
+    values.push(updates.allowedPackageIds || []);
   }
   if (!fields.length) return null;
   const result = await query(
@@ -1721,14 +1756,25 @@ function mapClassSession(row: Record<string, unknown>) {
   return s;
 }
 
-export async function getClassSessions(tenantId: string, from: string, to: string) {
+export async function getClassSessions(
+  tenantId: string,
+  from: string,
+  to: string,
+  options?: { coachId?: string },
+) {
+  const clauses = ["s.tenant_id = $1", "s.starts_at >= $2", "s.starts_at <= $3"];
+  const values: unknown[] = [tenantId, from, to];
+  if (options?.coachId) {
+    clauses.push("s.coach_id = $4");
+    values.push(options.coachId);
+  }
   const result = await query(
     `SELECT s.*, c.name AS coach_name
      FROM class_sessions s
      LEFT JOIN coaches c ON c.id = s.coach_id
-     WHERE s.tenant_id = $1 AND s.starts_at >= $2 AND s.starts_at <= $3
+     WHERE ${clauses.join(" AND ")}
      ORDER BY s.starts_at`,
-    [tenantId, from, to],
+    values,
   );
   return result.rows.map(mapClassSession);
 }
@@ -1868,13 +1914,15 @@ export async function getPortalMemberProfile(tenantId: string, memberId: string)
   if (!member) return null;
   const subs = await getSubscriptionsByMember(tenantId, memberId);
   const today = new Date().toISOString().split("T")[0];
-  const activeSub = subs.find(
-    (s) =>
-      s.status !== "cancelled" &&
-      s.status !== "expired" &&
-      s.startDate <= today &&
-      s.endDate >= today &&
-      (s.packageType !== "sessions" || (s.sessionsRemaining ?? 0) > 0),
-  );
+  const activeSub = subs.find((s) => {
+    const sub = s as Record<string, unknown>;
+    return (
+      sub.status !== "cancelled" &&
+      sub.status !== "expired" &&
+      String(sub.startDate) <= today &&
+      String(sub.endDate) >= today &&
+      (sub.packageType !== "sessions" || (Number(sub.sessionsRemaining) || 0) > 0)
+    );
+  });
   return { member, activeSubscription: activeSub || null, subscriptions: subs };
 }

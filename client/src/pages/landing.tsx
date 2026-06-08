@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, FormEvent } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -21,6 +21,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/context/language-context";
 import { apiJson } from "@/lib/api";
 import { ClubTypeImage } from "@/components/club-type-image";
@@ -50,7 +54,10 @@ function yearlySavingsPercent(monthly: number, yearly: number): number {
 
 export default function Landing() {
   const { t, language, setLanguage, dir } = useLanguage();
+  const { toast } = useToast();
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
+  const [demoForm, setDemoForm] = useState({ clubName: "", contactName: "", email: "", phone: "", message: "" });
+  const [demoSending, setDemoSending] = useState(false);
 
   const { data: plans = [], isLoading: plansLoading } = useQuery<PlatformSubscriptionPlan[]>({
     queryKey: ["/api/plans"],
@@ -433,6 +440,45 @@ export default function Landing() {
               </Card>
             ))}
           </div>
+        </div>
+      </section>
+
+      <section id="demo" className="py-20 sm:py-24 border-t">
+        <div className="mx-auto max-w-xl px-4 sm:px-6">
+          <h2 className="text-3xl font-bold text-center">{t("landing.demo.title")}</h2>
+          <p className="text-center text-muted-foreground mt-2 mb-8">{t("landing.demo.subtitle")}</p>
+          <Card>
+            <CardContent className="pt-6 space-y-4">
+              <form
+                onSubmit={async (e: FormEvent) => {
+                  e.preventDefault();
+                  setDemoSending(true);
+                  try {
+                    await fetch("/api/leads", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify(demoForm),
+                    });
+                    toast({ title: t("landing.demo.sent") });
+                    setDemoForm({ clubName: "", contactName: "", email: "", phone: "", message: "" });
+                  } catch {
+                    toast({ variant: "destructive", title: t("common.error") });
+                  } finally {
+                    setDemoSending(false);
+                  }
+                }}
+              >
+                <div className="space-y-3">
+                  <div className="space-y-2"><Label>{t("landing.demo.clubName")}</Label><Input value={demoForm.clubName} onChange={(e) => setDemoForm({ ...demoForm, clubName: e.target.value })} /></div>
+                  <div className="space-y-2"><Label>{t("landing.demo.contactName")}</Label><Input required value={demoForm.contactName} onChange={(e) => setDemoForm({ ...demoForm, contactName: e.target.value })} /></div>
+                  <div className="space-y-2"><Label>{t("landing.demo.email")}</Label><Input type="email" required value={demoForm.email} onChange={(e) => setDemoForm({ ...demoForm, email: e.target.value })} /></div>
+                  <div className="space-y-2"><Label>{t("landing.demo.phone")}</Label><Input value={demoForm.phone} onChange={(e) => setDemoForm({ ...demoForm, phone: e.target.value })} /></div>
+                  <div className="space-y-2"><Label>{t("landing.demo.message")}</Label><Textarea value={demoForm.message} onChange={(e) => setDemoForm({ ...demoForm, message: e.target.value })} /></div>
+                  <Button type="submit" className="w-full" disabled={demoSending}>{t("landing.demo.submit")}</Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
         </div>
       </section>
 

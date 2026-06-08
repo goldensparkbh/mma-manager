@@ -207,7 +207,7 @@ export interface Sale {
   buyerPhone?: string | null;
   date: string;
   paymentMethod?: string | null;
-  paymentStatus?: "paid" | "unpaid" | "partially_paid";
+  paymentStatus?: "paid" | "unpaid" | "partially_paid" | "pending";
   status?: string | null;
   cancelledReason?: string | null;
   cancelledAt?: string | null;
@@ -284,6 +284,8 @@ export interface ClassTemplate {
   durationMinutes: number;
   color?: string | null;
   recurrence: RecurrenceSlot[];
+  allowedPackageIds?: string[];
+  deductSession?: boolean;
   isActive?: boolean;
   createdAt?: string;
 }
@@ -317,6 +319,11 @@ export interface BookingSettings {
   portalEnabled: boolean;
   tapEnabled?: boolean;
   widgetEnabled?: boolean;
+  paymentGraceDays?: number;
+  allowRefunds?: boolean;
+  refundWindowHours?: number;
+  portalPrimaryColor?: string | null;
+  portalWelcomeMessage?: string | null;
   publicSlug?: string | null;
 }
 

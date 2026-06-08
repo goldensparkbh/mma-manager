@@ -19,9 +19,9 @@ export function TransactionDetailsDialog({ transaction, isOpen, onClose }: Trans
 
     if (!transaction) return null;
 
-    const isSale = transaction.type === 'sale';
-    const sale = isSale ? (transaction as Sale) : null;
-    const sub = !isSale ? (transaction as Subscription) : null;
+    const isSale = "type" in transaction && transaction.type === "sale";
+    const sale = isSale ? (transaction as unknown as Sale) : null;
+    const sub = !isSale ? (transaction as unknown as Subscription) : null;
 
     const formatDate = (dateStr: string) => {
         try {

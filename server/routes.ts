@@ -115,18 +115,92 @@ router.get("/api/public/:slug/packages", async (req, res) => {
   }
 });
 
+router.get("/api/public/:slug/camps", async (req, res) => {
+  try {
+    const tenant = await bookings.getTenantByPortalSlug(req.params.slug);
+    if (!tenant) return res.status(404).json({ error: "Club not found" });
+    const { getCamps } = await import("./camps.js");
+    res.json(await getCamps(tenant.id as string, true));
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+router.post("/api/leads", async (req, res) => {
+  try {
+    const { clubName, contactName, email, phone, message } = req.body;
+    if (!contactName || !email) return res.status(400).json({ error: "Name and email required" });
+    const { createLead } = await import("./leads.js");
+    res.status(201).json(await createLead({ clubName, contactName, email, phone, message }));
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+router.post("/api/public/:slug/checkin", async (req, res) => {
+  try {
+    const { qrToken } = req.body;
+    if (!qrToken) return res.status(400).json({ error: "QR token required" });
+    const { qrCheckIn } = await import("./checkin.js");
+    res.json(await qrCheckIn(req.params.slug, qrToken));
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
 router.get("/api/portal/:slug/info", async (req, res) => {
   try {
     const tenant = await bookings.getTenantByPortalSlug(req.params.slug);
     if (!tenant) return res.status(404).json({ error: "Club not found" });
-    const settings = await bookings.getBookingSettings(tenant.id as string);
+    const tenantId = tenant.id as string;
+    const settings = await bookings.getBookingSettings(tenantId);
+    const clubSettings = await data.getSettings(tenantId);
     res.json({
       name: tenant.name,
       slug: tenant.slug,
       portalEnabled: settings.portalEnabled,
+      logoUrl: (clubSettings as { logoUrlLight?: string })?.logoUrlLight || (clubSettings as { logoUrlDark?: string })?.logoUrlDark,
+      primaryColor: settings.portalPrimaryColor || "#3b82f6",
+      welcomeMessage: settings.portalWelcomeMessage,
     });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+router.post("/api/portal/:slug/otp/request", async (req, res) => {
+  try {
+    const { phone } = req.body;
+    if (!phone) return res.status(400).json({ error: "Phone required" });
+    const { requestPortalOtp } = await import("./portalOtp.js");
+    res.json(await requestPortalOtp(req.params.slug, phone));
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+router.post("/api/portal/:slug/otp/verify", async (req, res) => {
+  try {
+    const { phone, code } = req.body;
+    if (!phone || !code) return res.status(400).json({ error: "Phone and code required" });
+    const { verifyPortalOtp } = await import("./portalOtp.js");
+    const result = await verifyPortalOtp(req.params.slug, phone, code);
+    const token = signToken({
+      userId: result.accountId,
+      tenantId: result.tenantId,
+      memberId: result.memberId,
+      email: result.phone,
+      role: "member",
+      isPlatformAdmin: false,
+      accountType: "member",
+    });
+    res.json({
+      token,
+      member: { id: result.memberId, name: result.memberName, phone: result.phone },
+      tenant: { id: result.tenantId, name: result.tenantName, slug: result.tenantSlug },
+    });
+  } catch (err) {
+    res.status(401).json({ error: (err as Error).message });
   }
 });
 
@@ -328,6 +402,37 @@ router.get("/api/portal/payments", requireMemberAccount, async (req, res) => {
   res.json(await getMemberPayments(auth.tenantId!, auth.memberId));
 });
 
+router.get("/api/portal/family-members", requireMemberAccount, async (req, res) => {
+  const auth = getAuth(req);
+  const { getFamilyMembersForAccount } = await import("./families.js");
+  res.json(await getFamilyMembersForAccount(auth.tenantId!, auth.memberId!));
+});
+
+router.post("/api/portal/switch-member", requireMemberAccount, async (req, res) => {
+  try {
+    const auth = getAuth(req);
+    const { memberId } = req.body;
+    const { getFamilyMembersForAccount } = await import("./families.js");
+    const family = await getFamilyMembersForAccount(auth.tenantId!, auth.memberId!);
+    const allowed = (family as { id: string }[]).some((m) => m.id === memberId);
+    if (!allowed) return res.status(403).json({ error: "Not in your family" });
+    const member = await data.getMember(auth.tenantId!, memberId);
+    if (!member) return res.status(404).json({ error: "Member not found" });
+    const token = signToken({
+      userId: auth.userId!,
+      tenantId: auth.tenantId!,
+      memberId,
+      email: auth.email,
+      role: "member",
+      isPlatformAdmin: false,
+      accountType: "member",
+    });
+    res.json({ token, member });
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
 router.post("/api/portal/payments/checkout", requireMemberAccount, async (req, res) => {
   try {
     const auth = getAuth(req);
@@ -374,9 +479,10 @@ router.get("/api/auth/me", async (req, res) => {
   const user = toCamelCase(result.rows[0]);
   const subscription = await data.getTenantSubscription(auth.tenantId!);
   const permissions = user.role === "admin" ? ["*"] : await getRolePermissions(auth.tenantId!, user.role as string);
+  const coachId = await data.getCoachForUser(auth.tenantId!, auth.userId!);
   const access = await data.checkTenantAccess(auth.tenantId!);
   res.json({
-    user,
+    user: { ...user, coachId },
     tenant: {
       id: user.tenantId,
       name: user.tenantName,
@@ -460,6 +566,21 @@ async function tenantAccess(req: Request, res: Response, next: () => void) {
 }
 
 // ─── Platform Admin ──────────────────────────────────────────────────────────
+
+router.get("/api/platform/leads", requirePlatformAdmin, async (req, res) => {
+  const { getLeads } = await import("./leads.js");
+  res.json(await getLeads(req.query.status as string | undefined));
+});
+router.patch("/api/platform/leads/:id", requirePlatformAdmin, async (req, res) => {
+  try {
+    const { updateLead } = await import("./leads.js");
+    const updated = await updateLead(req.params.id, req.body);
+    if (!updated) return res.status(404).json({ error: "Not found" });
+    res.json(updated);
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
 
 router.get("/api/platform/stats", requirePlatformAdmin, async (_req, res) => {
   res.json(await data.getPlatformStats());
@@ -816,7 +937,13 @@ router.delete("/api/classes/templates/:id", async (req, res) => {
 router.get("/api/classes/sessions", async (req, res) => {
   const from = (req.query.from as string) || new Date().toISOString();
   const to = (req.query.to as string) || new Date(Date.now() + 7 * 86400000).toISOString();
-  res.json(await data.getClassSessions(tid(req), from, to));
+  const auth = getAuth(req);
+  let coachId: string | undefined;
+  if (auth.role === "coach") {
+    coachId = (await data.getCoachForUser(tid(req), auth.userId!)) || undefined;
+    if (!coachId) return res.json([]);
+  }
+  res.json(await data.getClassSessions(tid(req), from, to, coachId ? { coachId } : undefined));
 });
 router.post("/api/classes/sessions", async (req, res) => {
   res.status(201).json(await data.createClassSession(tid(req), req.body));
@@ -898,6 +1025,186 @@ router.patch("/api/notifications/templates/:id", async (req, res) => {
     const updated = await updateNotificationTemplate(tid(req), req.params.id, req.body);
     if (!updated) return res.status(404).json({ error: "Template not found" });
     res.json(updated);
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+router.get("/api/branches", async (req, res) => {
+  const { getBranches, ensureDefaultBranch } = await import("./branches.js");
+  await ensureDefaultBranch(tid(req));
+  res.json(await getBranches(tid(req)));
+});
+router.post("/api/branches", async (req, res) => {
+  try {
+    const { createBranch } = await import("./branches.js");
+    res.status(201).json(await createBranch(tid(req), req.body));
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+router.patch("/api/branches/:id", async (req, res) => {
+  try {
+    const { updateBranch } = await import("./branches.js");
+    const updated = await updateBranch(tid(req), req.params.id, req.body);
+    if (!updated) return res.status(404).json({ error: "Not found" });
+    res.json(updated);
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+router.delete("/api/branches/:id", async (req, res) => {
+  try {
+    const { deleteBranch } = await import("./branches.js");
+    await deleteBranch(tid(req), req.params.id);
+    res.status(204).send();
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+router.get("/api/families", async (req, res) => {
+  const { getFamilies } = await import("./families.js");
+  res.json(await getFamilies(tid(req)));
+});
+router.post("/api/families", async (req, res) => {
+  try {
+    const { createFamily } = await import("./families.js");
+    res.status(201).json(await createFamily(tid(req), req.body));
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+router.get("/api/families/:id", async (req, res) => {
+  const { getFamily } = await import("./families.js");
+  const family = await getFamily(tid(req), req.params.id);
+  if (!family) return res.status(404).json({ error: "Not found" });
+  res.json(family);
+});
+router.post("/api/families/:id/members", async (req, res) => {
+  try {
+    const { addFamilyMember } = await import("./families.js");
+    await addFamilyMember(tid(req), req.params.id, req.body.memberId, req.body.relationship);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+router.post("/api/families/:id/portal-access", async (req, res) => {
+  try {
+    const { enableFamilyPortalAccess } = await import("./families.js");
+    const { phone, password } = req.body;
+    res.json(await enableFamilyPortalAccess(tid(req), req.params.id, phone, password));
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+router.get("/api/analytics", async (req, res) => {
+  const from = (req.query.from as string) || new Date(Date.now() - 30 * 86400000).toISOString();
+  const to = (req.query.to as string) || new Date().toISOString();
+  const branchId = req.query.branchId as string | undefined;
+  const { getAnalytics } = await import("./analytics.js");
+  res.json(await getAnalytics(tid(req), from, to, branchId));
+});
+
+router.get("/api/camps", async (req, res) => {
+  const { getCamps } = await import("./camps.js");
+  res.json(await getCamps(tid(req)));
+});
+router.post("/api/camps", async (req, res) => {
+  try {
+    const auth = getAuth(req);
+    const { createCamp } = await import("./camps.js");
+    res.status(201).json(await createCamp(tid(req), auth.userId!, req.body));
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+router.patch("/api/camps/:id", async (req, res) => {
+  try {
+    const { updateCamp } = await import("./camps.js");
+    const updated = await updateCamp(tid(req), req.params.id, req.body);
+    if (!updated) return res.status(404).json({ error: "Not found" });
+    res.json(updated);
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+router.get("/api/camps/:id/registrations", async (req, res) => {
+  const { getCampRegistrations } = await import("./camps.js");
+  res.json(await getCampRegistrations(tid(req), req.params.id));
+});
+router.post("/api/camps/:id/register", async (req, res) => {
+  try {
+    const { registerForCamp } = await import("./camps.js");
+    res.status(201).json(await registerForCamp(tid(req), req.params.id, req.body));
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+router.get("/api/commissions/rules", async (req, res) => {
+  const { getCommissionRules } = await import("./commissions.js");
+  res.json(await getCommissionRules(tid(req)));
+});
+router.patch("/api/commissions/rules", async (req, res) => {
+  const { updateCommissionRules } = await import("./commissions.js");
+  res.json(await updateCommissionRules(tid(req), req.body));
+});
+router.get("/api/commissions/report", async (req, res) => {
+  const from = (req.query.from as string) || new Date().toISOString().slice(0, 7) + "-01";
+  const to = (req.query.to as string) || new Date().toISOString().slice(0, 10);
+  const { getCommissionReport } = await import("./commissions.js");
+  res.json(await getCommissionReport(tid(req), from, to));
+});
+router.post("/api/commissions/calculate", async (req, res) => {
+  const month = (req.body.month as string) || new Date().toISOString().slice(0, 7) + "-01";
+  const { calculateCommissions } = await import("./commissions.js");
+  res.json(await calculateCommissions(tid(req), month));
+});
+
+router.get("/api/webhooks", async (req, res) => {
+  const { getWebhooks } = await import("./webhooks.js");
+  res.json(await getWebhooks(tid(req)));
+});
+router.post("/api/webhooks", async (req, res) => {
+  try {
+    const { createWebhook } = await import("./webhooks.js");
+    res.status(201).json(await createWebhook(tid(req), req.body));
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+router.patch("/api/webhooks/:id", async (req, res) => {
+  try {
+    const { updateWebhook } = await import("./webhooks.js");
+    const updated = await updateWebhook(tid(req), req.params.id, req.body);
+    if (!updated) return res.status(404).json({ error: "Not found" });
+    res.json(updated);
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+router.delete("/api/webhooks/:id", async (req, res) => {
+  const { deleteWebhook } = await import("./webhooks.js");
+  await deleteWebhook(tid(req), req.params.id);
+  res.status(204).send();
+});
+
+router.get("/api/members/:id/qr", async (req, res) => {
+  const { ensureMemberQrToken } = await import("./checkin.js");
+  const token = await ensureMemberQrToken(tid(req), req.params.id);
+  const tenant = await query("SELECT slug FROM tenants WHERE id = $1", [tid(req)]);
+  const slug = tenant.rows[0]?.slug as string;
+  const baseUrl = process.env.APP_URL || "http://localhost:5173";
+  res.json({ token, checkInUrl: `${baseUrl}/checkin/${slug}?t=${token}` });
+});
+
+router.post("/api/member-payments/:id/refund", async (req, res) => {
+  try {
+    const { refundMemberPayment } = await import("./memberPayments.js");
+    res.json(await refundMemberPayment(tid(req), req.params.id, req.body.reason));
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
   }

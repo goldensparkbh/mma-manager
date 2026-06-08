@@ -7,7 +7,9 @@ export type NotificationEvent =
   | "booking_cancelled"
   | "class_reminder"
   | "subscription_expiring"
-  | "payment_received";
+  | "payment_received"
+  | "payment_failed"
+  | "owner_digest";
 
 const DEFAULT_TEMPLATES: Record<NotificationEvent, { subject: string; body: string }> = {
   booking_confirmed: {
@@ -29,6 +31,14 @@ const DEFAULT_TEMPLATES: Record<NotificationEvent, { subject: string; body: stri
   payment_received: {
     subject: "Payment received — {planName}",
     body: "Hi {name},\n\nWe received your payment of {amount} {currency} for {planName}. Thank you!",
+  },
+  payment_failed: {
+    subject: "Payment failed — {planName}",
+    body: "Hi {name},\n\nYour payment for {planName} could not be processed. You have {graceDays} grace days to update your payment.",
+  },
+  owner_digest: {
+    subject: "Daily club digest — {date}",
+    body: "Hello,\n\nToday's classes: {classCount}\nExpiring memberships (3 days): {expiringCount}\nFailed payments (24h): {failedPayments}\n\nSign in to manage your club.",
   },
 };
 
@@ -119,7 +129,17 @@ export async function processNotificationQueue(limit = 50): Promise<number> {
   let sent = 0;
   for (const row of pending.rows) {
     try {
-      if (row.channel === "email") {
+      if (row.channel === "sms") {
+        const { sendSms } = await import("./sms.js");
+        const ok = await sendSms(row.recipient as string, row.body as string);
+        if (!ok) {
+          await query(
+            "UPDATE notification_queue SET status = 'failed', error = 'SMS not configured' WHERE id = $1",
+            [row.id],
+          );
+          continue;
+        }
+      } else if (row.channel === "email") {
         const ok = await sendEmail({
           to: row.recipient as string,
           subject: (row.subject as string) || "Notification",
@@ -133,8 +153,11 @@ export async function processNotificationQueue(limit = 50): Promise<number> {
           );
           continue;
         }
+      } else if (row.channel === "whatsapp") {
+        const digits = (row.recipient as string).replace(/\D/g, "");
+        const waUrl = `https://wa.me/${digits}?text=${encodeURIComponent(row.body as string)}`;
+        console.log(`[notify:whatsapp] ${waUrl}`);
       } else {
-        // WhatsApp/SMS: log for manual send until provider integrated
         console.log(`[notify:${row.channel}] → ${row.recipient}: ${row.body}`);
       }
       await query(
@@ -182,6 +205,93 @@ export async function processClassReminders(): Promise<number> {
       },
     });
     count++;
+  }
+  return count;
+}
+
+export async function notifyMember(params: {
+  tenantId: string;
+  memberId: string;
+  eventKey: NotificationEvent;
+  email?: string | null;
+  phone?: string | null;
+  vars?: Record<string, string>;
+}) {
+  if (params.email) {
+    await enqueueNotification({
+      tenantId: params.tenantId,
+      memberId: params.memberId,
+      eventKey: params.eventKey,
+      recipient: params.email,
+      channel: "email",
+      vars: params.vars,
+    });
+  }
+  if (params.phone) {
+    await enqueueNotification({
+      tenantId: params.tenantId,
+      memberId: params.memberId,
+      eventKey: params.eventKey,
+      recipient: params.phone,
+      channel: "whatsapp",
+      vars: params.vars,
+    });
+    await enqueueNotification({
+      tenantId: params.tenantId,
+      memberId: params.memberId,
+      eventKey: params.eventKey,
+      recipient: params.phone,
+      channel: "sms",
+      vars: params.vars,
+    });
+  }
+}
+
+export async function processOwnerDigest(): Promise<number> {
+  const today = new Date().toISOString().split("T")[0];
+  const in3days = new Date();
+  in3days.setDate(in3days.getDate() + 3);
+  const in3daysStr = in3days.toISOString().split("T")[0];
+
+  const tenants = await query("SELECT id, name FROM tenants WHERE status IN ('active', 'trial')");
+  let count = 0;
+
+  for (const tenant of tenants.rows) {
+    const tenantId = tenant.id as string;
+    const classes = await query(
+      `SELECT COUNT(*)::int AS count FROM class_sessions
+       WHERE tenant_id = $1 AND status = 'scheduled' AND starts_at::date = $2::date`,
+      [tenantId, today],
+    );
+    const expiring = await query(
+      `SELECT COUNT(*)::int AS count FROM subscriptions
+       WHERE tenant_id = $1 AND end_date = $2 AND status NOT IN ('cancelled', 'expired')`,
+      [tenantId, in3daysStr],
+    );
+    const failed = await query(
+      `SELECT COUNT(*)::int AS count FROM member_payments
+       WHERE tenant_id = $1 AND status = 'failed' AND created_at >= NOW() - INTERVAL '24 hours'`,
+      [tenantId, today],
+    );
+
+    const admins = await query(
+      "SELECT email FROM users WHERE tenant_id = $1 AND role = 'admin' AND email IS NOT NULL",
+      [tenantId],
+    );
+    for (const admin of admins.rows) {
+      await enqueueNotification({
+        tenantId,
+        eventKey: "owner_digest",
+        recipient: admin.email as string,
+        vars: {
+          date: today,
+          classCount: String(classes.rows[0]?.count ?? 0),
+          expiringCount: String(expiring.rows[0]?.count ?? 0),
+          failedPayments: String(failed.rows[0]?.count ?? 0),
+        },
+      });
+      count++;
+    }
   }
   return count;
 }

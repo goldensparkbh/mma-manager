@@ -378,7 +378,7 @@ export default function Sales() {
                               className="cursor-pointer hover:bg-primary/10"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleMemberClick(sale.memberId, "finance");
+                                if (sale.memberId) handleMemberClick(sale.memberId, "finance");
                               }}
                             >
                               {member.memberId}
@@ -392,7 +392,7 @@ export default function Sales() {
                             className="cursor-pointer hover:underline text-primary"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleMemberClick(sale.memberId, "finance");
+                              if (sale.memberId) handleMemberClick(sale.memberId, "finance");
                             }}
                           >
                             {sale.buyerName || "-"}
@@ -530,7 +530,9 @@ export default function Sales() {
                       <p
                         className="font-medium text-base cursor-pointer hover:underline text-primary"
                         onClick={() => {
-                          handleMemberClick(selectedTransaction.memberId, "finance");
+                          if (selectedTransaction.memberId) {
+                            handleMemberClick(selectedTransaction.memberId, "finance");
+                          }
                         }}
                       >
                         {buyerName}
@@ -599,16 +601,12 @@ export default function Sales() {
       </Dialog>
 
       <WhatsAppTemplateDialog
-        isOpen={isWhatsAppDialogOpen}
-        onClose={() => {
-          setIsWhatsAppDialogOpen(false);
-          setWhatsAppMember(null);
+        open={isWhatsAppDialogOpen}
+        onOpenChange={(open) => {
+          setIsWhatsAppDialogOpen(open);
+          if (!open) setWhatsAppMember(null);
         }}
         member={whatsAppMember}
-        onSend={() => {
-          setIsWhatsAppDialogOpen(false);
-          setWhatsAppMember(null);
-        }}
         templates={whatsappTemplates}
       />
       <MemberDetailsDialog

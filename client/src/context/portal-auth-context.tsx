@@ -9,6 +9,8 @@ type PortalAuthValue = {
   activeSubscription: Subscription | null;
   clubName: string;
   login: (phone: string, password: string) => Promise<void>;
+  requestOtp: (phone: string) => Promise<{ sentVia: string }>;
+  loginWithOtp: (phone: string, code: string) => Promise<void>;
   logout: () => void;
   refresh: () => Promise<void>;
 };
@@ -65,6 +67,27 @@ export function PortalAuthProvider({ slug, children }: { slug: string; children:
     await refresh();
   }, [slug, refresh]);
 
+  const requestOtp = useCallback(async (phone: string) => {
+    return portalApiJson<{ sentVia: string }>(`/api/portal/${slug}/otp/request`, {
+      method: "POST",
+      body: JSON.stringify({ phone }),
+    });
+  }, [slug]);
+
+  const loginWithOtp = useCallback(async (phone: string, code: string) => {
+    const result = await portalApiJson<{
+      token: string;
+      member: Member;
+      tenant: { name: string };
+    }>(`/api/portal/${slug}/otp/verify`, {
+      method: "POST",
+      body: JSON.stringify({ phone, code }),
+    });
+    setPortalToken(result.token);
+    setClubName(result.tenant.name);
+    await refresh();
+  }, [slug, refresh]);
+
   const logout = useCallback(() => {
     clearPortalToken();
     setMember(null);
@@ -72,8 +95,8 @@ export function PortalAuthProvider({ slug, children }: { slug: string; children:
   }, []);
 
   const value = useMemo(
-    () => ({ slug, loading, member, activeSubscription, clubName, login, logout, refresh }),
-    [slug, loading, member, activeSubscription, clubName, login, logout, refresh],
+    () => ({ slug, loading, member, activeSubscription, clubName, login, requestOtp, loginWithOtp, logout, refresh }),
+    [slug, loading, member, activeSubscription, clubName, login, requestOtp, loginWithOtp, logout, refresh],
   );
 
   return <PortalAuthContext.Provider value={value}>{children}</PortalAuthContext.Provider>;

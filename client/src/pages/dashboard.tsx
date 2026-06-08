@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/popover";
 import { Link } from "wouter";
 import { format } from "date-fns";
-import { arBH, enUS } from "date-fns/locale";
+import { ar, enUS } from "date-fns/locale";
 import type { DashboardStats, Sale, Subscription } from "@shared/schema";
 import { useState } from "react";
 import { useAuth } from "@/context/auth-context";
@@ -318,7 +318,7 @@ export default function Dashboard() {
                             {member.subscriptionEnd}
                           </td>
                           <td className="py-3 px-2">
-                            {getStatusBadge(member.subscriptionEnd)}
+                            {getStatusBadge(member.subscriptionEnd ?? null)}
                           </td>
                           <td className="py-3 px-2">
                             <div className="flex items-center gap-2">

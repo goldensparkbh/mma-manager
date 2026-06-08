@@ -47,11 +47,12 @@ import { useAuth } from "@/context/auth-context";
 import { PERMISSIONS } from "@/lib/permissions";
 import { apiJson, apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import type { ClassSession, ClassTemplate, Coach, RecurrenceSlot } from "@shared/schema";
+import type { ClassSession, ClassTemplate, Coach, RecurrenceSlot, SubscriptionPackage } from "@shared/schema";
 import { SessionRosterDialog } from "@/components/session-roster-dialog";
 import { BookingSettingsPanel } from "@/components/booking-settings-panel";
 import { NotificationTemplatesPanel } from "@/components/notification-templates-panel";
 import { MemberPaymentsPanel } from "@/components/member-payments-panel";
+import { FamiliesPanel } from "@/components/families-panel";
 
 const WEEK_STARTS_ON = 6 as const; // Saturday
 const ORDERED_DAYS = [6, 0, 1, 2, 3, 4, 5] as const;
@@ -80,9 +81,10 @@ const emptyCoach = (): Partial<Coach> => ({
 export default function SchedulePage() {
   const { t, language, dir } = useLanguage();
   const { toast } = useToast();
-  const { hasPermission } = useAuth();
+  const { user, hasPermission } = useAuth();
   const queryClient = useQueryClient();
-  const canManage = hasPermission(PERMISSIONS.CLASSES_MANAGE);
+  const isCoach = user?.role === "coach";
+  const canManage = hasPermission(PERMISSIONS.CLASSES_MANAGE) && !isCoach;
   const locale = language === "ar" ? ar : enUS;
 
   const [weekStart, setWeekStart] = useState(() =>
@@ -93,7 +95,7 @@ export default function SchedulePage() {
   const [editingTemplate, setEditingTemplate] = useState<Partial<ClassTemplate> | null>(null);
   const [editingCoach, setEditingCoach] = useState<Partial<Coach> | null>(null);
   const [rosterSession, setRosterSession] = useState<ClassSession | null>(null);
-  const canBook = hasPermission(PERMISSIONS.BOOKINGS_MANAGE) || canManage;
+  const canBook = hasPermission(PERMISSIONS.BOOKINGS_MANAGE) || canManage || isCoach;
 
   const weekEnd = endOfWeek(weekStart, { weekStartsOn: WEEK_STARTS_ON });
   const fromIso = weekStart.toISOString();
@@ -113,6 +115,18 @@ export default function SchedulePage() {
   const { data: coaches = [], isLoading: loadingCoaches } = useQuery<Coach[]>({
     queryKey: ["/api/coaches"],
     queryFn: () => apiJson("/api/coaches"),
+  });
+
+  const { data: packages = [] } = useQuery<SubscriptionPackage[]>({
+    queryKey: ["/api/packages"],
+    queryFn: () => apiJson("/api/packages"),
+    enabled: canManage,
+  });
+
+  const { data: staffUsers = [] } = useQuery<{ id: string; displayName: string; email: string }[]>({
+    queryKey: ["/api/users"],
+    queryFn: () => apiJson("/api/users"),
+    enabled: canManage,
   });
 
   const invalidate = () => {
@@ -296,11 +310,16 @@ export default function SchedulePage() {
       <Tabs defaultValue="week">
         <TabsList>
           <TabsTrigger value="week">{t("schedule.weekView")}</TabsTrigger>
-          <TabsTrigger value="templates">{t("schedule.templates")}</TabsTrigger>
-          <TabsTrigger value="coaches">{t("schedule.coaches")}</TabsTrigger>
-          <TabsTrigger value="settings">{t("bookings.settings")}</TabsTrigger>
-          <TabsTrigger value="notifications">{t("notifications.title")}</TabsTrigger>
-          <TabsTrigger value="payments">{t("payments.title")}</TabsTrigger>
+          {!isCoach && (
+            <>
+              <TabsTrigger value="templates">{t("schedule.templates")}</TabsTrigger>
+              <TabsTrigger value="coaches">{t("schedule.coaches")}</TabsTrigger>
+              <TabsTrigger value="settings">{t("bookings.settings")}</TabsTrigger>
+              <TabsTrigger value="notifications">{t("notifications.title")}</TabsTrigger>
+              <TabsTrigger value="payments">{t("payments.title")}</TabsTrigger>
+              <TabsTrigger value="families">{t("families.title")}</TabsTrigger>
+            </>
+          )}
         </TabsList>
 
         <TabsContent value="week" className="space-y-4">
@@ -405,6 +424,10 @@ export default function SchedulePage() {
 
         <TabsContent value="payments" className="space-y-4">
           <MemberPaymentsPanel />
+        </TabsContent>
+
+        <TabsContent value="families" className="space-y-4">
+          <FamiliesPanel />
         </TabsContent>
 
         <TabsContent value="templates" className="space-y-4">
@@ -654,6 +677,40 @@ export default function SchedulePage() {
                   </div>
                 ))}
               </div>
+              {packages.length > 0 && (
+                <div className="space-y-2">
+                  <Label>{t("schedule.allowedPackages")}</Label>
+                  <p className="text-xs text-muted-foreground">{t("schedule.allowedPackagesHint")}</p>
+                  <div className="grid grid-cols-1 gap-2 max-h-32 overflow-y-auto">
+                    {packages.map((pkg) => {
+                      const selected = (editingTemplate.allowedPackageIds || []).includes(pkg.id);
+                      return (
+                        <label key={pkg.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() => {
+                              const current = editingTemplate.allowedPackageIds || [];
+                              const next = selected
+                                ? current.filter((id) => id !== pkg.id)
+                                : [...current, pkg.id];
+                              setEditingTemplate({ ...editingTemplate, allowedPackageIds: next });
+                            }}
+                          />
+                          {pkg.name}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={editingTemplate.deductSession === true}
+                  onCheckedChange={(v) => setEditingTemplate({ ...editingTemplate, deductSession: v })}
+                />
+                <Label>{t("schedule.deductSession")}</Label>
+              </div>
               <div className="flex items-center gap-2">
                 <Switch
                   checked={editingTemplate.isActive !== false}
@@ -692,6 +749,25 @@ export default function SchedulePage() {
                   onChange={(e) => setEditingCoach({ ...editingCoach, name: e.target.value })}
                 />
               </div>
+              {staffUsers.length > 0 && (
+                <div className="space-y-2">
+                  <Label>{t("schedule.linkStaffUser")}</Label>
+                  <Select
+                    value={editingCoach.userId || "none"}
+                    onValueChange={(v) =>
+                      setEditingCoach({ ...editingCoach, userId: v === "none" ? "" : v })
+                    }
+                  >
+                    <SelectTrigger><SelectValue placeholder={t("schedule.selectStaffUser")} /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">—</SelectItem>
+                      {staffUsers.map((u) => (
+                        <SelectItem key={u.id} value={u.id}>{u.displayName || u.email}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>{t("schedule.phone")}</Label>
                 <Input

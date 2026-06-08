@@ -599,3 +599,140 @@ UPDATE tenant_booking_settings bs
 SET public_slug = t.slug
 FROM tenants t
 WHERE bs.tenant_id = t.id AND (bs.public_slug IS NULL OR bs.public_slug = '');
+
+-- Sprint 4: OTP, package rules, payment grace
+ALTER TABLE class_templates ADD COLUMN IF NOT EXISTS allowed_package_ids UUID[] DEFAULT '{}';
+ALTER TABLE class_templates ADD COLUMN IF NOT EXISTS deduct_session BOOLEAN DEFAULT false;
+ALTER TABLE tenant_booking_settings ADD COLUMN IF NOT EXISTS payment_grace_days INTEGER DEFAULT 3;
+
+CREATE TABLE IF NOT EXISTS portal_otp_codes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  phone VARCHAR(50) NOT NULL,
+  code VARCHAR(6) NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  used_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_portal_otp_lookup ON portal_otp_codes(tenant_id, phone, expires_at);
+
+INSERT INTO roles (tenant_id, id, name, permissions, is_system)
+SELECT t.id, 'coach', 'Coach', '["classes.view","bookings.view","attendance.view","attendance.add"]', true
+FROM tenants t
+ON CONFLICT DO NOTHING;
+
+-- Phase 2: Multi-branch
+CREATE TABLE IF NOT EXISTS branches (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL,
+  address TEXT,
+  phone VARCHAR(50),
+  is_default BOOLEAN DEFAULT false,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_branches_tenant ON branches(tenant_id);
+ALTER TABLE members ADD COLUMN IF NOT EXISTS branch_id UUID REFERENCES branches(id) ON DELETE SET NULL;
+ALTER TABLE class_sessions ADD COLUMN IF NOT EXISTS branch_id UUID REFERENCES branches(id) ON DELETE SET NULL;
+ALTER TABLE class_templates ADD COLUMN IF NOT EXISTS branch_id UUID REFERENCES branches(id) ON DELETE SET NULL;
+
+-- Phase 2: Family accounts
+CREATE TABLE IF NOT EXISTS families (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL,
+  primary_member_id UUID REFERENCES members(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS family_members (
+  family_id UUID NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+  member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+  relationship VARCHAR(30) DEFAULT 'member',
+  PRIMARY KEY (family_id, member_id)
+);
+CREATE INDEX IF NOT EXISTS idx_families_tenant ON families(tenant_id);
+
+-- Phase 2: Demo leads CRM
+CREATE TABLE IF NOT EXISTS demo_leads (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  club_name VARCHAR(255),
+  contact_name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  phone VARCHAR(50),
+  message TEXT,
+  status VARCHAR(20) DEFAULT 'new' CHECK (status IN ('new','contacted','qualified','converted','lost')),
+  source VARCHAR(50) DEFAULT 'landing',
+  notes TEXT,
+  converted_tenant_id UUID REFERENCES tenants(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_demo_leads_status ON demo_leads(status, created_at);
+
+-- Phase 2: Refund policy
+ALTER TABLE tenant_booking_settings ADD COLUMN IF NOT EXISTS allow_refunds BOOLEAN DEFAULT true;
+ALTER TABLE tenant_booking_settings ADD COLUMN IF NOT EXISTS refund_window_hours INTEGER DEFAULT 48;
+
+-- Phase 2: Portal branding
+ALTER TABLE tenant_booking_settings ADD COLUMN IF NOT EXISTS portal_primary_color VARCHAR(20) DEFAULT '#3b82f6';
+ALTER TABLE tenant_booking_settings ADD COLUMN IF NOT EXISTS portal_welcome_message TEXT;
+
+-- Phase 2: QR check-in
+ALTER TABLE members ADD COLUMN IF NOT EXISTS qr_token VARCHAR(64);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_members_qr_token ON members(qr_token) WHERE qr_token IS NOT NULL;
+
+-- Phase 2/3: Camps & events
+ALTER TABLE events ADD COLUMN IF NOT EXISTS event_type VARCHAR(20) DEFAULT 'note'
+  CHECK (event_type IN ('note','camp','tournament','workshop'));
+ALTER TABLE events ADD COLUMN IF NOT EXISTS capacity INTEGER;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS price DECIMAL(10,2);
+ALTER TABLE events ADD COLUMN IF NOT EXISTS branch_id UUID REFERENCES branches(id) ON DELETE SET NULL;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT false;
+
+CREATE TABLE IF NOT EXISTS event_registrations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  member_id UUID REFERENCES members(id) ON DELETE SET NULL,
+  member_name VARCHAR(255) NOT NULL,
+  phone VARCHAR(50),
+  status VARCHAR(20) DEFAULT 'registered' CHECK (status IN ('registered','cancelled','attended')),
+  registered_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (event_id, member_id)
+);
+
+-- Phase 3: Coach commission
+CREATE TABLE IF NOT EXISTS coach_commission_rules (
+  tenant_id UUID PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+  commission_type VARCHAR(20) DEFAULT 'percent' CHECK (commission_type IN ('percent','flat')),
+  rate DECIMAL(10,2) DEFAULT 10,
+  apply_to VARCHAR(20) DEFAULT 'sessions' CHECK (apply_to IN ('sessions','payments')),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS coach_commission_entries (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  coach_id UUID NOT NULL REFERENCES coaches(id) ON DELETE CASCADE,
+  amount DECIMAL(10,2) NOT NULL,
+  source_type VARCHAR(30) NOT NULL,
+  source_id UUID,
+  description TEXT,
+  period_month DATE NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_commission_coach ON coach_commission_entries(tenant_id, coach_id, period_month);
+
+-- Phase 3: Outbound webhooks
+CREATE TABLE IF NOT EXISTS tenant_webhooks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  url VARCHAR(500) NOT NULL,
+  secret VARCHAR(100),
+  events JSONB DEFAULT '["booking.created","payment.received","member.created"]',
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_tenant_webhooks_tenant ON tenant_webhooks(tenant_id);

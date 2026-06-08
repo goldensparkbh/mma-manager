@@ -43,6 +43,7 @@ import { useLanguage } from "@/context/language-context";
 import { WhatsAppTemplateDialog } from "@/components/whatsapp-template-dialog";
 import { MemberDetailsDialog } from "@/components/member-details-dialog";
 import { PERMISSIONS } from "@/lib/permissions";
+import { CommissionsPanel } from "@/components/commissions-panel";
 
 const expenseCategories = [
   "rent",
@@ -494,7 +495,7 @@ export default function Finance() {
                   className="font-medium text-base cursor-pointer hover:underline text-primary"
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleMemberClick(sale.memberId, "finance");
+                    if (sale.memberId) handleMemberClick(sale.memberId, "finance");
                   }}
                 >
                   {buyerName}
@@ -768,7 +769,7 @@ export default function Finance() {
                               className="cursor-pointer hover:underline text-primary"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleMemberClick(sale.memberId, "finance");
+                                if (sale.memberId) handleMemberClick(sale.memberId, "finance");
                               }}
                             >
                               {buyerDisplay}
@@ -1066,6 +1067,8 @@ export default function Finance() {
           )}
         </CardContent>
       </Card>
+
+      <CommissionsPanel />
 
       <Dialog open={!!selectedTransactionId} onOpenChange={(open) => !open && setSelectedTransactionId(null)}>
         <DialogContent className="sm:max-w-lg">

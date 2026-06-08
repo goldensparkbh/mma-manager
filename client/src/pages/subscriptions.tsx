@@ -437,7 +437,7 @@ export default function Subscriptions() {
 
                     <div className="space-y-2">
                       <Label>{t('finance.paymentMethod')}</Label>
-                      <Select value={formData.paymentMethod} onValueChange={(v) => setFormData({ ...formData, paymentMethod: v as any })}>
+                      <Select value={formData.paymentMethod ?? undefined} onValueChange={(v) => setFormData({ ...formData, paymentMethod: v as any })}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="cash">{t("finance.paymentMethods.cash")}</SelectItem>

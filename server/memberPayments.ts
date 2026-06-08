@@ -1,8 +1,8 @@
 import { query } from "./db/index.js";
 import { createTapCharge, getAppBaseUrl, isTapChargeSuccessful, isTapConfigured, retrieveTapCharge } from "./tap.js";
 import { toCamelCase, formatDate } from "./utils.js";
-import { createSubscription, getMember, syncMemberSubscriptionStatus } from "./data.js";
-import { enqueueNotification } from "./notifications.js";
+import { createSale, createSubscription, getMember, syncMemberSubscriptionStatus } from "./data.js";
+import { enqueueNotification, notifyMember } from "./notifications.js";
 import { getBookingSettings } from "./bookings.js";
 
 function nextMemberInvoiceNumber(): string {
@@ -95,6 +95,7 @@ export async function confirmMemberPayment(tapChargeId: string) {
       "UPDATE member_payments SET status = 'failed', metadata = metadata || $2::jsonb WHERE id = $1",
       [payment.id, JSON.stringify({ tapStatus: charge.status })],
     );
+    await handleFailedMemberPayment(payment);
     return { ok: false, status: charge.status, payment: toCamelCase(payment) };
   }
 
@@ -148,25 +149,128 @@ async function activateMemberPayment(payment: Record<string, unknown>, charge: {
     );
   }
 
-  const m = member as { name: string; email?: string };
-  if (m.email) {
-    await enqueueNotification({
-      tenantId,
-      memberId,
-      eventKey: "payment_received",
-      recipient: m.email,
-      vars: {
-        name: m.name,
-        planName: pkg.name as string,
-        amount: String(pkg.price),
-        currency: (payment.currency as string) || "BHD",
-      },
-    });
-  }
+  const m = member as { name: string; email?: string; phone: string };
+  await createSale(tenantId, {
+    productId: "subscription",
+    productName: pkg.name as string,
+    quantity: 1,
+    unitPrice: Number(pkg.price),
+    totalPrice: Number(pkg.price),
+    memberId,
+    buyerName: m.name,
+    buyerPhone: m.phone,
+    paymentMethod: "tap",
+    paymentStatus: "paid",
+    subscriptionId: (sub as { id: string }).id,
+    receiptId: invoiceNumber,
+  });
+
+  await notifyMember({
+    tenantId,
+    memberId,
+    eventKey: "payment_received",
+    email: m.email,
+    phone: m.phone,
+    vars: {
+      name: m.name,
+      planName: pkg.name as string,
+      amount: String(pkg.price),
+      currency: (payment.currency as string) || "BHD",
+    },
+  });
 
   await syncMemberSubscriptionStatus(tenantId, memberId);
+
+  try {
+    const { dispatchWebhooks } = await import("./webhooks.js");
+    await dispatchWebhooks(tenantId, "payment.received", {
+      paymentId: payment.id,
+      memberId,
+      amount: pkg.price,
+      packageName: pkg.name,
+    });
+  } catch { /* optional */ }
+
   const updated = await query("SELECT * FROM member_payments WHERE id = $1", [payment.id]);
   return { ok: true, status: "CAPTURED", payment: toCamelCase(updated.rows[0]), subscription: sub };
+}
+
+export async function refundMemberPayment(tenantId: string, paymentId: string, reason?: string) {
+  const settings = await getBookingSettings(tenantId);
+  if (!settings.allowRefunds) throw new Error("Refunds are not enabled");
+
+  const paymentRow = await query(
+    "SELECT * FROM member_payments WHERE tenant_id = $1 AND id = $2",
+    [tenantId, paymentId],
+  );
+  const payment = paymentRow.rows[0];
+  if (!payment) throw new Error("Payment not found");
+  if (payment.status !== "captured") throw new Error("Only captured payments can be refunded");
+
+  if (payment.paid_at) {
+    const hoursSince = (Date.now() - new Date(payment.paid_at as string).getTime()) / 3_600_000;
+    if (hoursSince > settings.refundWindowHours) {
+      throw new Error(`Refund window is ${settings.refundWindowHours} hours`);
+    }
+  }
+
+  await query(
+    `UPDATE member_payments SET status = 'refunded', metadata = metadata || $3::jsonb WHERE id = $1 AND tenant_id = $2`,
+    [paymentId, tenantId, JSON.stringify({ refundReason: reason || "staff_refund" })],
+  );
+
+  if (payment.subscription_id) {
+    await query(
+      "UPDATE subscriptions SET status = 'cancelled' WHERE tenant_id = $1 AND id = $2",
+      [tenantId, payment.subscription_id],
+    );
+    await syncMemberSubscriptionStatus(tenantId, payment.member_id as string);
+  }
+
+  return { ok: true, paymentId };
+}
+
+async function handleFailedMemberPayment(payment: Record<string, unknown>) {
+  const tenantId = payment.tenant_id as string;
+  const memberId = payment.member_id as string;
+  const member = await getMember(tenantId, memberId);
+  if (!member) return;
+
+  const m = member as { name: string; email?: string; phone: string };
+  const settings = await getBookingSettings(tenantId);
+  const graceDays = settings.paymentGraceDays ?? 3;
+
+  if (payment.subscription_id) {
+    await query(
+      `UPDATE subscriptions SET end_date = end_date + $2::int, payment_status = 'pending'
+       WHERE tenant_id = $1 AND id = $3`,
+      [tenantId, graceDays, payment.subscription_id],
+    );
+    await syncMemberSubscriptionStatus(tenantId, memberId);
+  }
+
+  const pkgName = (payment.package_name as string) || "membership";
+  await notifyMember({
+    tenantId,
+    memberId,
+    eventKey: "payment_failed",
+    email: m.email,
+    phone: m.phone,
+    vars: { name: m.name, planName: pkgName, graceDays: String(graceDays) },
+  });
+
+  const admins = await query(
+    "SELECT email FROM users WHERE tenant_id = $1 AND role = 'admin' AND email IS NOT NULL",
+    [tenantId],
+  );
+  for (const admin of admins.rows) {
+    await enqueueNotification({
+      tenantId,
+      eventKey: "payment_failed",
+      recipient: admin.email as string,
+      vars: { name: m.name, planName: pkgName, graceDays: String(graceDays) },
+    });
+  }
 }
 
 export async function processRecurringBilling(): Promise<number> {
@@ -263,6 +367,8 @@ async function createRecurringCharge(params: {
       "UPDATE member_payments SET status = 'failed', metadata = $2::jsonb WHERE id = $1",
       [payment.id, JSON.stringify({ tapStatus: charge.status })],
     );
+    const paymentRow = await query("SELECT * FROM member_payments WHERE id = $1", [payment.id]);
+    await handleFailedMemberPayment(paymentRow.rows[0]);
     throw new Error(`Recurring charge failed: ${charge.status}`);
   }
 

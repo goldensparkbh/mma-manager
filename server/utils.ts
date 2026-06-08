@@ -13,7 +13,9 @@ export function toCamelCase<T extends Record<string, unknown>>(row: Record<strin
   return result as T;
 }
 
-export function rowsToCamel<T>(rows: Record<string, unknown>[]): T[] {
+export function rowsToCamel<T extends Record<string, unknown> = Record<string, unknown>>(
+  rows: Record<string, unknown>[],
+): T[] {
   return rows.map((r) => toCamelCase<T>(r));
 }
 

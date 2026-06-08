@@ -1,5 +1,3 @@
-import { ClubSettings } from "@/context/auth-context";
-
 interface PrintReceiptOptions {
   type: 'subscription' | 'sale';
   data: any;

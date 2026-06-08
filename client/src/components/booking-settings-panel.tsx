@@ -134,6 +134,31 @@ export function BookingSettingsPanel() {
             />
             <Label>{t("bookings.widgetEnabled")}</Label>
           </div>
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={form.allowRefunds !== false}
+              onCheckedChange={(v) => setForm({ ...form, allowRefunds: v })}
+            />
+            <Label>{t("bookings.allowRefunds")}</Label>
+          </div>
+          <div className="space-y-2">
+            <Label>{t("bookings.refundWindowHours")}</Label>
+            <Input
+              type="number"
+              value={form.refundWindowHours ?? 48}
+              onChange={(e) => setForm({ ...form, refundWindowHours: Number(e.target.value) })}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>{t("bookings.paymentGraceDays")}</Label>
+            <Input
+              type="number"
+              min={0}
+              max={14}
+              value={form.paymentGraceDays ?? 3}
+              onChange={(e) => setForm({ ...form, paymentGraceDays: Number(e.target.value) })}
+            />
+          </div>
           <Button onClick={() => save.mutate()} disabled={save.isPending}>
             {save.isPending && <Loader2 className="h-4 w-4 animate-spin me-2" />}
             {t("common.save")}
@@ -176,6 +201,28 @@ export function BookingSettingsPanel() {
             >
               {t("portal.enableAccess")}
             </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="lg:col-span-2">
+        <CardHeader><CardTitle className="text-base">{t("portal.branding")}</CardTitle></CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label>{t("portal.primaryColor")}</Label>
+            <Input
+              type="color"
+              value={form.portalPrimaryColor || "#3b82f6"}
+              onChange={(e) => setForm({ ...form, portalPrimaryColor: e.target.value })}
+            />
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label>{t("portal.welcomeMessage")}</Label>
+            <Input
+              value={form.portalWelcomeMessage || ""}
+              onChange={(e) => setForm({ ...form, portalWelcomeMessage: e.target.value })}
+              placeholder={t("portal.welcomePlaceholder")}
+            />
           </div>
         </CardContent>
       </Card>

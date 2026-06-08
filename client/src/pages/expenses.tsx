@@ -51,7 +51,7 @@ export default function Expenses() {
     const { t, language } = useLanguage();
     const canAdd = hasPermission(PERMISSIONS.FINANCE_CREATE);
     const canDelete = hasPermission(PERMISSIONS.FINANCE_DELETE);
-    const canUpdate = hasPermission(PERMISSIONS.FINANCE_UPDATE);
+    const canUpdate = hasPermission(PERMISSIONS.FINANCE_EDIT);
 
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [formData, setFormData] = useState<Partial<InsertExpense>>({

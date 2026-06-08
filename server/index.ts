@@ -59,6 +59,13 @@ async function main() {
   };
   runNotificationJobs();
   setInterval(runNotificationJobs, 15 * 60 * 1000);
+
+  const runOwnerDigest = async () => {
+    const { processOwnerDigest } = await import("./notifications.js");
+    await processOwnerDigest().catch((err) => console.error("Owner digest:", err));
+  };
+  runOwnerDigest();
+  setInterval(runOwnerDigest, 24 * 60 * 60 * 1000);
 }
 
 main().catch((err) => {

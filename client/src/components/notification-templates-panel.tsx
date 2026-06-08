@@ -18,6 +18,8 @@ const EVENT_LABELS: Record<string, string> = {
   class_reminder: "notifications.events.classReminder",
   subscription_expiring: "notifications.events.subscriptionExpiring",
   payment_received: "notifications.events.paymentReceived",
+  payment_failed: "notifications.events.paymentFailed",
+  owner_digest: "notifications.events.ownerDigest",
 };
 
 export function NotificationTemplatesPanel() {

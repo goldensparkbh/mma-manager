@@ -91,7 +91,7 @@ export async function createSale(data: Record<string, unknown>): Promise<Sale> {
   return apiJson("/api/sales", { method: "POST", body: JSON.stringify(data) });
 }
 
-export async function getBelts() {
+export async function getBelts(): Promise<import("@shared/schema").Belt[]> {
   return apiJson("/api/belts");
 }
 

@@ -32,6 +32,7 @@ import { MemberReportPdf, type MemberReportData } from "@/components/member-repo
 import { getEffectiveMemberSubscriptionStatus } from "@/lib/memberSubscriptionStatus";
 import { useClubConfig } from "@/lib/clubConfig";
 import { MemberCustomFields } from "@/components/member-custom-fields";
+import { MemberQrPanel } from "@/components/member-qr-panel";
 
 interface MemberDetailsDialogProps {
     member: Member | null;
@@ -1024,6 +1025,9 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
             checkSimple: svgIcon(`
                     <path d="M20 6L9 17L4 12"></path>
                 `),
+            chart: svgIcon(`
+                    <path d="M4 20V10M12 20V4M20 20v-8"></path>
+                `),
         };
 
         const defaultLogoUrl = ""; // No local fallback
@@ -1779,6 +1783,7 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                                     )}
                                     <TabsTrigger value="attendance" className="data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full px-6 bg-transparent text-start">{t('nav.attendance')}</TabsTrigger>
                                     <TabsTrigger value="finance" className="data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full px-6 bg-transparent text-start">{t('nav.finance')}</TabsTrigger>
+                                    <TabsTrigger value="qr" className="data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full px-6 bg-transparent text-start">{t('members.qrTitle')}</TabsTrigger>
                                 </>
                             )}
                         </TabsList>
@@ -1867,7 +1872,7 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                                                 </div>
                                                 <div className="space-y-2">
                                                     <Label>{t('members.gender')} *</Label>
-                                                    <Select value={formData.gender} onValueChange={(val: any) => setFormData({ ...formData, gender: val })}>
+                                                    <Select value={formData.gender ?? undefined} onValueChange={(val: any) => setFormData({ ...formData, gender: val })}>
                                                         <SelectTrigger><SelectValue placeholder={t('common.select')} /></SelectTrigger>
                                                         <SelectContent>
                                                             <SelectItem value="male">{t('members.male')}</SelectItem>
@@ -2339,7 +2344,7 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                                                                                 setPrintType('subscription');
                                                                                 setPrintData({
                                                                                     ...activeSub,
-                                                                                    memberDisplayId: member.memberId
+                                                                                    memberDisplayId: member!.memberId
                                                                                 });
                                                                                 setIsReceiptTypeDialogOpen(true);
                                                                             }}
@@ -2427,7 +2432,7 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                                                                                 setPrintType('subscription');
                                                                                 setPrintData({
                                                                                     ...sub,
-                                                                                    memberDisplayId: member.memberId
+                                                                                    memberDisplayId: member!.memberId
                                                                                 });
                                                                                 setIsReceiptTypeDialogOpen(true);
                                                                             }}
@@ -2980,6 +2985,10 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                                     </div>
                                 )}
                             </div>
+                        </TabsContent>
+
+                        <TabsContent value="qr" className="m-0 text-start">
+                            {member && <MemberQrPanel memberId={member.id} />}
                         </TabsContent>
                     </div>
                 </Tabs>

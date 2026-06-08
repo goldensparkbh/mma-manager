@@ -10,6 +10,11 @@ export type BookingSettings = {
   portalEnabled: boolean;
   tapEnabled: boolean;
   widgetEnabled: boolean;
+  paymentGraceDays: number;
+  allowRefunds: boolean;
+  refundWindowHours: number;
+  portalPrimaryColor: string | null;
+  portalWelcomeMessage: string | null;
   publicSlug: string | null;
 };
 
@@ -21,6 +26,11 @@ const DEFAULT_SETTINGS: Omit<BookingSettings, "tenantId" | "publicSlug"> = {
   portalEnabled: true,
   tapEnabled: true,
   widgetEnabled: true,
+  paymentGraceDays: 3,
+  allowRefunds: true,
+  refundWindowHours: 48,
+  portalPrimaryColor: "#3b82f6",
+  portalWelcomeMessage: null,
 };
 
 export async function getBookingSettings(tenantId: string): Promise<BookingSettings> {
@@ -63,6 +73,11 @@ export async function updateBookingSettings(tenantId: string, updates: Record<st
     portalEnabled: "portal_enabled",
     tapEnabled: "tap_enabled",
     widgetEnabled: "widget_enabled",
+    paymentGraceDays: "payment_grace_days",
+    allowRefunds: "allow_refunds",
+    refundWindowHours: "refund_window_hours",
+    portalPrimaryColor: "portal_primary_color",
+    portalWelcomeMessage: "portal_welcome_message",
     publicSlug: "public_slug",
   };
   await getBookingSettings(tenantId);
@@ -136,6 +151,9 @@ export async function validateBooking(
 
   const active = await memberHasActiveSubscription(tenantId, memberId);
   if (!active) return { ok: false, error: "No active subscription" };
+
+  const packageCheck = await memberAllowedForSession(tenantId, memberId, session);
+  if (!packageCheck.ok) return packageCheck;
 
   const confirmedCount = await query(
     `SELECT COUNT(*)::int AS count FROM bookings
@@ -236,20 +254,21 @@ export async function createBooking(params: {
   const mapped = mapBooking(booking);
 
   try {
-    const { enqueueNotification } = await import("./notifications.js");
+    const { notifyMember } = await import("./notifications.js");
     const sessionRow = await query(
-      `SELECT s.name, s.starts_at, m.email FROM class_sessions s
+      `SELECT s.name, s.starts_at, m.email, m.phone FROM class_sessions s
        JOIN members m ON m.id = $2 WHERE s.id = $1`,
       [params.sessionId, params.memberId],
     );
     const row = sessionRow.rows[0];
-    if (row?.email) {
+    if (row) {
       const startsAt = new Date(row.starts_at as string);
-      await enqueueNotification({
+      await notifyMember({
         tenantId: params.tenantId,
         memberId: params.memberId,
         eventKey: "booking_confirmed",
-        recipient: row.email as string,
+        email: row.email as string | null,
+        phone: row.phone as string | null,
         vars: {
           name: params.memberName,
           className: row.name as string,
@@ -260,6 +279,17 @@ export async function createBooking(params: {
   } catch (err) {
     console.error("[notify] booking_confirmed:", err);
   }
+
+  try {
+    const { dispatchWebhooks } = await import("./webhooks.js");
+    await dispatchWebhooks(params.tenantId, "booking.created", {
+      bookingId: (mapped as { id: string }).id,
+      sessionId: params.sessionId,
+      memberId: params.memberId,
+      memberName: params.memberName,
+      status,
+    });
+  } catch { /* optional */ }
 
   return mapped;
 }
@@ -298,15 +328,16 @@ export async function cancelBooking(
   }
 
   try {
-    const { enqueueNotification } = await import("./notifications.js");
-    const memberRow = await query("SELECT email FROM members WHERE id = $1", [booking.member_id]);
-    if (memberRow.rows[0]?.email) {
+    const { notifyMember } = await import("./notifications.js");
+    const memberRow = await query("SELECT email, phone FROM members WHERE id = $1", [booking.member_id]);
+    if (memberRow.rows[0]) {
       const startsAt = new Date(booking.starts_at as string);
-      await enqueueNotification({
+      await notifyMember({
         tenantId,
         memberId: booking.member_id as string,
         eventKey: "booking_cancelled",
-        recipient: memberRow.rows[0].email as string,
+        email: memberRow.rows[0].email as string | null,
+        phone: memberRow.rows[0].phone as string | null,
         vars: {
           name: booking.member_name as string,
           className: (await query("SELECT name FROM class_sessions WHERE id = $1", [booking.session_id])).rows[0]?.name as string || "Class",
@@ -317,6 +348,71 @@ export async function cancelBooking(
   } catch (err) {
     console.error("[notify] booking_cancelled:", err);
   }
+
+  try {
+    const { dispatchWebhooks } = await import("./webhooks.js");
+    await dispatchWebhooks(tenantId, "booking.cancelled", {
+      bookingId,
+      memberId: booking.member_id,
+      memberName: booking.member_name,
+    });
+  } catch { /* optional */ }
+}
+
+async function memberAllowedForSession(
+  tenantId: string,
+  memberId: string,
+  session: Record<string, unknown>,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const templateId = session.template_id as string | null;
+  if (!templateId) return { ok: true };
+
+  const templateResult = await query(
+    "SELECT allowed_package_ids FROM class_templates WHERE tenant_id = $1 AND id = $2",
+    [tenantId, templateId],
+  );
+  const allowed = templateResult.rows[0]?.allowed_package_ids as string[] | null;
+  if (!allowed?.length) return { ok: true };
+
+  const packages = await query(
+    "SELECT id, name FROM packages WHERE tenant_id = $1 AND id = ANY($2::uuid[])",
+    [tenantId, allowed],
+  );
+  const allowedNames = new Set(packages.rows.map((r) => r.name as string));
+  if (!allowedNames.size) return { ok: true };
+
+  const today = new Date().toISOString().split("T")[0];
+  const subs = await query(
+    `SELECT plan_name FROM subscriptions
+     WHERE tenant_id = $1 AND member_id = $2 AND status NOT IN ('cancelled', 'expired')
+       AND start_date <= $3 AND end_date >= $3
+       AND (package_type != 'sessions' OR sessions_remaining > 0)`,
+    [tenantId, memberId, today],
+  );
+  const hasMatch = subs.rows.some((r) => allowedNames.has(r.plan_name as string));
+  if (!hasMatch) return { ok: false, error: "Your membership package cannot book this class" };
+  return { ok: true };
+}
+
+async function deductSessionCredit(tenantId: string, memberId: string, sessionId: string) {
+  const templateResult = await query(
+    `SELECT ct.deduct_session FROM class_sessions cs
+     JOIN class_templates ct ON ct.id = cs.template_id
+     WHERE cs.tenant_id = $1 AND cs.id = $2 AND ct.deduct_session = true`,
+    [tenantId, sessionId],
+  );
+  if (!templateResult.rows[0]) return;
+
+  const today = new Date().toISOString().split("T")[0];
+  await query(
+    `UPDATE subscriptions SET sessions_remaining = GREATEST(0, sessions_remaining - 1)
+     WHERE tenant_id = $1 AND member_id = $2 AND package_type = 'sessions'
+       AND status NOT IN ('cancelled', 'expired') AND sessions_remaining > 0
+       AND start_date <= $3 AND end_date >= $3`,
+    [tenantId, memberId, today],
+  );
+  const { syncMemberSubscriptionStatus } = await import("./data.js");
+  await syncMemberSubscriptionStatus(tenantId, memberId);
 }
 
 export async function markBookingAttended(tenantId: string, memberId: string, date: string) {
@@ -325,9 +421,12 @@ export async function markBookingAttended(tenantId: string, memberId: string, da
      FROM class_sessions s
      WHERE b.session_id = s.id AND b.tenant_id = $1 AND b.member_id = $2
        AND b.status = 'confirmed' AND s.starts_at::date = $3::date
-     RETURNING b.id`,
+     RETURNING b.id, b.session_id`,
     [tenantId, memberId, date],
   );
+  for (const row of result.rows) {
+    await deductSessionCredit(tenantId, memberId, row.session_id as string);
+  }
   return result.rows.length;
 }
 

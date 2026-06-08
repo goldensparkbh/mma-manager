@@ -484,11 +484,11 @@ export function MemberReportPdf({ data }: { data: MemberReportData }) {
 
     return (
         <Document title={data.reportFileName} author={data.clubName}>
-            <Page size="A4" style={[styles.page, isRtl && styles.pageRtl, { fontFamily }]}>
-                <View style={[styles.container, isRtl && styles.containerRtl]}>
+            <Page size="A4" style={[styles.page, isRtl ? styles.pageRtl : {}, { fontFamily }]}>
+                <View style={[styles.container, isRtl ? styles.containerRtl : {}]}>
 
                     {/* SIDEBAR */}
-                    <View style={[styles.sidebar, isRtl && styles.sidebarRtl]}>
+                    <View style={[styles.sidebar, isRtl ? styles.sidebarRtl : {}]}>
                         <View style={styles.sidebarContent}>
                             {data.member.imageUrl ? (
                                 <Image src={data.member.imageUrl} style={styles.avatar} />
@@ -505,38 +505,38 @@ export function MemberReportPdf({ data }: { data: MemberReportData }) {
                                 {data.statusLabel}
                             </Text>
 
-                            <View style={[styles.sectionTitle, isRtl && styles.sectionTitleRtl]}>
+                            <View style={[styles.sectionTitle, isRtl ? styles.sectionTitleRtl : {}]}>
                                 <Text>{data.sectionTitles.contactInfo}</Text>
                             </View>
 
                             {data.member.cpr && (
                                 <View style={styles.infoRow}>
-                                    <Text style={[styles.infoLabel, isRtl && styles.textRight]}>{data.labels.cpr}</Text>
-                                    <Text style={[styles.infoValue, isRtl && styles.textRight]}>{data.member.cpr}</Text>
+                                    <Text style={[styles.infoLabel, isRtl ? styles.textRight : {}]}>{data.labels.cpr}</Text>
+                                    <Text style={[styles.infoValue, isRtl ? styles.textRight : {}]}>{data.member.cpr}</Text>
                                 </View>
                             )}
 
                             <View style={styles.infoRow}>
-                                <Text style={[styles.infoLabel, isRtl && styles.textRight]}>{data.labels.phone}</Text>
-                                <Text style={[styles.infoValue, isRtl && styles.textRight]}>{data.member.phone}</Text>
+                                <Text style={[styles.infoLabel, isRtl ? styles.textRight : {}]}>{data.labels.phone}</Text>
+                                <Text style={[styles.infoValue, isRtl ? styles.textRight : {}]}>{data.member.phone}</Text>
                             </View>
 
                             <View style={styles.infoRow}>
-                                <Text style={[styles.infoLabel, isRtl && styles.textRight]}>{data.labels.email}</Text>
-                                <Text style={[styles.infoValue, isRtl && styles.textRight]}>{data.member.email}</Text>
+                                <Text style={[styles.infoLabel, isRtl ? styles.textRight : {}]}>{data.labels.email}</Text>
+                                <Text style={[styles.infoValue, isRtl ? styles.textRight : {}]}>{data.member.email}</Text>
                             </View>
 
                             {data.member.dob && (
                                 <View style={styles.infoRow}>
-                                    <Text style={[styles.infoLabel, isRtl && styles.textRight]}>{data.labels.dob}</Text>
-                                    <Text style={[styles.infoValue, isRtl && styles.textRight]}>{data.member.dob}</Text>
+                                    <Text style={[styles.infoLabel, isRtl ? styles.textRight : {}]}>{data.labels.dob}</Text>
+                                    <Text style={[styles.infoValue, isRtl ? styles.textRight : {}]}>{data.member.dob}</Text>
                                 </View>
                             )}
 
                             {data.member.gender && (
                                 <View style={styles.infoRow}>
-                                    <Text style={[styles.infoLabel, isRtl && styles.textRight]}>{data.labels.gender}</Text>
-                                    <Text style={[styles.infoValue, isRtl && styles.textRight]}>{data.member.gender}</Text>
+                                    <Text style={[styles.infoLabel, isRtl ? styles.textRight : {}]}>{data.labels.gender}</Text>
+                                    <Text style={[styles.infoValue, isRtl ? styles.textRight : {}]}>{data.member.gender}</Text>
                                 </View>
                             )}
                         </View>
@@ -546,26 +546,26 @@ export function MemberReportPdf({ data }: { data: MemberReportData }) {
                     <View style={styles.main}>
 
                         {/* Header */}
-                        <View style={[styles.header, isRtl && styles.headerRtl]}>
-                            <View style={[styles.headerBrand, isRtl && styles.headerBrandRtl]}>
-                                {data.logoUrl && <Image src={data.logoUrl} style={[styles.logo, isRtl && styles.logoRtl]} />}
+                        <View style={[styles.header, isRtl ? styles.headerRtl : {}]}>
+                            <View style={[styles.headerBrand, isRtl ? styles.headerBrandRtl : {}]}>
+                                {data.logoUrl && <Image src={data.logoUrl} style={[styles.logo, isRtl ? styles.logoRtl : {}]} />}
                                 <View>
-                                    <Text style={[styles.clubName, isRtl && styles.textRight]}>{data.clubName}</Text>
-                                    <Text style={[styles.reportTitle, isRtl && styles.textRight]}>{data.reportTitle}</Text>
+                                    <Text style={[styles.clubName, isRtl ? styles.textRight : {}]}>{data.clubName}</Text>
+                                    <Text style={[styles.reportTitle, isRtl ? styles.textRight : {}]}>{data.reportTitle}</Text>
                                 </View>
                             </View>
-                            <View style={[styles.meta, isRtl && styles.metaRtl]}>
+                            <View style={[styles.meta, isRtl ? styles.metaRtl : {}]}>
                                 <Text style={styles.metaText}>{data.labels.date}: {data.reportDate}</Text>
                                 <Text style={styles.metaText}>{data.labels.memberId}: {data.member.memberId}</Text>
                             </View>
                         </View>
 
                         {/* Summary Stats */}
-                        <View style={[styles.statsGrid, isRtl && styles.statsGridRtl]}>
+                        <View style={[styles.statsGrid, isRtl ? styles.statsGridRtl : {}]}>
                             {data.summaryCards.map((card, i) => (
                                 <View key={i} style={styles.statCard}>
-                                    <Text style={[styles.statLabel, isRtl && styles.textRight]}>{card.label}</Text>
-                                    <Text style={[styles.statValue, isRtl && styles.textRight]}>{card.value}</Text>
+                                    <Text style={[styles.statLabel, isRtl ? styles.textRight : {}]}>{card.label}</Text>
+                                    <Text style={[styles.statValue, isRtl ? styles.textRight : {}]}>{card.value}</Text>
                                 </View>
                             ))}
                         </View>
@@ -573,7 +573,7 @@ export function MemberReportPdf({ data }: { data: MemberReportData }) {
                         {/* Belt Chain */}
                         {data.beltChain && data.beltChain.length > 0 && (
                             <View style={styles.beltChainContainer} wrap={false}>
-                                <Text style={[styles.beltChainTitle, isRtl && styles.sectionTitleRtl, isRtl && styles.textRight]}>{data.sectionTitles.belts}</Text>
+                                <Text style={[styles.beltChainTitle, isRtl ? styles.sectionTitleRtl : {}, isRtl ? styles.textRight : {}]}>{data.sectionTitles.belts}</Text>
                                 {(() => {
                                     const rows = [];
                                     const itemsPerRow = 5;
@@ -581,7 +581,7 @@ export function MemberReportPdf({ data }: { data: MemberReportData }) {
                                         rows.push(data.beltChain.slice(i, i + itemsPerRow));
                                     }
                                     return rows.map((row, rowIdx) => (
-                                        <View key={rowIdx} style={[styles.beltChainList, isRtl && styles.beltChainListRtl, { marginBottom: 10 }]}>
+                                        <View key={rowIdx} style={[styles.beltChainList, isRtl ? styles.beltChainListRtl : {}, { marginBottom: 10 }]}>
                                             {row.map((belt) => (
                                                 <View key={belt.id} style={styles.beltItem}>
                                                     <View
@@ -613,29 +613,29 @@ export function MemberReportPdf({ data }: { data: MemberReportData }) {
 
                         {/* Health Notes */}
                         {data.healthNotes && data.healthNotes !== "No results" && data.healthNotes !== "لا توجد نتائج" && (
-                            <View style={[styles.notesBox, isRtl && styles.notesBoxRtl]}>
-                                <Text style={[styles.notesTitle, isRtl && styles.sectionTitleRtl, isRtl && styles.textRight]}>{data.sectionTitles.healthNotes}</Text>
-                                <Text style={[styles.notesText, isRtl && styles.textRight]}>{data.healthNotes}</Text>
+                            <View style={[styles.notesBox, isRtl ? styles.notesBoxRtl : {}]}>
+                                <Text style={[styles.notesTitle, isRtl ? styles.sectionTitleRtl : {}, isRtl ? styles.textRight : {}]}>{data.sectionTitles.healthNotes}</Text>
+                                <Text style={[styles.notesText, isRtl ? styles.textRight : {}]}>{data.healthNotes}</Text>
                             </View>
                         )}
 
                         {/* Tables */}
                         {data.tableSections.map((section, idx) => (
                             <View key={idx} style={styles.tableSection} wrap={false}>
-                                <Text style={[styles.tableTitle, isRtl && styles.sectionTitleRtl, isRtl && styles.textRight]}>{section.title}</Text>
+                                <Text style={[styles.tableTitle, isRtl ? styles.sectionTitleRtl : {}, isRtl ? styles.textRight : {}]}>{section.title}</Text>
                                 <View style={styles.table}>
                                     {/* Header */}
-                                    <View style={[styles.tableHeader, isRtl && styles.tableHeaderRtl]}>
+                                    <View style={[styles.tableHeader, isRtl ? styles.tableHeaderRtl : {}]}>
                                         {section.columns.map((col, i) => (
-                                            <Text key={i} style={[styles.th, isRtl && styles.thRtl]}>{col}</Text>
+                                            <Text key={i} style={[styles.th, isRtl ? styles.thRtl : {}]}>{col}</Text>
                                         ))}
                                     </View>
                                     {/* Rows */}
                                     {section.rows.length > 0 ? (
                                         section.rows.map((row, rIdx) => (
-                                            <View key={rIdx} style={[styles.tableRow, isRtl && styles.tableRowRtl]}>
+                                            <View key={rIdx} style={[styles.tableRow, isRtl ? styles.tableRowRtl : {}]}>
                                                 {row.map((cell, cIdx) => (
-                                                    <Text key={cIdx} style={[styles.td, isRtl && styles.tdRtl]}>{cell}</Text>
+                                                    <Text key={cIdx} style={[styles.td, isRtl ? styles.tdRtl : {}]}>{cell}</Text>
                                                 ))}
                                             </View>
                                         ))
@@ -646,8 +646,8 @@ export function MemberReportPdf({ data }: { data: MemberReportData }) {
 
                                 {/* Financial Summaries for Tables */}
                                 {(section.title === data.tableSections[0].title || section.title === data.tableSections[3].title) && (
-                                    <View style={[styles.financeSummary, data.isRtl && styles.financeSummaryRtl]}>
-                                        <View style={[styles.financeItem, data.isRtl && styles.financeItemRtl]}>
+                                    <View style={[styles.financeSummary, data.isRtl ? styles.financeSummaryRtl : {}]}>
+                                        <View style={[styles.financeItem, data.isRtl ? styles.financeItemRtl : {}]}>
                                             <Text style={styles.financeLabel}>
                                                 {data.financials.totalPaidLabel}
                                             </Text>
@@ -657,7 +657,7 @@ export function MemberReportPdf({ data }: { data: MemberReportData }) {
                                                     : `${data.financials.salesPaid.toFixed(3)} BHD`}
                                             </Text>
                                         </View>
-                                        <View style={[styles.financeItem, data.isRtl && styles.financeItemRtl]}>
+                                        <View style={[styles.financeItem, data.isRtl ? styles.financeItemRtl : {}]}>
                                             <Text style={styles.financeLabel}>
                                                 {data.financials.totalUnpaidLabel}
                                             </Text>
