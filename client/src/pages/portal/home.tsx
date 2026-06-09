@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, addDays } from "date-fns";
 import { ar, enUS } from "date-fns/locale";
@@ -124,23 +124,6 @@ export default function PortalHome() {
       toast({ variant: "destructive", title: t("common.error"), description: (err as Error).message }),
   });
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (!member) {
-    setLocation(`/portal/${slug}`);
-    return null;
-  }
-
-  const upcomingBookings = bookings.filter(
-    (b) => (b.status === "confirmed" || b.status === "waitlist") && b.startsAt && new Date(b.startsAt) > new Date(),
-  );
-
   const switchMember = useMutation({
     mutationFn: (memberId: string) =>
       portalApiJson<{ token: string }>("/api/portal/switch-member", {
@@ -153,6 +136,28 @@ export default function PortalHome() {
       queryClient.invalidateQueries();
     },
   });
+
+  useEffect(() => {
+    if (!loading && !member) {
+      setLocation(`/portal/${slug}`);
+    }
+  }, [loading, member, slug, setLocation]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!member) {
+    return null;
+  }
+
+  const upcomingBookings = bookings.filter(
+    (b) => (b.status === "confirmed" || b.status === "waitlist") && b.startsAt && new Date(b.startsAt) > new Date(),
+  );
 
   const accent = portalInfo?.primaryColor || "#3b82f6";
 

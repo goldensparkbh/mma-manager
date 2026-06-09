@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { Loader2, LogIn, MessageSquare } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,8 +23,13 @@ export default function PortalLogin() {
   const [submitting, setSubmitting] = useState(false);
   const [sendingOtp, setSendingOtp] = useState(false);
 
+  useEffect(() => {
+    if (!loading && member) {
+      setLocation(`/portal/${slug}/home`);
+    }
+  }, [loading, member, slug, setLocation]);
+
   if (!loading && member) {
-    setLocation(`/portal/${slug}/home`);
     return null;
   }
 
