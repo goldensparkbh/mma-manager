@@ -736,3 +736,20 @@ CREATE TABLE IF NOT EXISTS tenant_webhooks (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_tenant_webhooks_tenant ON tenant_webhooks(tenant_id);
+
+-- Mobile push tokens (Expo)
+CREATE TABLE IF NOT EXISTS push_device_tokens (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  account_type VARCHAR(20) NOT NULL CHECK (account_type IN ('member', 'staff')),
+  user_id UUID,
+  member_id UUID,
+  expo_push_token VARCHAR(255) NOT NULL,
+  platform VARCHAR(20),
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (expo_push_token)
+);
+CREATE INDEX IF NOT EXISTS idx_push_tokens_member ON push_device_tokens(tenant_id, member_id) WHERE member_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_push_tokens_user ON push_device_tokens(tenant_id, user_id) WHERE user_id IS NOT NULL;

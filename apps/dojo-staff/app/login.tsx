@@ -1,16 +1,12 @@
+import { LinearGradient } from "expo-linear-gradient";
 import { useState } from "react";
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/lib/auth";
+import { PrimaryButton } from "@/lib/components";
+import { DashboardIllustration } from "@/lib/illustrations";
+import { FadeInView } from "@/lib/motion";
+import { colors, radius, spacing } from "@/lib/theme";
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -25,7 +21,7 @@ export default function LoginScreen() {
     setError("");
     try {
       await login(email.trim(), password);
-      router.replace("/(tabs)/scan");
+      router.replace("/(tabs)");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -34,63 +30,33 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <Text style={styles.title}>Dojo Staff</Text>
-      <Text style={styles.subtitle}>Sign in with your staff account</Text>
-
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        autoCapitalize="none"
-        keyboardType="email-address"
-        value={email}
-        onChangeText={setEmail}
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
-
-      <Pressable
-        style={styles.button}
-        disabled={loading || !email || !password}
-        onPress={onSubmit}
-      >
-        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign in</Text>}
-      </Pressable>
-
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <LinearGradient colors={["#1e3a8a", "#0f172a"]} style={styles.hero}>
+        <Text style={styles.brand}>Dojo Staff</Text>
+        <Text style={styles.sub}>Scan, schedule, and manage your club on the go</Text>
+      </LinearGradient>
+      <View style={styles.card}>
+        <FadeInView>
+          <View style={styles.illus}>
+            <DashboardIllustration size={160} />
+          </View>
+        </FadeInView>
+        <TextInput style={styles.input} placeholder="Email" autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} placeholderTextColor={colors.textMuted} />
+        <TextInput style={styles.input} placeholder="Password" secureTextEntry value={password} onChangeText={setPassword} placeholderTextColor={colors.textMuted} />
+        <PrimaryButton label="Sign in" loading={loading} disabled={!email || !password} onPress={onSubmit} />
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+      </View>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, justifyContent: "center", backgroundColor: "#0f172a" },
-  title: { fontSize: 28, fontWeight: "700", textAlign: "center", color: "#fff" },
-  subtitle: { fontSize: 14, color: "#94a3b8", textAlign: "center", marginTop: 8, marginBottom: 24 },
-  input: {
-    backgroundColor: "#1e293b",
-    borderWidth: 1,
-    borderColor: "#334155",
-    borderRadius: 12,
-    padding: 14,
-    fontSize: 16,
-    marginBottom: 12,
-    color: "#fff",
-  },
-  button: {
-    backgroundColor: "#3b82f6",
-    borderRadius: 12,
-    padding: 16,
-    alignItems: "center",
-    marginTop: 4,
-  },
-  buttonText: { color: "#fff", fontWeight: "600" },
-  error: { color: "#f87171", textAlign: "center", marginTop: 12 },
+  root: { flex: 1, backgroundColor: colors.bg },
+  hero: { paddingTop: 80, paddingBottom: 40, paddingHorizontal: spacing.lg },
+  brand: { fontSize: 32, fontWeight: "800", color: "#fff" },
+  sub: { fontSize: 15, color: "#94a3b8", marginTop: 10 },
+  card: { flex: 1, marginTop: -20, backgroundColor: colors.card, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.lg, gap: 12 },
+  input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 14, fontSize: 16, color: colors.text, backgroundColor: colors.bg },
+  error: { color: colors.danger, textAlign: "center" },
+  illus: { alignItems: "center", marginBottom: 8 },
 });

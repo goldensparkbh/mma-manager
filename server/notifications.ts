@@ -193,6 +193,8 @@ export async function processClassReminders(): Promise<number> {
 
   let count = 0;
   for (const row of result.rows) {
+    const className = row.name as string;
+    const classTime = new Date(row.starts_at as string).toLocaleString();
     await enqueueNotification({
       tenantId: row.tenant_id as string,
       memberId: row.member_id as string,
@@ -200,10 +202,18 @@ export async function processClassReminders(): Promise<number> {
       recipient: row.email as string,
       vars: {
         name: row.member_name as string,
-        className: row.name as string,
-        classTime: new Date(row.starts_at as string).toLocaleString(),
+        className,
+        classTime,
       },
     });
+    const { pushToMember } = await import("./push.js");
+    await pushToMember(
+      row.tenant_id as string,
+      row.member_id as string,
+      "Class reminder",
+      `${className} starts at ${classTime}`,
+      { type: "class_reminder", className },
+    ).catch(() => {});
     count++;
   }
   return count;
@@ -245,6 +255,13 @@ export async function notifyMember(params: {
       vars: params.vars,
     });
   }
+  const pushTitle = params.vars?.title || params.eventKey.replace(/_/g, " ");
+  const pushBody = params.vars?.body || params.vars?.message || pushTitle;
+  const { pushToMember } = await import("./push.js");
+  await pushToMember(params.tenantId, params.memberId, pushTitle, pushBody, {
+    type: params.eventKey,
+    ...params.vars,
+  }).catch(() => {});
 }
 
 export async function processOwnerDigest(): Promise<number> {

@@ -31,7 +31,14 @@
       "expo-router",
       "expo-secure-store",
       "expo-asset",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#3b82f6"
+        }
+      ]
     ],
     "extra": {
       "apiUrl": "https://orca-app-afy8n.ondigitalocean.app"

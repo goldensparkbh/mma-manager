@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { createApi } from "./api";
+import { registerStaffPush } from "./push";
 import * as storage from "./storage";
 import type { StaffUser, Tenant } from "./types";
 
@@ -37,6 +38,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }>("/api/auth/me");
       setUser(data.user);
       setTenant(data.tenant);
+      registerStaffPush(api).catch(() => {});
     } catch {
       await storage.clearToken();
       api.setToken(null);

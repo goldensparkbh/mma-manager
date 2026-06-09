@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { LinearGradient } from "expo-linear-gradient";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -11,20 +12,28 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/lib/auth";
+import { PrimaryButton } from "@/lib/components";
+import { colors, radius, spacing, withAlpha } from "@/lib/theme";
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { clubName, login, requestOtp, loginWithOtp } = useAuth();
+  const { clubName, login, requestOtp, loginWithOtp, portalInfo, loading, member, slug } = useAuth();
+  const accent = portalInfo?.primaryColor || colors.primary;
+
   const [mode, setMode] = useState<"otp" | "password">("otp");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [otpSent, setOtpSent] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    if (!loading && member) router.replace("/(tabs)");
+  }, [loading, member, router]);
+
   const run = async (fn: () => Promise<void>) => {
-    setLoading(true);
+    setSubmitting(true);
     setError("");
     try {
       await fn();
@@ -32,119 +41,94 @@ export default function LoginScreen() {
     } catch (e) {
       setError((e as Error).message);
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <Text style={styles.title}>{clubName || "Member login"}</Text>
-      <View style={styles.tabs}>
-        <Pressable onPress={() => setMode("otp")} style={[styles.tab, mode === "otp" && styles.tabActive]}>
-          <Text style={mode === "otp" ? styles.tabTextActive : styles.tabText}>OTP</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => setMode("password")}
-          style={[styles.tab, mode === "password" && styles.tabActive]}
-        >
-          <Text style={mode === "password" ? styles.tabTextActive : styles.tabText}>Password</Text>
+    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <LinearGradient colors={[accent, withAlpha(accent, 0.9)]} style={styles.hero}>
+        <Text style={styles.heroTitle}>{clubName || "Member login"}</Text>
+        <Text style={styles.heroSub}>Sign in to book classes and check in</Text>
+      </LinearGradient>
+
+      <View style={styles.card}>
+        <View style={styles.tabs}>
+          {(["otp", "password"] as const).map((m) => (
+            <Pressable key={m} onPress={() => setMode(m)} style={[styles.tab, mode === m && { backgroundColor: accent }]}>
+              <Text style={[styles.tabText, mode === m && styles.tabTextActive]}>{m === "otp" ? "OTP" : "Password"}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        <TextInput style={styles.input} placeholder="Phone" keyboardType="phone-pad" value={phone} onChangeText={setPhone} placeholderTextColor={colors.textMuted} />
+
+        {mode === "password" ? (
+          <>
+            <TextInput style={styles.input} placeholder="Password" secureTextEntry value={password} onChangeText={setPassword} placeholderTextColor={colors.textMuted} />
+            <PrimaryButton label="Sign in" loading={submitting} disabled={!phone || !password} onPress={() => run(() => login(phone, password))} />
+          </>
+        ) : !otpSent ? (
+          <PrimaryButton
+            label="Send code"
+            loading={submitting}
+            disabled={!phone}
+            onPress={async () => {
+              setSubmitting(true);
+              setError("");
+              try {
+                await requestOtp(phone);
+                setOtpSent(true);
+              } catch (e) {
+                setError((e as Error).message);
+              } finally {
+                setSubmitting(false);
+              }
+            }}
+          />
+        ) : (
+          <>
+            <TextInput style={styles.input} placeholder="6-digit code" keyboardType="number-pad" maxLength={6} value={code} onChangeText={setCode} placeholderTextColor={colors.textMuted} />
+            <PrimaryButton label="Verify" loading={submitting} disabled={code.length < 6} onPress={() => run(() => loginWithOtp(phone, code))} />
+          </>
+        )}
+
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+        <Pressable onPress={() => router.back()}>
+          <Text style={[styles.link, { color: accent }]}>Change club ({slug || "…"})</Text>
         </Pressable>
       </View>
-
-      <TextInput
-        style={styles.input}
-        placeholder="Phone"
-        keyboardType="phone-pad"
-        value={phone}
-        onChangeText={setPhone}
-      />
-
-      {mode === "password" ? (
-        <>
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-          />
-          <Pressable
-            style={styles.button}
-            disabled={loading || !phone || !password}
-            onPress={() => run(() => login(phone, password))}
-          >
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign in</Text>}
-          </Pressable>
-        </>
-      ) : !otpSent ? (
-        <Pressable
-          style={styles.button}
-          disabled={loading || !phone}
-          onPress={() =>
-            run(async () => {
-              await requestOtp(phone);
-              setOtpSent(true);
-            })
-          }
-        >
-          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Send code</Text>}
-        </Pressable>
-      ) : (
-        <>
-          <TextInput
-            style={styles.input}
-            placeholder="6-digit code"
-            keyboardType="number-pad"
-            maxLength={6}
-            value={code}
-            onChangeText={setCode}
-          />
-          <Pressable
-            style={styles.button}
-            disabled={loading || code.length < 6}
-            onPress={() => run(() => loginWithOtp(phone, code))}
-          >
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Verify</Text>}
-          </Pressable>
-        </>
-      )}
-
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      <Pressable onPress={() => router.back()}>
-        <Text style={styles.link}>Change club</Text>
-      </Pressable>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, justifyContent: "center", backgroundColor: "#f8fafc" },
-  title: { fontSize: 22, fontWeight: "700", textAlign: "center", marginBottom: 20, color: "#0f172a" },
-  tabs: { flexDirection: "row", marginBottom: 16, backgroundColor: "#e2e8f0", borderRadius: 10, padding: 4 },
-  tab: { flex: 1, padding: 10, borderRadius: 8, alignItems: "center" },
-  tabActive: { backgroundColor: "#fff" },
-  tabText: { color: "#64748b" },
-  tabTextActive: { color: "#0f172a", fontWeight: "600" },
+  root: { flex: 1, backgroundColor: colors.bg },
+  hero: { paddingTop: 72, paddingBottom: 36, paddingHorizontal: spacing.lg },
+  heroTitle: { fontSize: 28, fontWeight: "800", color: "#fff" },
+  heroSub: { fontSize: 15, color: "rgba(255,255,255,0.85)", marginTop: 8 },
+  card: {
+    flex: 1,
+    marginTop: -20,
+    backgroundColor: colors.card,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    padding: spacing.lg,
+    gap: 12,
+  },
+  tabs: { flexDirection: "row", backgroundColor: colors.bg, borderRadius: radius.md, padding: 4 },
+  tab: { flex: 1, paddingVertical: 10, borderRadius: radius.sm, alignItems: "center" },
+  tabText: { color: colors.textMuted, fontWeight: "600" },
+  tabTextActive: { color: "#fff" },
   input: {
-    backgroundColor: "#fff",
     borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderRadius: 12,
+    borderColor: colors.border,
+    borderRadius: radius.md,
     padding: 14,
     fontSize: 16,
-    marginBottom: 12,
+    color: colors.text,
+    backgroundColor: colors.bg,
   },
-  button: {
-    backgroundColor: "#3b82f6",
-    borderRadius: 12,
-    padding: 16,
-    alignItems: "center",
-    marginTop: 4,
-  },
-  buttonText: { color: "#fff", fontWeight: "600" },
-  error: { color: "#dc2626", textAlign: "center", marginTop: 12 },
-  link: { color: "#3b82f6", textAlign: "center", marginTop: 20 },
+  error: { color: colors.danger, textAlign: "center", fontSize: 14 },
+  link: { textAlign: "center", marginTop: 8, fontWeight: "600" },
 });

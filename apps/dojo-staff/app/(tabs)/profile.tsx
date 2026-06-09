@@ -1,6 +1,8 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
+import { StyleSheet, Text, View } from "react-native";
 import { useAuth } from "@/lib/auth";
+import { Card, PrimaryButton, Screen, StaffHeader } from "@/lib/components";
+import { colors, spacing } from "@/lib/theme";
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -12,41 +14,24 @@ export default function ProfileScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.card}>
-        <Text style={styles.label}>Club</Text>
-        <Text style={styles.value}>{tenant?.name}</Text>
-        <Text style={styles.label}>Account</Text>
-        <Text style={styles.value}>{user?.displayName || user?.email}</Text>
-        <Text style={styles.meta}>{user?.email}</Text>
-        <Text style={styles.meta}>Role: {user?.role}</Text>
-      </View>
-
-      <Pressable style={styles.logout} onPress={onLogout}>
-        <Text style={styles.logoutText}>Sign out</Text>
-      </Pressable>
-    </View>
+    <Screen scroll>
+      <StaffHeader title="Account" tenantName={tenant?.name} />
+      <Card>
+        <Text style={styles.label}>Name</Text>
+        <Text style={styles.value}>{user?.displayName || "—"}</Text>
+        <Text style={styles.label}>Email</Text>
+        <Text style={styles.value}>{user?.email}</Text>
+        <Text style={styles.label}>Role</Text>
+        <Text style={styles.value}>{user?.role}</Text>
+      </Card>
+      <PrimaryButton label="Sign out" variant="danger" onPress={onLogout} />
+      <Text style={styles.version}>Dojo Staff</Text>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: "#0f172a" },
-  card: {
-    backgroundColor: "#1e293b",
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#334155",
-  },
-  label: { fontSize: 12, color: "#64748b", marginTop: 12 },
-  value: { fontSize: 18, fontWeight: "600", color: "#fff", marginTop: 2 },
-  meta: { fontSize: 14, color: "#94a3b8", marginTop: 6 },
-  logout: {
-    marginTop: 32,
-    backgroundColor: "#7f1d1d",
-    padding: 14,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  logoutText: { color: "#fecaca", fontWeight: "600" },
+  label: { fontSize: 12, color: colors.textMuted, marginTop: 12, fontWeight: "600", textTransform: "uppercase" },
+  value: { fontSize: 17, fontWeight: "600", color: colors.text, marginTop: 2 },
+  version: { textAlign: "center", color: colors.textMuted, fontSize: 12, marginTop: spacing.lg },
 });

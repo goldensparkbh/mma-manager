@@ -9,7 +9,7 @@ export default function IndexScreen() {
 
   useEffect(() => {
     if (loading) return;
-    router.replace(user ? "/(tabs)/scan" : "/login");
+    router.replace(user ? "/(tabs)" : "/login");
   }, [loading, user, router]);
 
   return (

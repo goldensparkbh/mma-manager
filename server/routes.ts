@@ -359,6 +359,26 @@ router.get("/api/portal/me", requireMemberAccount, async (req, res) => {
   res.json(profile);
 });
 
+router.post("/api/portal/push-token", requireMemberAccount, async (req, res) => {
+  try {
+    const auth = getAuth(req);
+    const { token, platform } = req.body;
+    if (!token) return res.status(400).json({ error: "Push token required" });
+    const { registerPushToken } = await import("./push.js");
+    await registerPushToken({
+      tenantId: auth.tenantId!,
+      accountType: "member",
+      expoPushToken: token,
+      platform,
+      userId: auth.userId || null,
+      memberId: auth.memberId || null,
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
 router.get("/api/portal/qr", requireMemberAccount, async (req, res) => {
   const auth = getAuth(req);
   const { ensureMemberQrToken } = await import("./checkin.js");
@@ -495,6 +515,26 @@ router.post("/api/portal/payments/checkout", requireMemberAccount, async (req, r
       saveCard: req.body.saveCard !== false,
     });
     res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+router.post("/api/push-token", async (req, res) => {
+  try {
+    const auth = getAuth(req);
+    if (!auth.tenantId) return res.status(403).json({ error: "Staff account required" });
+    const { token, platform } = req.body;
+    if (!token) return res.status(400).json({ error: "Push token required" });
+    const { registerPushToken } = await import("./push.js");
+    await registerPushToken({
+      tenantId: auth.tenantId,
+      accountType: "staff",
+      expoPushToken: token,
+      platform,
+      userId: auth.userId || null,
+    });
+    res.json({ ok: true });
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
   }

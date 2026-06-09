@@ -19,6 +19,22 @@ Mobile apps call the same backend as the web app. Set the base URL before starti
 
 By default both apps point at the production API (`apps/dojo-member/.env` and `apps/dojo-staff/.env`).
 
+## Branding (single app, per-club look)
+
+Members enter their club code once. The app then uses that club's **logo**, **primary color**, and **welcome message** from portal settings — buttons, tabs, headers, and illustrations all follow the club accent.
+
+## Push notifications
+
+On login (physical device), the app registers an Expo push token with the server. Class reminders and member notifications are sent as push + email/SMS.
+
+Run DB migration after pulling:
+
+```bash
+npm run db:migrate
+```
+
+For production push delivery, configure [EAS Build](https://docs.expo.dev/push-notifications/overview/) with your Expo project ID and add `EXPO_PUBLIC_EAS_PROJECT_ID` to each app's `.env`.
+
 To use a **local** API instead:
 
 ```bash
@@ -44,10 +60,11 @@ EXPO_PUBLIC_API_URL=http://localhost:3000 npm start
 
 1. Enter your club portal slug (same as `/portal/:slug` on web).
 2. Sign in with OTP or password.
-3. **Classes** — browse and book upcoming sessions.
-4. **Bookings** — view or cancel your bookings.
-5. **Camps** — register for public events.
-6. **Profile** — membership QR for club check-in, family member switch.
+3. **Home** — membership status, next class, events, quick QR.
+4. **Classes** — search, book, waitlist (grouped by day).
+5. **Bookings** — upcoming & past, cancel with confirmation.
+6. **Pay** — buy packages via TAP, payment history.
+7. **Profile** — fullscreen check-in QR, family switch, sign out.
 
 ## Staff app
 
@@ -58,9 +75,11 @@ EXPO_PUBLIC_API_URL=http://localhost:3000 npm start
 ```
 
 1. Sign in with staff email/password (same as web dashboard).
-2. **Scan** — camera QR scanner for member check-in (requires `publicSlug` in booking settings).
-3. **Schedule** — upcoming classes (coach role sees only assigned sessions).
-4. **Profile** — account info and sign out.
+2. **Today** — check-in count, today's classes, recent arrivals.
+3. **Scan** — fast QR scanner with haptic feedback.
+4. **Schedule** — 7-day class list with capacity.
+5. **Members** — search and manual check-in.
+6. **Profile** — account info and sign out.
 
 Platform admin accounts must use the web dashboard.
 

@@ -1,43 +1,41 @@
+import * as Haptics from "expo-haptics";
 import { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import * as Haptics from "expo-haptics";
 import { useFocusEffect } from "expo-router";
+import { Card, PrimaryButton, StaffHeader } from "@/lib/components";
+import { useBookingSettings, useQrCheckIn } from "@/lib/hooks";
+import { useToast } from "@/lib/toast";
 import { useAuth } from "@/lib/auth";
 import { parseQrToken } from "@/lib/qr";
-import type { BookingSettings } from "@/lib/types";
-import { getApiUrl } from "@/lib/config";
+import { colors, spacing } from "@/lib/theme";
+import { useQueryClient } from "@tanstack/react-query";
 
 type ScanState = "ready" | "loading" | "ok" | "error";
 
 export default function ScanScreen() {
-  const { api } = useAuth();
+  const { tenant } = useAuth();
+  const { show } = useToast();
+  const qc = useQueryClient();
   const [permission, requestPermission] = useCameraPermissions();
-  const [slug, setSlug] = useState("");
+  const { data: settings } = useBookingSettings();
+  const slug = settings?.publicSlug || tenant?.slug || "";
+  const checkIn = useQrCheckIn(slug);
+
   const [status, setStatus] = useState<ScanState>("ready");
   const [message, setMessage] = useState("");
   const [memberName, setMemberName] = useState("");
   const [scanning, setScanning] = useState(true);
   const busy = useRef(false);
 
-  const loadSlug = useCallback(async () => {
-    try {
-      const settings = await api.get<BookingSettings>("/api/booking-settings");
-      setSlug(settings.publicSlug || "");
-    } catch {
-      setSlug("");
-    }
-  }, [api]);
-
   useFocusEffect(
     useCallback(() => {
-      loadSlug();
       setScanning(true);
       setStatus("ready");
       setMessage("");
       setMemberName("");
       busy.current = false;
-    }, [loadSlug]),
+    }, []),
   );
 
   const handleScan = async (data: string) => {
@@ -45,19 +43,13 @@ export default function ScanScreen() {
     busy.current = true;
     setScanning(false);
     setStatus("loading");
-    const qrToken = parseQrToken(data);
     try {
-      const res = await fetch(`${getApiUrl()}/api/public/${slug}/checkin`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ qrToken }),
-      });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error || "Check-in failed");
+      const result = await checkIn.mutateAsync(parseQrToken(data));
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setMemberName((body.member as { name?: string })?.name || "");
-      setMessage(body.alreadyCheckedIn ? "Already checked in" : "Check-in successful");
+      setMemberName(result.member?.name || "");
+      setMessage(result.alreadyCheckedIn ? "Already checked in" : "Check-in successful");
       setStatus("ok");
+      qc.invalidateQueries({ queryKey: ["staff", "attendance"] });
     } catch (e) {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setMessage((e as Error).message);
@@ -69,13 +61,13 @@ export default function ScanScreen() {
       setMemberName("");
       setScanning(true);
       busy.current = false;
-    }, 2500);
+    }, 2800);
   };
 
   if (!permission) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator color="#3b82f6" />
+        <ActivityIndicator color={colors.primary} />
       </View>
     );
   }
@@ -83,10 +75,8 @@ export default function ScanScreen() {
   if (!permission.granted) {
     return (
       <View style={styles.center}>
-        <Text style={styles.hint}>Camera access is required to scan member QR codes.</Text>
-        <Pressable style={styles.button} onPress={requestPermission}>
-          <Text style={styles.buttonText}>Allow camera</Text>
-        </Pressable>
+        <StaffHeader title="QR Scanner" subtitle="Camera permission required" tenantName={tenant?.name} />
+        <PrimaryButton label="Allow camera" onPress={requestPermission} />
       </View>
     );
   }
@@ -94,70 +84,49 @@ export default function ScanScreen() {
   if (!slug) {
     return (
       <View style={styles.center}>
-        <Text style={styles.hint}>Set a public check-in slug in booking settings on the web dashboard.</Text>
-        <Pressable style={styles.buttonOutline} onPress={loadSlug}>
-          <Text style={styles.buttonOutlineText}>Retry</Text>
-        </Pressable>
+        <StaffHeader title="QR Scanner" subtitle="Set public slug in booking settings" tenantName={tenant?.name} />
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      {scanning && status === "ready" ? (
-        <CameraView
-          style={styles.camera}
-          facing="back"
-          barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-          onBarcodeScanned={({ data }) => handleScan(data)}
-        />
-      ) : (
-        <View style={[styles.camera, styles.overlay]}>
-          {status === "loading" ? <ActivityIndicator size="large" color="#3b82f6" /> : null}
-          {status === "ok" ? <Text style={styles.ok}>✓</Text> : null}
-          {status === "error" ? <Text style={styles.err}>✕</Text> : null}
-        </View>
-      )}
-
-      <View style={styles.footer}>
-        {memberName ? <Text style={styles.name}>{memberName}</Text> : null}
-        {message ? (
-          <Text style={status === "error" ? styles.errText : styles.msg}>{message}</Text>
+    <View style={styles.root}>
+      <StaffHeader title="Scan member QR" subtitle="Point at membership code" tenantName={tenant?.name} />
+      <View style={styles.cameraWrap}>
+        {scanning && status === "ready" ? (
+          <CameraView
+            style={styles.camera}
+            facing="back"
+            barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+            onBarcodeScanned={({ data }) => handleScan(data)}
+          />
         ) : (
-          <Text style={styles.hint}>Point camera at member QR code</Text>
+          <View style={[styles.camera, styles.overlay]}>
+            {status === "loading" ? <ActivityIndicator size="large" color={colors.primary} /> : null}
+            {status === "ok" ? <Text style={styles.iconOk}>✓</Text> : null}
+            {status === "error" ? <Text style={styles.iconErr}>✕</Text> : null}
+          </View>
         )}
       </View>
+      <Card style={styles.footer}>
+        {memberName ? <Text style={styles.name}>{memberName}</Text> : null}
+        <Text style={[styles.msg, status === "error" && { color: colors.danger }]}>
+          {message || "Ready to scan"}
+        </Text>
+      </Card>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0f172a" },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, backgroundColor: "#0f172a" },
+  root: { flex: 1, backgroundColor: colors.bg, padding: spacing.md },
+  center: { flex: 1, backgroundColor: colors.bg, padding: spacing.md, justifyContent: "center" },
+  cameraWrap: { flex: 1, borderRadius: 16, overflow: "hidden", marginBottom: spacing.md },
   camera: { flex: 1 },
-  overlay: { alignItems: "center", justifyContent: "center", backgroundColor: "#1e293b" },
-  footer: { padding: 20, alignItems: "center" },
-  hint: { color: "#94a3b8", textAlign: "center", fontSize: 14 },
-  msg: { color: "#4ade80", fontSize: 16, fontWeight: "600" },
-  errText: { color: "#f87171", fontSize: 16, fontWeight: "600" },
-  name: { color: "#fff", fontSize: 20, fontWeight: "700", marginBottom: 4 },
-  ok: { fontSize: 64, color: "#4ade80" },
-  err: { fontSize: 64, color: "#f87171" },
-  button: {
-    marginTop: 16,
-    backgroundColor: "#3b82f6",
-    borderRadius: 12,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-  },
-  buttonText: { color: "#fff", fontWeight: "600" },
-  buttonOutline: {
-    marginTop: 16,
-    borderWidth: 1,
-    borderColor: "#334155",
-    borderRadius: 12,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-  },
-  buttonOutlineText: { color: "#94a3b8", fontWeight: "600" },
+  overlay: { alignItems: "center", justifyContent: "center", backgroundColor: colors.card },
+  footer: { alignItems: "center" },
+  name: { fontSize: 20, fontWeight: "800", color: colors.text, marginBottom: 4 },
+  msg: { fontSize: 15, color: colors.success, fontWeight: "600" },
+  iconOk: { fontSize: 72, color: colors.success },
+  iconErr: { fontSize: 72, color: colors.danger },
 });

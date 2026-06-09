@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { createApi } from "./api";
+import { registerMemberPush } from "./push";
 import * as storage from "./storage";
 import type { Member, PortalInfo, Subscription } from "./types";
 
@@ -49,6 +50,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await api.get<{ member: Member; activeSubscription: Subscription | null }>("/api/portal/me");
       setMember(data.member);
       setActiveSubscription(data.activeSubscription);
+      registerMemberPush(api).catch(() => {});
     } catch {
       await storage.clearToken();
       api.setToken(null);

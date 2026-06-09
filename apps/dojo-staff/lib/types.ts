@@ -26,3 +26,18 @@ export type ClassSession = {
 export type BookingSettings = {
   publicSlug?: string;
 };
+
+export type AttendanceRecord = {
+  id: string;
+  memberId: string;
+  memberName: string;
+  date: string;
+  checkIn?: string | null;
+};
+
+export type Member = {
+  id: string;
+  name: string;
+  phone?: string;
+  status?: string;
+};
