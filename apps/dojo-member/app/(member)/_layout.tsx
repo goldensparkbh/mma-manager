@@ -1,10 +1,22 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Tabs } from "expo-router";
+import { Redirect, Tabs } from "expo-router";
+import { ActivityIndicator, View } from "react-native";
+import { useAuth } from "@/lib/auth";
 import { useBranding } from "@/lib/branding";
 import { colors } from "@/lib/theme";
 
 export default function TabsLayout() {
+  const { loading, member, slug } = useAuth();
   const { accent } = useBranding();
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg }}>
+        <ActivityIndicator size="large" color={accent} />
+      </View>
+    );
+  }
+  if (!member || !slug) return <Redirect href="/(discover)" />;
 
   return (
     <Tabs

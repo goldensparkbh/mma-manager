@@ -15,7 +15,7 @@ import { colors, spacing } from "@/lib/theme";
 export default function ProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { member, activeSubscription, clubName, logout, api, portalInfo, refresh } = useAuth();
+  const { member, activeSubscription, clubName, logout, leaveClub, api, portalInfo, refresh } = useAuth();
   const { accent } = useBranding();
   const [qrOpen, setQrOpen] = useState(false);
 
@@ -33,7 +33,12 @@ export default function ProfileScreen() {
 
   const onLogout = async () => {
     await logout();
-    router.replace("/login");
+    router.replace("/(discover)/account");
+  };
+
+  const onSwitchClub = async () => {
+    await leaveClub();
+    router.replace("/(discover)/clubs");
   };
 
   return (
@@ -73,6 +78,8 @@ export default function ProfileScreen() {
           </>
         ) : null}
 
+        <PrimaryButton label="Browse all clubs" variant="outline" icon="compass" onPress={() => router.push("/(discover)")} />
+        <PrimaryButton label="Switch club" variant="outline" onPress={onSwitchClub} />
         <PrimaryButton label="Sign out" variant="danger" onPress={onLogout} />
         <Text style={styles.version}>Dojo Member</Text>
       </Screen>

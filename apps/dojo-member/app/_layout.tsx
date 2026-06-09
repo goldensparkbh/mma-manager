@@ -10,14 +10,16 @@ export default function RootLayout() {
     <AppQueryProvider>
       <AuthProvider>
         <BrandingProvider>
-        <ToastProvider>
-          <StatusBar style="dark" />
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="index" />
-            <Stack.Screen name="login" />
-            <Stack.Screen name="(tabs)" />
-          </Stack>
-        </ToastProvider>
+          <ToastProvider>
+            <StatusBar style="dark" />
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="index" />
+              <Stack.Screen name="(discover)" />
+              <Stack.Screen name="(member)" />
+              <Stack.Screen name="club/[slug]" options={{ presentation: "card" }} />
+              <Stack.Screen name="login" options={{ presentation: "modal" }} />
+            </Stack>
+          </ToastProvider>
         </BrandingProvider>
       </AuthProvider>
     </AppQueryProvider>

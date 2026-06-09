@@ -45,6 +45,24 @@ export function PaymentsIllustration({ size = 160 }: Props) {
   );
 }
 
+export function DiscoverIllustration({ size = 200 }: Props) {
+  return (
+    <Svg width={size} height={size * 0.55} viewBox="0 0 220 120">
+      <Rect x="10" y="15" width="60" height="90" rx="14" fill="#1e293b" />
+      <Rect x="22" y="30" width="36" height="8" rx="4" fill="#3b82f6" />
+      <Rect x="22" y="46" width="28" height="6" rx="3" fill="#64748b" />
+      <Rect x="22" y="58" width="32" height="6" rx="3" fill="#94a3b8" />
+      <Rect x="80" y="25" width="60" height="80" rx="14" fill="#0f172a" />
+      <Rect x="92" y="40" width="36" height="8" rx="4" fill="#22c55e" />
+      <Rect x="92" y="56" width="28" height="6" rx="3" fill="#64748b" />
+      <Rect x="150" y="10" width="60" height="95" rx="14" fill="#334155" />
+      <Rect x="162" y="26" width="36" height="8" rx="4" fill="#f59e0b" />
+      <Rect x="162" y="42" width="30" height="6" rx="3" fill="#64748b" />
+      <Circle cx="185" cy="88" r="10" fill="#3b82f6" opacity={0.5} />
+    </Svg>
+  );
+}
+
 export function QrIllustration({ size = 180 }: Props) {
   const { accent } = useBranding();
   return (

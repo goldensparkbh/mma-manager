@@ -1,0 +1,159 @@
+import { useQuery } from "@tanstack/react-query";
+import { addDays } from "date-fns";
+import { createApi } from "./api";
+
+const publicApi = createApi();
+
+export type DiscoverClub = {
+  id: string;
+  name: string;
+  slug: string;
+  portalSlug: string;
+  clubType: string;
+  location?: string | null;
+  phone?: string | null;
+  logoUrl?: string | null;
+  primaryColor?: string | null;
+  welcomeMessage?: string | null;
+  upcomingClassCount: number;
+  nextClassAt?: string | null;
+};
+
+export type ClubProfile = DiscoverClub & {
+  memberCount: number;
+  portalEnabled: boolean;
+  socials?: Record<string, string>;
+};
+
+export type DiscoverClass = {
+  id: string;
+  name: string;
+  startsAt: string;
+  endsAt?: string;
+  capacity: number;
+  bookedCount?: number;
+  coachName?: string | null;
+  location?: string | null;
+  clubName: string;
+  clubSlug: string;
+  clubType: string;
+  logoUrl?: string | null;
+  primaryColor?: string | null;
+};
+
+export type ClubTypeOption = {
+  id: string;
+  nameEn: string;
+  nameAr: string;
+  category: string;
+};
+
+export function useClubTypes() {
+  return useQuery<ClubTypeOption[]>({
+    queryKey: ["club-types"],
+    queryFn: () => publicApi.get("/api/club-types"),
+    staleTime: 60 * 60_000,
+  });
+}
+
+export function useDiscoverClubs(q?: string, clubType?: string) {
+  const params = new URLSearchParams();
+  if (q?.trim()) params.set("q", q.trim());
+  if (clubType) params.set("clubType", clubType);
+  params.set("limit", "100");
+  const qs = params.toString();
+  return useQuery<{ clubs: DiscoverClub[]; total: number }>({
+    queryKey: ["discover", "clubs", q, clubType],
+    queryFn: () => publicApi.get(`/api/clubs?${qs}`),
+    staleTime: 30_000,
+  });
+}
+
+export function useClubProfile(slug: string) {
+  return useQuery<ClubProfile>({
+    queryKey: ["discover", "club", slug],
+    queryFn: () => publicApi.get(`/api/clubs/${slug}`),
+    enabled: !!slug,
+  });
+}
+
+export function useDiscoverSchedule(opts?: { q?: string; clubType?: string; clubSlug?: string }) {
+  const from = new Date().toISOString();
+  const to = addDays(new Date(), 14).toISOString();
+  const params = new URLSearchParams({ from, to, limit: "100" });
+  if (opts?.q?.trim()) params.set("q", opts.q.trim());
+  if (opts?.clubType) params.set("clubType", opts.clubType);
+  if (opts?.clubSlug) params.set("clubSlug", opts.clubSlug);
+  return useQuery<DiscoverClass[]>({
+    queryKey: ["discover", "schedule", opts?.q, opts?.clubType, opts?.clubSlug],
+    queryFn: () => publicApi.get(`/api/discover/schedule?${params}`),
+    staleTime: 30_000,
+  });
+}
+
+export function usePublicClubInfo(slug: string) {
+  return useQuery({
+    queryKey: ["public", "club", slug, "info"],
+    queryFn: () =>
+      publicApi.get<{
+        name: string;
+        slug: string;
+        logoUrl?: string;
+        primaryColor?: string;
+        welcomeMessage?: string;
+        portalEnabled?: boolean;
+      }>(`/api/portal/${slug}/info`),
+    enabled: !!slug,
+  });
+}
+
+export function usePublicSchedule(slug: string) {
+  const from = new Date().toISOString();
+  const to = addDays(new Date(), 14).toISOString();
+  return useQuery({
+    queryKey: ["public", "club", slug, "schedule", from],
+    queryFn: () =>
+      publicApi.get<Array<{
+        id: string;
+        name: string;
+        startsAt: string;
+        capacity: number;
+        bookedCount?: number;
+        coachName?: string | null;
+        location?: string | null;
+      }>>(`/api/public/${slug}/schedule?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+    enabled: !!slug,
+  });
+}
+
+export function usePublicPackages(slug: string) {
+  return useQuery({
+    queryKey: ["public", "club", slug, "packages"],
+    queryFn: () =>
+      publicApi.get<Array<{
+        id: string;
+        name: string;
+        duration: number;
+        price: number;
+        packageType?: string;
+        sessionCount?: number | null;
+      }>>(`/api/public/${slug}/packages`),
+    enabled: !!slug,
+  });
+}
+
+export function usePublicCamps(slug: string) {
+  return useQuery({
+    queryKey: ["public", "club", slug, "camps"],
+    queryFn: () =>
+      publicApi.get<Array<{
+        id: string;
+        title: string;
+        startDate: string;
+        price?: number;
+        capacity?: number;
+        description?: string;
+      }>>(`/api/public/${slug}/camps`),
+    enabled: !!slug,
+  });
+}

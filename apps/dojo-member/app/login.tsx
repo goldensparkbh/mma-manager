@@ -29,7 +29,7 @@ export default function LoginScreen() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!loading && member) router.replace("/(tabs)");
+    if (!loading && member) router.replace("/(member)");
   }, [loading, member, router]);
 
   const run = async (fn: () => Promise<void>) => {
@@ -37,7 +37,7 @@ export default function LoginScreen() {
     setError("");
     try {
       await fn();
-      router.replace("/(tabs)");
+      router.replace("/(member)");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -94,8 +94,8 @@ export default function LoginScreen() {
         )}
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
-        <Pressable onPress={() => router.back()}>
-          <Text style={[styles.link, { color: accent }]}>Change club ({slug || "…"})</Text>
+        <Pressable onPress={() => router.replace("/(discover)/clubs")}>
+          <Text style={[styles.link, { color: accent }]}>Browse other clubs</Text>
         </Pressable>
       </View>
     </KeyboardAvoidingView>

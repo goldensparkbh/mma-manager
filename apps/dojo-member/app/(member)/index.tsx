@@ -66,13 +66,16 @@ export default function HomeScreen() {
         memberName={member?.name}
         subtitle={portalInfo?.welcomeMessage || "Welcome back"}
       />
+      <Pressable onPress={() => router.push("/(discover)/clubs")} style={styles.browseLink}>
+        <Text style={[styles.browseText, { color: accent }]}>Explore other clubs on Dojo →</Text>
+      </Pressable>
 
       <FadeInView delay={0}>
         <View style={styles.quickRow}>
-          <QuickAction icon="calendar" label="Classes" onPress={() => router.push("/(tabs)/classes")} accent={accent} />
-          <QuickAction icon="qr-code" label="Check-in" onPress={() => router.push("/(tabs)/profile")} accent={accent} />
-          <QuickAction icon="card" label="Pay" onPress={() => router.push("/(tabs)/payments")} accent={accent} />
-          <QuickAction icon="bookmark" label="Bookings" onPress={() => router.push("/(tabs)/bookings")} accent={accent} />
+          <QuickAction icon="calendar" label="Classes" onPress={() => router.push("/(member)/classes")} accent={accent} />
+          <QuickAction icon="qr-code" label="Check-in" onPress={() => router.push("/(member)/profile")} accent={accent} />
+          <QuickAction icon="card" label="Pay" onPress={() => router.push("/(member)/payments")} accent={accent} />
+          <QuickAction icon="bookmark" label="Bookings" onPress={() => router.push("/(member)/bookings")} accent={accent} />
         </View>
       </FadeInView>
 
@@ -96,7 +99,7 @@ export default function HomeScreen() {
                 subtitle="Renew to book classes and check in"
                 illustration={<ClassesIllustration size={140} />}
               />
-              <PrimaryButton label="View packages" icon="card" onPress={() => router.push("/(tabs)/payments")} />
+              <PrimaryButton label="View packages" icon="card" onPress={() => router.push("/(member)/payments")} />
             </>
           )}
         </Card>
@@ -121,7 +124,7 @@ export default function HomeScreen() {
       </FadeInView>
 
       <FadeInView delay={180}>
-        <Pressable style={[styles.qrCta, { backgroundColor: accent }]} onPress={() => router.push("/(tabs)/profile")}>
+        <Pressable style={[styles.qrCta, { backgroundColor: accent }]} onPress={() => router.push("/(member)/profile")}>
           <Text style={styles.qrTitle}>📱  Check-in QR</Text>
           <Text style={styles.qrSub}>Tap to open fullscreen code at the door</Text>
         </Pressable>
@@ -148,6 +151,8 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  browseLink: { marginBottom: spacing.sm },
+  browseText: { fontSize: 13, fontWeight: "700", textAlign: "center" },
   quickRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm },
   membershipCard: { borderWidth: 1.5, gap: spacing.sm },
   gap: { gap: spacing.sm },

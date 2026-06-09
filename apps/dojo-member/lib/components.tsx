@@ -232,6 +232,139 @@ export function EmptyState({ title, subtitle }: { title: string; subtitle?: stri
   );
 }
 
+export function ClubCard({
+  name,
+  clubType,
+  location,
+  logoUrl,
+  accent,
+  typeIcon,
+  typeColor,
+  typeColorSoft,
+  upcomingCount,
+  nextClassAt,
+  onPress,
+  compact,
+}: {
+  name: string;
+  clubType: string;
+  location?: string | null;
+  logoUrl?: string | null;
+  accent: string;
+  typeIcon: IonName;
+  typeColor: string;
+  typeColorSoft: string;
+  upcomingCount?: number;
+  nextClassAt?: string | null;
+  onPress: () => void;
+  compact?: boolean;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.clubCard, compact && styles.clubCardCompact, pressed && { opacity: 0.92 }]}
+    >
+      <View style={[styles.clubCardAccent, { backgroundColor: accent }]} />
+      <View style={styles.clubCardBody}>
+        {logoUrl ? (
+          <Image source={{ uri: logoUrl }} style={styles.clubCardLogo} contentFit="contain" />
+        ) : (
+          <View style={[styles.clubCardTypeIcon, { backgroundColor: typeColorSoft }]}>
+            <Ionicons name={typeIcon} size={compact ? 20 : 24} color={typeColor} />
+          </View>
+        )}
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.clubCardName, compact && { fontSize: 15 }]} numberOfLines={1}>
+            {name}
+          </Text>
+          <Text style={styles.clubCardMeta} numberOfLines={1}>
+            {clubType.replace(/_/g, " ")}
+            {location ? ` · ${location}` : ""}
+          </Text>
+          {!compact && upcomingCount != null ? (
+            <Text style={[styles.clubCardStat, { color: accent }]}>
+              {upcomingCount > 0
+                ? `${upcomingCount} upcoming class${upcomingCount === 1 ? "" : "es"}`
+                : "View schedule"}
+            </Text>
+          ) : null}
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+      </View>
+    </Pressable>
+  );
+}
+
+export function CategoryChip({
+  label,
+  active,
+  color,
+  onPress,
+}: {
+  label: string;
+  active?: boolean;
+  color?: string;
+  onPress: () => void;
+}) {
+  const bg = active ? color || colors.primary : "#f1f5f9";
+  const fg = active ? "#fff" : colors.text;
+  return (
+    <Pressable onPress={onPress} style={[styles.chip, { backgroundColor: bg }]}>
+      <Text style={[styles.chipText, { color: fg }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+export function DiscoverHero({ title, subtitle }: { title: string; subtitle?: string }) {
+  return (
+    <LinearGradient colors={["#0f172a", "#1e3a5f"]} style={styles.discoverHero}>
+      <Text style={styles.discoverBrand}>Dojo</Text>
+      <Text style={styles.discoverTitle}>{title}</Text>
+      {subtitle ? <Text style={styles.discoverSub}>{subtitle}</Text> : null}
+    </LinearGradient>
+  );
+}
+
+export function ClassRowCard({
+  name,
+  clubName,
+  time,
+  coach,
+  spots,
+  accent,
+  onPress,
+}: {
+  name: string;
+  clubName: string;
+  time: string;
+  coach?: string | null;
+  spots?: string;
+  accent: string;
+  onPress?: () => void;
+}) {
+  const inner = (
+    <View style={styles.classRow}>
+      <View style={[styles.classRowBar, { backgroundColor: accent }]} />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.classRowName}>{name}</Text>
+        <Text style={styles.classRowClub}>{clubName}</Text>
+        <Text style={styles.classRowMeta}>
+          {time}
+          {coach ? ` · ${coach}` : ""}
+          {spots ? ` · ${spots}` : ""}
+        </Text>
+      </View>
+      {onPress ? <Ionicons name="chevron-forward" size={18} color={colors.textMuted} /> : null}
+    </View>
+  );
+  if (!onPress) return <Card style={{ padding: 0, overflow: "hidden" }}>{inner}</Card>;
+  return (
+    <Pressable onPress={onPress} style={({ pressed }) => [pressed && { opacity: 0.9 }]}>
+      <Card style={{ padding: 0, overflow: "hidden" }}>{inner}</Card>
+    </Pressable>
+  );
+}
+
 export function SearchInput({ value, onChangeText, placeholder }: { value: string; onChangeText: (v: string) => void; placeholder: string }) {
   return (
     <TextInput
@@ -310,4 +443,31 @@ const styles = StyleSheet.create({
   iconCircle: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   iconLabel: { fontSize: 12, color: colors.textMuted, fontWeight: "600" },
   iconValue: { fontSize: 15, fontWeight: "700", color: colors.text, marginTop: 1 },
+  clubCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: "hidden",
+    marginBottom: spacing.sm,
+  },
+  clubCardCompact: { marginBottom: 0 },
+  clubCardAccent: { height: 4 },
+  clubCardBody: { flexDirection: "row", alignItems: "center", gap: 12, padding: spacing.md },
+  clubCardLogo: { width: 48, height: 48, borderRadius: 14, backgroundColor: "#fff" },
+  clubCardTypeIcon: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  clubCardName: { fontSize: 17, fontWeight: "800", color: colors.text },
+  clubCardMeta: { fontSize: 13, color: colors.textMuted, marginTop: 2, textTransform: "capitalize" },
+  clubCardStat: { fontSize: 12, fontWeight: "600", marginTop: 6 },
+  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, marginRight: 8 },
+  chipText: { fontSize: 13, fontWeight: "700" },
+  discoverHero: { paddingTop: 56, paddingBottom: 28, paddingHorizontal: spacing.lg },
+  discoverBrand: { fontSize: 13, fontWeight: "800", color: "#60a5fa", letterSpacing: 2, textTransform: "uppercase" },
+  discoverTitle: { fontSize: 28, fontWeight: "800", color: "#fff", marginTop: 6 },
+  discoverSub: { fontSize: 15, color: "#94a3b8", marginTop: 8, lineHeight: 22 },
+  classRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: spacing.md },
+  classRowBar: { width: 4, height: 48, borderRadius: 4 },
+  classRowName: { fontSize: 16, fontWeight: "700", color: colors.text },
+  classRowClub: { fontSize: 13, fontWeight: "600", color: colors.primary, marginTop: 2 },
+  classRowMeta: { fontSize: 12, color: colors.textMuted, marginTop: 4 },
 });

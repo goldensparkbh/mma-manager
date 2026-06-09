@@ -16,6 +16,8 @@ type AuthState = {
   requestOtp: (phone: string) => Promise<{ sentVia: string }>;
   loginWithOtp: (phone: string, code: string) => Promise<void>;
   logout: () => Promise<void>;
+  switchClub: (slug: string) => Promise<void>;
+  leaveClub: () => Promise<void>;
   refresh: () => Promise<void>;
   api: ReturnType<typeof createApi>;
 };
@@ -129,6 +131,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setActiveSubscription(null);
   }, [api]);
 
+  const switchClub = useCallback(
+    async (clubSlug: string) => {
+      await storage.clearToken();
+      api.setToken(null);
+      setMember(null);
+      setActiveSubscription(null);
+      await setSlug(clubSlug);
+    },
+    [api, setSlug],
+  );
+
+  const leaveClub = useCallback(async () => {
+    await logout();
+    await storage.clearSlug();
+    setSlugState("");
+    setClubName("");
+    setPortalInfo(null);
+  }, [logout]);
+
   const value = useMemo(
     () => ({
       loading,
@@ -142,6 +163,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       requestOtp,
       loginWithOtp,
       logout,
+      switchClub,
+      leaveClub,
       refresh,
       api,
     }),
@@ -157,6 +180,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       requestOtp,
       loginWithOtp,
       logout,
+      switchClub,
+      leaveClub,
       refresh,
       api,
     ],
