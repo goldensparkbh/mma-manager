@@ -679,6 +679,10 @@ ALTER TABLE tenant_booking_settings ADD COLUMN IF NOT EXISTS refund_window_hours
 ALTER TABLE tenant_booking_settings ADD COLUMN IF NOT EXISTS portal_primary_color VARCHAR(20) DEFAULT '#3b82f6';
 ALTER TABLE tenant_booking_settings ADD COLUMN IF NOT EXISTS portal_welcome_message TEXT;
 
+-- Member app directory listing (browse all clubs in Dojo Member app)
+ALTER TABLE tenant_booking_settings ADD COLUMN IF NOT EXISTS app_directory_enabled BOOLEAN DEFAULT true;
+UPDATE tenant_booking_settings SET app_directory_enabled = true WHERE app_directory_enabled IS NULL;
+
 -- Phase 2: QR check-in
 ALTER TABLE members ADD COLUMN IF NOT EXISTS qr_token VARCHAR(64);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_members_qr_token ON members(qr_token) WHERE qr_token IS NOT NULL;

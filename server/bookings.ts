@@ -16,6 +16,7 @@ export type BookingSettings = {
   portalPrimaryColor: string | null;
   portalWelcomeMessage: string | null;
   publicSlug: string | null;
+  appDirectoryEnabled: boolean;
 };
 
 const DEFAULT_SETTINGS: Omit<BookingSettings, "tenantId" | "publicSlug"> = {
@@ -31,6 +32,7 @@ const DEFAULT_SETTINGS: Omit<BookingSettings, "tenantId" | "publicSlug"> = {
   refundWindowHours: 48,
   portalPrimaryColor: "#3b82f6",
   portalWelcomeMessage: null,
+  appDirectoryEnabled: true,
 };
 
 export async function getBookingSettings(tenantId: string): Promise<BookingSettings> {
@@ -79,6 +81,7 @@ export async function updateBookingSettings(tenantId: string, updates: Record<st
     portalPrimaryColor: "portal_primary_color",
     portalWelcomeMessage: "portal_welcome_message",
     publicSlug: "public_slug",
+    appDirectoryEnabled: "app_directory_enabled",
   };
   await getBookingSettings(tenantId);
   const fields: string[] = ["updated_at = NOW()"];

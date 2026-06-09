@@ -24,6 +24,47 @@ router.get("/api/plans", async (_req, res) => {
   res.json(plans);
 });
 
+// ─── Club discovery (public marketplace) ────────────────────────────────────
+
+router.get("/api/clubs", async (req, res) => {
+  try {
+    const { listDiscoverableClubs } = await import("./discover.js");
+    const q = (req.query.q as string) || undefined;
+    const clubType = (req.query.clubType as string) || undefined;
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+    const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : undefined;
+    res.json(await listDiscoverableClubs({ q, clubType, limit, offset }));
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+router.get("/api/clubs/:slug", async (req, res) => {
+  try {
+    const { getDiscoverClubProfile } = await import("./discover.js");
+    const profile = await getDiscoverClubProfile(req.params.slug);
+    if (!profile) return res.status(404).json({ error: "Club not found" });
+    res.json(profile);
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+router.get("/api/discover/schedule", async (req, res) => {
+  try {
+    const { getDiscoverSchedule } = await import("./discover.js");
+    const q = (req.query.q as string) || undefined;
+    const clubType = (req.query.clubType as string) || undefined;
+    const clubSlug = (req.query.clubSlug as string) || undefined;
+    const from = (req.query.from as string) || undefined;
+    const to = (req.query.to as string) || undefined;
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+    res.json(await getDiscoverSchedule({ q, clubType, clubSlug, from, to, limit }));
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 router.get("/api/club-types", (_req, res) => {
   res.json(getAllClubTypes().map((t) => ({
     id: t.id,

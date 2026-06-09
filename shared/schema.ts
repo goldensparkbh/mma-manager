@@ -328,6 +328,7 @@ export interface BookingSettings {
   portalPrimaryColor?: string | null;
   portalWelcomeMessage?: string | null;
   publicSlug?: string | null;
+  appDirectoryEnabled?: boolean;
 }
 
 export interface MemberPayment {

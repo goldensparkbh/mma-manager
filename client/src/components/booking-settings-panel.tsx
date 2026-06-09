@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Link2 } from "lucide-react";
+import { Loader2, Link2, Smartphone } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -116,7 +116,13 @@ export function BookingSettingsPanel() {
           <div className="flex items-center gap-2">
             <Switch
               checked={form.portalEnabled !== false}
-              onCheckedChange={(v) => setForm({ ...form, portalEnabled: v })}
+              onCheckedChange={(v) =>
+                setForm({
+                  ...form,
+                  portalEnabled: v,
+                  appDirectoryEnabled: v ? form.appDirectoryEnabled !== false : false,
+                })
+              }
             />
             <Label>{t("bookings.portalEnabled")}</Label>
           </div>
@@ -174,6 +180,37 @@ export function BookingSettingsPanel() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/40 p-4 space-y-3">
+            <p className="font-semibold flex items-center gap-2 text-blue-900 dark:text-blue-100">
+              <Smartphone className="h-4 w-4 shrink-0" />
+              {t("portal.appDirectoryTitle")}
+            </p>
+            <div className="flex items-center justify-between gap-3">
+              <Label htmlFor="app-directory" className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                {t("portal.appDirectoryEnabled")}
+              </Label>
+              <Switch
+                id="app-directory"
+                checked={form.appDirectoryEnabled !== false && form.portalEnabled !== false}
+                disabled={form.portalEnabled === false}
+                onCheckedChange={(v) => setForm({ ...form, appDirectoryEnabled: v })}
+              />
+            </div>
+            <p className="text-blue-800/90 dark:text-blue-200/90 text-xs leading-relaxed">
+              {t("portal.appDirectoryHint")}
+            </p>
+            <ul className="text-xs text-blue-800/80 dark:text-blue-200/80 list-disc ps-4 space-y-1">
+              <li>{t("portal.appDirectoryReq1")}</li>
+              <li>{t("portal.appDirectoryReq2")}</li>
+              <li>{t("portal.appDirectoryReq3")}</li>
+            </ul>
+            {form.portalEnabled === false ? (
+              <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
+                {t("portal.appDirectoryPortalOff")}
+              </p>
+            ) : null}
+          </div>
+
           <div className="rounded-lg bg-muted p-3 text-sm break-all font-mono">{portalUrl}</div>
           <p className="text-xs text-muted-foreground">{t("portal.urlHint")}</p>
 
