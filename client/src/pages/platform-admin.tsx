@@ -5,7 +5,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { ThemeProvider } from "@/components/theme-provider";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import {
+  PlatformAdminSidebar,
+  SECTION_META,
+  type PlatformAdminSection,
+} from "@/components/platform-admin-sidebar";
+import { useLanguage } from "@/context/language-context";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -17,7 +26,7 @@ import { apiJson } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
 import type { Tenant, PlatformSubscriptionPlan } from "@shared/schema";
 import {
-  Building2, Users, DollarSign, Shield, LogOut, Loader2, Pencil, RefreshCw,
+  Building2, Users, DollarSign, Shield, Loader2, Pencil, RefreshCw,
   Plus, Trash2, Power,
 } from "lucide-react";
 import { PlatformPaymentsPanel, PlatformSupportPanel, PlatformAdminsPanel, ImpersonateTenantButton } from "@/components/platform-admin-panels";
@@ -103,9 +112,44 @@ function formToPayload(form: PlanForm) {
   };
 }
 
+function StatCard({
+  icon: Icon,
+  value,
+  label,
+  stripe,
+  iconBg,
+  iconColor,
+}: {
+  icon: typeof Building2;
+  value: string | number;
+  label: string;
+  stripe: string;
+  iconBg: string;
+  iconColor: string;
+}) {
+  return (
+    <Card className="overflow-hidden border-0 shadow-sm">
+      <CardContent className="p-0">
+        <div className={`h-1 ${stripe}`} />
+        <div className="flex items-center gap-4 p-5">
+          <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${iconBg}`}>
+            <Icon className={`h-6 w-6 ${iconColor}`} />
+          </div>
+          <div>
+            <p className="text-2xl font-bold tracking-tight">{value}</p>
+            <p className="text-sm text-muted-foreground">{label}</p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function PlatformAdmin() {
-  const { user, signOutUser } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
+  const { t, language } = useLanguage();
+  const [section, setSection] = useState<PlatformAdminSection>("overview");
   const [editTenant, setEditTenant] = useState<Tenant | null>(null);
   const [editForm, setEditForm] = useState({ status: "", planId: "" });
   const [planDialog, setPlanDialog] = useState<{ mode: "create" | "edit"; plan?: PlatformSubscriptionPlan } | null>(null);
@@ -226,85 +270,149 @@ export default function PlatformAdmin() {
     });
   };
 
+  const meta = SECTION_META[section];
+  const style = { "--sidebar-width": "17rem", "--sidebar-width-icon": "4rem" };
+
+  const statsGrid = (
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <StatCard
+        icon={Building2}
+        value={statsLoading ? "—" : (stats?.totalTenants ?? 0)}
+        label={t("platformAdmin.stats.totalTenants")}
+        stripe="bg-primary"
+        iconBg="bg-primary/10"
+        iconColor="text-primary"
+      />
+      <StatCard
+        icon={Users}
+        value={statsLoading ? "—" : (stats?.activeTenants ?? 0)}
+        label={t("platformAdmin.stats.active")}
+        stripe="bg-green-500"
+        iconBg="bg-green-500/10"
+        iconColor="text-green-600"
+      />
+      <StatCard
+        icon={RefreshCw}
+        value={statsLoading ? "—" : (stats?.trialTenants ?? 0)}
+        label={t("platformAdmin.stats.onTrial")}
+        stripe="bg-blue-500"
+        iconBg="bg-blue-500/10"
+        iconColor="text-blue-600"
+      />
+      <StatCard
+        icon={DollarSign}
+        value={statsLoading ? "—" : `$${stats?.mrr?.toFixed(0) ?? 0}`}
+        label={t("platformAdmin.stats.mrr")}
+        stripe="bg-amber-500"
+        iconBg="bg-amber-500/10"
+        iconColor="text-amber-600"
+      />
+    </div>
+  );
+
   return (
-    <div className="min-h-screen bg-muted/20">
-      <header className="border-b bg-card px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Shield className="h-8 w-8 text-primary" />
-          <div>
-            <h1 className="text-xl font-bold">Platform Admin</h1>
-            <p className="text-sm text-muted-foreground">{user?.email}</p>
-          </div>
-        </div>
-        <Button variant="outline" onClick={signOutUser}>
-          <LogOut className="h-4 w-4 mr-2" /> Sign Out
-        </Button>
-      </header>
+    <>
+    <ThemeProvider defaultTheme="light" storageKey="platform-admin-theme">
+      <TooltipProvider>
+        <SidebarProvider style={style as React.CSSProperties}>
+          <div className="flex h-screen w-full bg-muted/30">
+            <PlatformAdminSidebar active={section} onNavigate={setSection} />
+            <div className="flex flex-1 flex-col overflow-hidden">
+              <header className="flex items-center justify-between gap-4 border-b bg-card px-4 py-3 shrink-0">
+                <div className="flex items-center gap-3 min-w-0">
+                  <SidebarTrigger />
+                  <div className="min-w-0">
+                    <p className="text-xs text-muted-foreground hidden sm:block">
+                      {new Intl.DateTimeFormat(language === "ar" ? "ar-BH" : "en-US", {
+                        weekday: "long",
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      }).format(new Date())}
+                    </p>
+                    <h1 className="text-lg font-bold truncate sm:text-xl">{t(meta.titleKey)}</h1>
+                    <p className="text-sm text-muted-foreground truncate hidden sm:block">
+                      {t(meta.descriptionKey)}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Badge variant="outline" className="hidden sm:flex gap-1 font-normal">
+                    <Shield className="h-3 w-3" />
+                    {user?.email}
+                  </Badge>
+                  <ThemeToggle />
+                </div>
+              </header>
 
-      <main className="p-6 max-w-7xl mx-auto space-y-6">
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardContent className="pt-6 flex items-center gap-4">
-              <Building2 className="h-10 w-10 text-primary opacity-80" />
-              <div>
-                <p className="text-2xl font-bold">{statsLoading ? "—" : stats?.totalTenants}</p>
-                <p className="text-sm text-muted-foreground">Total Tenants</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6 flex items-center gap-4">
-              <Users className="h-10 w-10 text-green-600 opacity-80" />
-              <div>
-                <p className="text-2xl font-bold">{statsLoading ? "—" : stats?.activeTenants}</p>
-                <p className="text-sm text-muted-foreground">Active</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6 flex items-center gap-4">
-              <RefreshCw className="h-10 w-10 text-blue-600 opacity-80" />
-              <div>
-                <p className="text-2xl font-bold">{statsLoading ? "—" : stats?.trialTenants}</p>
-                <p className="text-sm text-muted-foreground">On Trial</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6 flex items-center gap-4">
-              <DollarSign className="h-10 w-10 text-amber-600 opacity-80" />
-              <div>
-                <p className="text-2xl font-bold">{statsLoading ? "—" : `$${stats?.mrr?.toFixed(0)}`}</p>
-                <p className="text-sm text-muted-foreground">Est. MRR (snapshotted)</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+              <main className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
+                {(section === "overview" || section === "tenants") && statsGrid}
 
-        <Tabs defaultValue="tenants">
-          <TabsList className="flex flex-wrap h-auto gap-1">
-            <TabsTrigger value="leads">Leads</TabsTrigger>
-            <TabsTrigger value="tenants">Tenants</TabsTrigger>
-            <TabsTrigger value="plans">Plans</TabsTrigger>
-            <TabsTrigger value="payments">Payments</TabsTrigger>
-            <TabsTrigger value="support">Support</TabsTrigger>
-            <TabsTrigger value="admins">Admin users</TabsTrigger>
-          </TabsList>
+                {section === "overview" && (
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <Card className="shadow-sm">
+                      <CardHeader>
+                        <CardTitle>{t("platformAdmin.overview.quickActions")}</CardTitle>
+                        <CardDescription>{t("platformAdmin.overview.quickActionsDesc")}</CardDescription>
+                      </CardHeader>
+                      <CardContent className="flex flex-wrap gap-2">
+                        <Button variant="outline" onClick={() => setSection("tenants")}>
+                          <Building2 className="h-4 w-4 mr-2" />
+                          {t("platformAdmin.nav.tenants")}
+                        </Button>
+                        <Button variant="outline" onClick={() => setSection("leads")}>
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          {t("platformAdmin.nav.leads")}
+                        </Button>
+                        <Button variant="outline" onClick={() => setSection("plans")}>
+                          <DollarSign className="h-4 w-4 mr-2" />
+                          {t("platformAdmin.nav.plans")}
+                        </Button>
+                      </CardContent>
+                    </Card>
+                    <Card className="shadow-sm">
+                      <CardHeader>
+                        <CardTitle>{t("platformAdmin.overview.recentClubs")}</CardTitle>
+                        <CardDescription>
+                          {tenantsLoading ? "…" : t("platformAdmin.overview.clubCount").replace("{n}", String(tenants.length))}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        {tenants.slice(0, 5).map((tenant) => (
+                          <div
+                            key={tenant.id}
+                            className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm"
+                          >
+                            <span className="font-medium truncate">{tenant.name}</span>
+                            <Badge variant="outline" className={statusColors[tenant.status] || ""}>
+                              {tenant.status}
+                            </Badge>
+                          </div>
+                        ))}
+                        {tenants.length > 5 && (
+                          <Button variant="ghost" className="px-0 h-auto" onClick={() => setSection("tenants")}>
+                            {t("platformAdmin.overview.viewAll")}
+                          </Button>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
 
-          <TabsContent value="leads">
-            <Card>
-              <CardHeader>
-                <CardTitle>Demo requests</CardTitle>
-                <CardDescription>Inbound leads from the landing page</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <PlatformLeadsPanel />
-              </CardContent>
-            </Card>
-          </TabsContent>
+                {section === "leads" && (
+                  <Card className="shadow-sm">
+                    <CardHeader>
+                      <CardTitle>{t("platformAdmin.leads.title")}</CardTitle>
+                      <CardDescription>{t("platformAdmin.leads.description")}</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <PlatformLeadsPanel />
+                    </CardContent>
+                  </Card>
+                )}
 
-          <TabsContent value="tenants">
-            <Card>
+                {section === "tenants" && (
+            <Card className="shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                   <CardTitle>All Tenants</CardTitle>
@@ -364,10 +472,10 @@ export default function PlatformAdmin() {
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
+                )}
 
-          <TabsContent value="plans">
-            <Card>
+                {section === "plans" && (
+            <Card className="shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                   <CardTitle>Subscription Plans</CardTitle>
@@ -449,21 +557,19 @@ export default function PlatformAdmin() {
                 </Table>
               </CardContent>
             </Card>
-          </TabsContent>
+                )}
 
-          <TabsContent value="payments">
-            <PlatformPaymentsPanel />
-          </TabsContent>
+                {section === "payments" && <PlatformPaymentsPanel />}
 
-          <TabsContent value="support">
-            <PlatformSupportPanel />
-          </TabsContent>
+                {section === "support" && <PlatformSupportPanel />}
 
-          <TabsContent value="admins">
-            <PlatformAdminsPanel />
-          </TabsContent>
-        </Tabs>
-      </main>
+                {section === "admins" && <PlatformAdminsPanel />}
+              </main>
+            </div>
+          </div>
+        </SidebarProvider>
+      </TooltipProvider>
+    </ThemeProvider>
 
       <Dialog open={!!editTenant} onOpenChange={() => setEditTenant(null)}>
         <DialogContent>
@@ -606,6 +712,6 @@ export default function PlatformAdmin() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }
