@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Dojo Member",
+    "name": "Nawady",
     "slug": "dojo-member",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -26,6 +26,9 @@
         "backgroundColor": "#0f172a"
       },
       "package": "com.dojomanager.member"
+    },
+    "experiments": {
+      "typedRoutes": true
     },
     "plugins": [
       "expo-router",

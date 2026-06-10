@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import * as Haptics from "expo-haptics";
+import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
 import { useCallback } from "react";
 import { FlatList, StyleSheet, Text, View } from "react-native";
@@ -10,13 +11,19 @@ import { FadeInView } from "@/lib/motion";
 import { useBranding } from "@/lib/branding";
 import { useCheckout, usePackages, usePayments } from "@/lib/hooks";
 import { useToast } from "@/lib/toast";
-import { colors, spacing } from "@/lib/theme";
+import { bookingStatusLabel, bookingStatusTone, formatCurrency } from "@/lib/format";
+import { useI18n } from "@/lib/i18n";
+import { spacing, useThemeColors } from "@/lib/theme";
 import type { MemberPayment, Package } from "@/lib/types";
+
+const PAYMENT_RETURN = Linking.createURL("payment-result");
 
 export default function PaymentsScreen() {
   const { show } = useToast();
   const { clubName, portalInfo, refresh } = useAuth();
   const { accent } = useBranding();
+  const { locale } = useI18n();
+  const colors = useThemeColors();
 
   const { data: packagesData, isLoading: loadingPackages, refetch: refetchPackages, isRefetching } = usePackages();
   const { data: paymentsData, isLoading: loadingPayments, refetch: refetchPayments } = usePayments();
@@ -32,11 +39,21 @@ export default function PaymentsScreen() {
 
   const onBuy = async (pkg: Package) => {
     try {
-      const result = await checkout.mutateAsync(pkg.id);
+      const result = await checkout.mutateAsync({
+        packageId: pkg.id,
+        redirectUrl: PAYMENT_RETURN,
+      });
       if (result.url) {
-        await WebBrowser.openBrowserAsync(result.url);
+        const browser = await WebBrowser.openAuthSessionAsync(result.url, PAYMENT_RETURN);
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        show("Complete payment in browser, then pull to refresh", "info");
+        if (browser.type === "success" && browser.url) {
+          const parsed = Linking.parse(browser.url);
+          const tapId = parsed.queryParams?.tap_id;
+          if (tapId) {
+            refreshAll();
+            show("Payment completed", "success");
+          }
+        }
       }
     } catch (e) {
       show((e as Error).message, "error");
@@ -44,7 +61,7 @@ export default function PaymentsScreen() {
   };
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: colors.bg }]}>
       <ClubHeader clubName={clubName} logoUrl={portalInfo?.logoUrl} accent={accent} subtitle="Renew & pay" />
       <FlatList
         data={packages}
@@ -54,7 +71,7 @@ export default function PaymentsScreen() {
         contentContainerStyle={styles.list}
         ListHeaderComponent={
           <>
-            <Text style={styles.heading}>Available packages</Text>
+            <Text style={[styles.heading, { color: colors.text }]}>Available packages</Text>
             {loadingPackages ? <Skeleton height={100} /> : null}
           </>
         }
@@ -70,14 +87,14 @@ export default function PaymentsScreen() {
         renderItem={({ item, index }) => (
           <FadeInView delay={index * 45}>
           <Card style={styles.card}>
-            <Text style={styles.name}>{item.name}</Text>
-            <Text style={styles.meta}>
+            <Text style={[styles.name, { color: colors.text }]}>{item.name}</Text>
+            <Text style={[styles.meta, { color: colors.textMuted }]}>
               {item.packageType === "sessions"
                 ? `${item.sessionCount} sessions`
                 : `${item.duration} days validity`}
             </Text>
             <View style={styles.row}>
-              <Text style={styles.price}>{item.price} BHD</Text>
+              <Text style={[styles.price, { color: colors.text }]}>{formatCurrency(item.price, "BHD", locale)}</Text>
               <PrimaryButton
                 label="Pay now"
                 loading={checkout.isPending}
@@ -89,7 +106,7 @@ export default function PaymentsScreen() {
         )}
         ListFooterComponent={
           <View style={styles.history}>
-            <Text style={styles.heading}>Payment history</Text>
+            <Text style={[styles.heading, { color: colors.text }]}>Payment history</Text>
             {loadingPayments ? (
               <Skeleton height={80} />
             ) : payments.length === 0 ? (
@@ -98,17 +115,14 @@ export default function PaymentsScreen() {
               payments.slice(0, 15).map((p) => (
                 <Card key={p.id} style={styles.historyRow}>
                   <View>
-                    <Text style={styles.name}>{p.packageName || "Payment"}</Text>
-                    <Text style={styles.meta}>
+                    <Text style={[styles.name, { color: colors.text }]}>{p.packageName || "Payment"}</Text>
+                    <Text style={[styles.meta, { color: colors.textMuted }]}>
                       {p.createdAt ? format(new Date(p.createdAt), "d MMM yyyy · HH:mm") : ""}
                     </Text>
                   </View>
                   <View style={styles.historyEnd}>
-                    <Text style={styles.price}>{p.amount} {p.currency || "BHD"}</Text>
-                    <Badge
-                      label={p.status}
-                      tone={p.status === "captured" || p.status === "paid" ? "success" : "warning"}
-                    />
+                    <Text style={[styles.price, { color: colors.text }]}>{formatCurrency(p.amount, p.currency || "BHD", locale)}</Text>
+                    <Badge label={bookingStatusLabel(p.status, locale)} tone={bookingStatusTone(p.status)} />
                   </View>
                 </Card>
               ))
@@ -121,14 +135,14 @@ export default function PaymentsScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bg },
+  root: { flex: 1 },
   list: { padding: spacing.md, paddingBottom: 100 },
-  heading: { fontSize: 17, fontWeight: "700", color: colors.text, marginBottom: spacing.sm, marginTop: spacing.sm },
+  heading: { fontSize: 17, fontWeight: "700", marginBottom: spacing.sm, marginTop: spacing.sm },
   card: { gap: 6, marginBottom: spacing.sm },
-  name: { fontSize: 16, fontWeight: "700", color: colors.text },
-  meta: { fontSize: 13, color: colors.textMuted },
+  name: { fontSize: 16, fontWeight: "700" },
+  meta: { fontSize: 13 },
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8, gap: 12 },
-  price: { fontSize: 17, fontWeight: "800", color: colors.text },
+  price: { fontSize: 17, fontWeight: "800" },
   history: { marginTop: spacing.lg },
   historyRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.sm },
   historyEnd: { alignItems: "flex-end", gap: 6 },

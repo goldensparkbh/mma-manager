@@ -44,3 +44,13 @@ export async function setSlug(slug: string) {
 export async function clearSlug() {
   await AsyncStorage.removeItem(SLUG_KEY);
 }
+
+const ONBOARDING_KEY = "onboarding_done";
+
+export async function isOnboardingComplete() {
+  return (await AsyncStorage.getItem(ONBOARDING_KEY)) === "1";
+}
+
+export async function setOnboardingComplete() {
+  await AsyncStorage.setItem(ONBOARDING_KEY, "1");
+}

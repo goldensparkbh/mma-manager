@@ -3,11 +3,14 @@ import { Redirect, Tabs } from "expo-router";
 import { ActivityIndicator, View } from "react-native";
 import { useAuth } from "@/lib/auth";
 import { useBranding } from "@/lib/branding";
-import { colors } from "@/lib/theme";
+import { useI18n } from "@/lib/i18n";
+import { useTheme } from "@/lib/theme";
 
 export default function TabsLayout() {
   const { loading, member, slug } = useAuth();
   const { accent } = useBranding();
+  const { t } = useI18n();
+  const { colors } = useTheme();
 
   if (loading) {
     return (
@@ -25,7 +28,7 @@ export default function TabsLayout() {
         tabBarActiveTintColor: accent,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
-          backgroundColor: "#fff",
+          backgroundColor: colors.tabBar,
           borderTopColor: colors.border,
           height: 60,
           paddingBottom: 8,
@@ -37,35 +40,35 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Home",
+          title: t("tabs.home"),
           tabBarIcon: ({ color, size }) => <Ionicons name="home" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="classes"
         options={{
-          title: "Classes",
+          title: t("tabs.classes"),
           tabBarIcon: ({ color, size }) => <Ionicons name="calendar" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="bookings"
         options={{
-          title: "Bookings",
+          title: t("tabs.bookings"),
           tabBarIcon: ({ color, size }) => <Ionicons name="bookmark" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="payments"
         options={{
-          title: "Pay",
+          title: t("tabs.pay"),
           tabBarIcon: ({ color, size }) => <Ionicons name="card" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: "Profile",
+          title: t("tabs.profile"),
           tabBarIcon: ({ color, size }) => <Ionicons name="person" size={size} color={color} />,
         }}
       />

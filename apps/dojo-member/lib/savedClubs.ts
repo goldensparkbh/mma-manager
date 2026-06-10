@@ -37,3 +37,17 @@ export async function removeSavedClub(slug: string) {
   await AsyncStorage.setItem(KEY, JSON.stringify(next));
   return next;
 }
+
+export async function isClubSaved(slug: string) {
+  return (await getSavedClubs()).some((c) => c.slug === slug);
+}
+
+export async function toggleSavedClub(club: Omit<SavedClub, "savedAt">) {
+  const saved = await isClubSaved(club.slug);
+  if (saved) {
+    await removeSavedClub(club.slug);
+    return false;
+  }
+  await saveClub(club);
+  return true;
+}

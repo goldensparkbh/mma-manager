@@ -22,13 +22,16 @@ import { BookingsIllustration, ClassesIllustration } from "@/lib/illustrations";
 import { FadeInView } from "@/lib/motion";
 import type { Booking, CampEvent } from "@/lib/types";
 import { useToast } from "@/lib/toast";
-import { colors, spacing, withAlpha } from "@/lib/theme";
+import { useI18n } from "@/lib/i18n";
+import { spacing, useThemeColors, withAlpha } from "@/lib/theme";
 
 export default function HomeScreen() {
   const router = useRouter();
   const { show } = useToast();
   const { member, activeSubscription, clubName, portalInfo } = useAuth();
   const { accent } = useBranding();
+  const { t } = useI18n();
+  const colors = useThemeColors();
 
   const { data: bookingsData, isLoading: loadingBookings, refetch: refetchBookings, isRefetching } = useBookings();
   const { data: campsData, isLoading: loadingCamps } = useCamps();
@@ -67,7 +70,7 @@ export default function HomeScreen() {
         subtitle={portalInfo?.welcomeMessage || "Welcome back"}
       />
       <Pressable onPress={() => router.push("/(discover)/clubs")} style={styles.browseLink}>
-        <Text style={[styles.browseText, { color: accent }]}>Explore other clubs on Dojo →</Text>
+        <Text style={[styles.browseText, { color: accent }]}>{t("member.browsePlatform")}</Text>
       </Pressable>
 
       <FadeInView delay={0}>
@@ -125,7 +128,7 @@ export default function HomeScreen() {
 
       <FadeInView delay={180}>
         <Pressable style={[styles.qrCta, { backgroundColor: accent }]} onPress={() => router.push("/(member)/profile")}>
-          <Text style={styles.qrTitle}>📱  Check-in QR</Text>
+          <Text style={styles.qrTitle}>Check-in QR</Text>
           <Text style={styles.qrSub}>Tap to open fullscreen code at the door</Text>
         </Pressable>
       </FadeInView>
@@ -140,7 +143,7 @@ export default function HomeScreen() {
           camps.slice(0, 3).map((camp) => (
             <Card key={camp.id} style={styles.gap}>
               <IconRow icon="trophy" label={camp.title} value={format(new Date(camp.startDate), "EEE d MMM · HH:mm")} accent={accent} />
-              {camp.price != null ? <Text style={styles.meta}>{camp.price} BHD</Text> : null}
+              {camp.price != null ? <Text style={[styles.meta, { color: colors.textMuted }]}>{camp.price} BHD</Text> : null}
               <PrimaryButton label="Register" icon="checkmark-circle" loading={registerCamp.isPending} onPress={() => onRegisterCamp(camp.id)} />
             </Card>
           ))
@@ -156,7 +159,7 @@ const styles = StyleSheet.create({
   quickRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm },
   membershipCard: { borderWidth: 1.5, gap: spacing.sm },
   gap: { gap: spacing.sm },
-  meta: { fontSize: 14, color: colors.textMuted },
+  meta: { fontSize: 14 },
   qrCta: { borderRadius: 18, padding: 22, marginTop: 4, shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 4 },
   qrTitle: { color: "#fff", fontSize: 18, fontWeight: "800" },
   qrSub: { color: "rgba(255,255,255,0.88)", fontSize: 13, marginTop: 6 },

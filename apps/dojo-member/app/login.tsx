@@ -1,7 +1,7 @@
+import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -13,11 +13,14 @@ import {
 import { useRouter } from "expo-router";
 import { useAuth } from "@/lib/auth";
 import { PrimaryButton } from "@/lib/components";
-import { colors, radius, spacing, withAlpha } from "@/lib/theme";
+import { useI18n } from "@/lib/i18n";
+import { radius, spacing, useThemeColors, withAlpha } from "@/lib/theme";
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { clubName, login, requestOtp, loginWithOtp, portalInfo, loading, member, slug } = useAuth();
+  const { clubName, login, requestOtp, loginWithOtp, portalInfo, loading, member } = useAuth();
+  const { t } = useI18n();
+  const colors = useThemeColors();
   const accent = portalInfo?.primaryColor || colors.primary;
 
   const [mode, setMode] = useState<"otp" | "password">("otp");
@@ -46,31 +49,48 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <KeyboardAvoidingView style={[styles.root, { backgroundColor: colors.bg }]} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <LinearGradient colors={[accent, withAlpha(accent, 0.9)]} style={styles.hero}>
-        <Text style={styles.heroTitle}>{clubName || "Member login"}</Text>
-        <Text style={styles.heroSub}>Sign in to book classes and check in</Text>
+        {portalInfo?.logoUrl ? (
+          <Image source={{ uri: portalInfo.logoUrl }} style={styles.logo} contentFit="contain" />
+        ) : null}
+        <Text style={styles.heroTitle}>{clubName || t("login.title")}</Text>
+        <Text style={styles.heroSub}>{t("login.subtitle")}</Text>
       </LinearGradient>
 
-      <View style={styles.card}>
-        <View style={styles.tabs}>
+      <View style={[styles.card, { backgroundColor: colors.card }]}>
+        <View style={[styles.tabs, { backgroundColor: colors.bg }]}>
           {(["otp", "password"] as const).map((m) => (
             <Pressable key={m} onPress={() => setMode(m)} style={[styles.tab, mode === m && { backgroundColor: accent }]}>
-              <Text style={[styles.tabText, mode === m && styles.tabTextActive]}>{m === "otp" ? "OTP" : "Password"}</Text>
+              <Text style={[styles.tabText, mode === m && styles.tabTextActive]}>{m === "otp" ? t("login.otp") : t("login.password")}</Text>
             </Pressable>
           ))}
         </View>
 
-        <TextInput style={styles.input} placeholder="Phone" keyboardType="phone-pad" value={phone} onChangeText={setPhone} placeholderTextColor={colors.textMuted} />
+        <TextInput
+          style={[styles.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }]}
+          placeholder={t("login.phone")}
+          keyboardType="phone-pad"
+          value={phone}
+          onChangeText={setPhone}
+          placeholderTextColor={colors.textMuted}
+        />
 
         {mode === "password" ? (
           <>
-            <TextInput style={styles.input} placeholder="Password" secureTextEntry value={password} onChangeText={setPassword} placeholderTextColor={colors.textMuted} />
-            <PrimaryButton label="Sign in" loading={submitting} disabled={!phone || !password} onPress={() => run(() => login(phone, password))} />
+            <TextInput
+              style={[styles.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }]}
+              placeholder={t("login.password")}
+              secureTextEntry
+              value={password}
+              onChangeText={setPassword}
+              placeholderTextColor={colors.textMuted}
+            />
+            <PrimaryButton label={t("login.signIn")} loading={submitting} disabled={!phone || !password} onPress={() => run(() => login(phone, password))} />
           </>
         ) : !otpSent ? (
           <PrimaryButton
-            label="Send code"
+            label={t("login.sendCode")}
             loading={submitting}
             disabled={!phone}
             onPress={async () => {
@@ -88,14 +108,22 @@ export default function LoginScreen() {
           />
         ) : (
           <>
-            <TextInput style={styles.input} placeholder="6-digit code" keyboardType="number-pad" maxLength={6} value={code} onChangeText={setCode} placeholderTextColor={colors.textMuted} />
-            <PrimaryButton label="Verify" loading={submitting} disabled={code.length < 6} onPress={() => run(() => loginWithOtp(phone, code))} />
+            <TextInput
+              style={[styles.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }]}
+              placeholder="6-digit code"
+              keyboardType="number-pad"
+              maxLength={6}
+              value={code}
+              onChangeText={setCode}
+              placeholderTextColor={colors.textMuted}
+            />
+            <PrimaryButton label={t("login.verify")} loading={submitting} disabled={code.length < 6} onPress={() => run(() => loginWithOtp(phone, code))} />
           </>
         )}
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? <Text style={[styles.error, { color: colors.danger }]}>{error}</Text> : null}
         <Pressable onPress={() => router.replace("/(discover)/clubs")}>
-          <Text style={[styles.link, { color: accent }]}>Browse other clubs</Text>
+          <Text style={[styles.link, { color: accent }]}>{t("login.browseOther")}</Text>
         </Pressable>
       </View>
     </KeyboardAvoidingView>
@@ -103,32 +131,29 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bg },
-  hero: { paddingTop: 72, paddingBottom: 36, paddingHorizontal: spacing.lg },
-  heroTitle: { fontSize: 28, fontWeight: "800", color: "#fff" },
-  heroSub: { fontSize: 15, color: "rgba(255,255,255,0.85)", marginTop: 8 },
+  root: { flex: 1 },
+  hero: { paddingTop: 72, paddingBottom: 36, paddingHorizontal: spacing.lg, alignItems: "center" },
+  logo: { width: 72, height: 72, borderRadius: 18, backgroundColor: "#fff", marginBottom: 12 },
+  heroTitle: { fontSize: 28, fontWeight: "800", color: "#fff", textAlign: "center" },
+  heroSub: { fontSize: 15, color: "rgba(255,255,255,0.85)", marginTop: 8, textAlign: "center" },
   card: {
     flex: 1,
     marginTop: -20,
-    backgroundColor: colors.card,
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
     padding: spacing.lg,
     gap: 12,
   },
-  tabs: { flexDirection: "row", backgroundColor: colors.bg, borderRadius: radius.md, padding: 4 },
+  tabs: { flexDirection: "row", borderRadius: radius.md, padding: 4 },
   tab: { flex: 1, paddingVertical: 10, borderRadius: radius.sm, alignItems: "center" },
-  tabText: { color: colors.textMuted, fontWeight: "600" },
+  tabText: { color: "#64748b", fontWeight: "600" },
   tabTextActive: { color: "#fff" },
   input: {
     borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: radius.md,
     padding: 14,
     fontSize: 16,
-    color: colors.text,
-    backgroundColor: colors.bg,
   },
-  error: { color: colors.danger, textAlign: "center", fontSize: 14 },
+  error: { textAlign: "center", fontSize: 14 },
   link: { textAlign: "center", marginTop: 8, fontWeight: "600" },
 });

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays } from "date-fns";
 import { useAuth } from "./auth";
+import { createApi } from "./api";
 import type { Booking, CampEvent, ClassSession, MemberPayment, Package } from "./types";
 
 export type { Booking, CampEvent, ClassSession, MemberPayment, Package };
@@ -105,7 +106,50 @@ export function useRegisterCamp() {
 export function useCheckout() {
   const { api } = useAuth();
   return useMutation({
-    mutationFn: (packageId: string) =>
-      api.post<{ url: string }>("/api/portal/payments/checkout", { packageId }),
+    mutationFn: (input: { packageId: string; redirectUrl?: string }) =>
+      api.post<{ url: string }>("/api/portal/payments/checkout", input),
+  });
+}
+
+export type AttendanceRecord = {
+  id: string;
+  date: string;
+  checkIn?: string | null;
+  checkOut?: string | null;
+  notes?: string | null;
+};
+
+export function useAttendance() {
+  const { api } = useAuth();
+  return useQuery<AttendanceRecord[]>({
+    queryKey: ["portal", "attendance"],
+    queryFn: () => api.get<AttendanceRecord[]>("/api/portal/attendance"),
+  });
+}
+
+export type BeltAward = {
+  id: string;
+  beltId: string;
+  beltName?: string | null;
+  beltColor?: string | null;
+  stripes?: number;
+  awardedAt?: string;
+};
+
+export function useProgression() {
+  const { api } = useAuth();
+  return useQuery<{ belts: Array<{ id: string; name: string; color: string }>; memberBelts: BeltAward[] }>({
+    queryKey: ["portal", "progression"],
+    queryFn: () => api.get("/api/portal/progression"),
+  });
+}
+
+export function useConfirmPayment(tapId: string | null) {
+  return useQuery<{ ok: boolean; status: string }>({
+    queryKey: ["portal", "payment-confirm", tapId],
+    queryFn: () =>
+      createApi().get(`/api/portal/payments/confirm?tap_id=${encodeURIComponent(tapId!)}`),
+    enabled: !!tapId,
+    retry: 1,
   });
 }

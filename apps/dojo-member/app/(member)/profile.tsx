@@ -1,3 +1,4 @@
+import { format } from "date-fns";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import { useState } from "react";
@@ -5,22 +6,29 @@ import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/lib/auth";
-import { Card, ClubHeader, PrimaryButton, Screen, SectionTitle, Skeleton } from "@/lib/components";
+import { Card, ClubHeader, IconRow, PrimaryButton, Screen, SectionTitle, Skeleton } from "@/lib/components";
 import { QrIllustration } from "@/lib/illustrations";
 import { useBranding } from "@/lib/branding";
-import { useFamily, useQr } from "@/lib/hooks";
+import { useAttendance, useFamily, useProgression, useQr } from "@/lib/hooks";
+import { useI18n } from "@/lib/i18n";
+import { useTheme, type ThemeMode } from "@/lib/theme";
 import * as storage from "@/lib/storage";
-import { colors, spacing } from "@/lib/theme";
+import { spacing, useThemeColors } from "@/lib/theme";
 
 export default function ProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const colors = useThemeColors();
   const { member, activeSubscription, clubName, logout, leaveClub, api, portalInfo, refresh } = useAuth();
   const { accent } = useBranding();
+  const { t, locale, setLocale } = useI18n();
+  const { mode, setMode } = useTheme();
   const [qrOpen, setQrOpen] = useState(false);
 
   const { data: qr, isLoading: loadingQr } = useQr();
   const { data: familyData } = useFamily();
+  const { data: progression } = useProgression();
+  const { data: attendance } = useAttendance();
   const family: Array<{ id: string; name: string }> = familyData ?? [];
 
   const switchMember = async (memberId: string) => {
@@ -41,26 +49,93 @@ export default function ProfileScreen() {
     router.replace("/(discover)/clubs");
   };
 
+  const cycleTheme = async () => {
+    const order: ThemeMode[] = ["system", "light", "dark"];
+    const next = order[(order.indexOf(mode) + 1) % order.length];
+    await setMode(next);
+  };
+
+  const toggleLanguage = async () => {
+    await setLocale(locale === "en" ? "ar" : "en");
+  };
+
   return (
     <>
       <Screen scroll>
         <ClubHeader clubName={clubName} logoUrl={portalInfo?.logoUrl} accent={accent} memberName={member?.name} />
 
         <Card style={styles.gap}>
-          <Text style={styles.label}>Account</Text>
-          <Text style={styles.value}>{member?.phone}</Text>
+          <Text style={[styles.label, { color: colors.textMuted }]}>Account</Text>
+          <Text style={[styles.value, { color: colors.text }]}>{member?.phone}</Text>
           {activeSubscription ? (
-            <Text style={styles.meta}>{activeSubscription.planName}</Text>
+            <Text style={[styles.meta, { color: colors.textMuted }]}>{activeSubscription.planName}</Text>
           ) : (
-            <Text style={styles.meta}>No active plan</Text>
+            <Text style={[styles.meta, { color: colors.textMuted }]}>No active plan</Text>
           )}
         </Card>
 
         <PrimaryButton
-          label={loadingQr ? "Loading QR…" : "Show check-in QR"}
+          label={loadingQr ? t("common.loading") : "Show check-in QR"}
+          icon="qr-code"
           onPress={() => setQrOpen(true)}
           disabled={loadingQr || !qr?.checkInUrl}
         />
+
+        <PrimaryButton label={t("notifications.title")} variant="outline" icon="notifications" onPress={() => router.push("/notifications")} />
+
+        <SectionTitle title={t("progression.title")} />
+        {!progression?.memberBelts?.length ? (
+          <Card><Text style={{ color: colors.textMuted }}>{t("progression.empty")}</Text></Card>
+        ) : (
+          progression.memberBelts.slice(0, 5).map((belt: { id: string; beltName?: string | null; beltColor?: string | null; stripes?: number; awardedAt?: string }) => (
+            <Card key={belt.id} style={styles.gap}>
+              <View style={styles.beltRow}>
+                <View style={[styles.beltDot, { backgroundColor: belt.beltColor || accent }]} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.value, { color: colors.text }]}>{belt.beltName || "Belt"}</Text>
+                  {belt.awardedAt ? (
+                    <Text style={[styles.meta, { color: colors.textMuted }]}>
+                      {format(new Date(belt.awardedAt), "d MMM yyyy")}
+                    </Text>
+                  ) : null}
+                </View>
+                {(belt.stripes ?? 0) > 0 ? (
+                  <Text style={[styles.meta, { color: colors.textMuted }]}>{belt.stripes} stripes</Text>
+                ) : null}
+              </View>
+            </Card>
+          ))
+        )}
+
+        <SectionTitle title={t("attendance.title")} />
+        {!attendance?.length ? (
+          <Card><Text style={{ color: colors.textMuted }}>{t("attendance.empty")}</Text></Card>
+        ) : (
+          attendance.slice(0, 8).map((row: { id: string; date: string; checkIn?: string | null }) => (
+            <Card key={row.id} style={styles.gap}>
+              <IconRow
+                icon="checkmark-circle"
+                label={row.date}
+                value={row.checkIn ? format(new Date(row.checkIn), "HH:mm") : "—"}
+                accent={accent}
+              />
+            </Card>
+          ))
+        )}
+
+        <SectionTitle title="Settings" />
+        <Card style={styles.gap}>
+          <Pressable onPress={toggleLanguage} style={styles.settingRow}>
+            <Text style={{ color: colors.text, fontWeight: "600" }}>{t("settings.language")}</Text>
+            <Text style={{ color: accent, fontWeight: "700" }}>{locale === "ar" ? "العربية" : "English"}</Text>
+          </Pressable>
+          <Pressable onPress={cycleTheme} style={styles.settingRow}>
+            <Text style={{ color: colors.text, fontWeight: "600" }}>{t("settings.theme")}</Text>
+            <Text style={{ color: accent, fontWeight: "700" }}>
+              {mode === "system" ? t("settings.system") : mode === "dark" ? t("settings.dark") : t("settings.light")}
+            </Text>
+          </Pressable>
+        </Card>
 
         {family.length > 1 ? (
           <>
@@ -69,9 +144,13 @@ export default function ProfileScreen() {
               <Pressable
                 key={m.id}
                 onPress={() => m.id !== member?.id && switchMember(m.id)}
-                style={[styles.familyRow, m.id === member?.id && { borderColor: accent, backgroundColor: "#eff6ff" }]}
+                style={[
+                  styles.familyRow,
+                  { backgroundColor: colors.card, borderColor: colors.border },
+                  m.id === member?.id && { borderColor: accent, backgroundColor: colors.bg },
+                ]}
               >
-                <Text style={styles.familyName}>{m.name}</Text>
+                <Text style={[styles.familyName, { color: colors.text }]}>{m.name}</Text>
                 {m.id === member?.id ? <Text style={[styles.activeTag, { color: accent }]}>Active</Text> : null}
               </Pressable>
             ))}
@@ -79,9 +158,9 @@ export default function ProfileScreen() {
         ) : null}
 
         <PrimaryButton label="Browse all clubs" variant="outline" icon="compass" onPress={() => router.push("/(discover)")} />
-        <PrimaryButton label="Switch club" variant="outline" onPress={onSwitchClub} />
-        <PrimaryButton label="Sign out" variant="danger" onPress={onLogout} />
-        <Text style={styles.version}>Dojo Member</Text>
+        <PrimaryButton label={t("account.switchClub")} variant="outline" onPress={onSwitchClub} />
+        <PrimaryButton label={t("account.signOut")} variant="danger" onPress={onLogout} />
+        <Text style={[styles.version, { color: colors.textMuted }]}>{t("app.name")}</Text>
       </Screen>
 
       <Modal visible={qrOpen} animationType="slide" presentationStyle="fullScreen" onRequestClose={() => setQrOpen(false)}>
@@ -96,7 +175,7 @@ export default function ProfileScreen() {
               <QRCode value={qr.checkInUrl} size={240} backgroundColor="#fff" />
             </View>
           ) : null}
-          <PrimaryButton label="Close" onPress={() => setQrOpen(false)} />
+          <PrimaryButton label={t("common.close")} onPress={() => setQrOpen(false)} />
         </View>
       </Modal>
     </>
@@ -105,23 +184,24 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   gap: { gap: 6 },
-  label: { fontSize: 12, fontWeight: "600", color: colors.textMuted, textTransform: "uppercase" },
-  value: { fontSize: 18, fontWeight: "700", color: colors.text },
-  meta: { fontSize: 14, color: colors.textMuted },
+  label: { fontSize: 12, fontWeight: "600", textTransform: "uppercase" },
+  value: { fontSize: 18, fontWeight: "700" },
+  meta: { fontSize: 14 },
+  beltRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  beltDot: { width: 14, height: 14, borderRadius: 7 },
+  settingRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 6 },
   familyRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: 12,
     padding: 14,
     marginBottom: 8,
   },
-  familyName: { fontSize: 16, fontWeight: "600", color: colors.text },
+  familyName: { fontSize: 16, fontWeight: "600" },
   activeTag: { fontSize: 12, fontWeight: "700" },
-  version: { textAlign: "center", color: colors.textMuted, fontSize: 12, marginTop: 8 },
+  version: { textAlign: "center", fontSize: 12, marginTop: 8 },
   qrModal: { flex: 1, backgroundColor: "#0f172a", paddingHorizontal: spacing.lg, alignItems: "center", justifyContent: "center", gap: 16 },
   qrHeading: { color: "#fff", fontSize: 24, fontWeight: "800" },
   qrHint: { color: "#94a3b8", fontSize: 14 },

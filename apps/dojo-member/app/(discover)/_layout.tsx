@@ -1,8 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import { colors } from "@/lib/theme";
+import { useI18n } from "@/lib/i18n";
+import { useTheme } from "@/lib/theme";
 
 export default function DiscoverLayout() {
+  const { t } = useI18n();
+  const { colors } = useTheme();
+
   return (
     <Tabs
       screenOptions={{
@@ -10,7 +14,7 @@ export default function DiscoverLayout() {
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
-          backgroundColor: "#fff",
+          backgroundColor: colors.tabBar,
           borderTopColor: colors.border,
           height: 60,
           paddingBottom: 8,
@@ -22,28 +26,28 @@ export default function DiscoverLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Explore",
+          title: t("tabs.explore"),
           tabBarIcon: ({ color, size }) => <Ionicons name="compass" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="clubs"
         options={{
-          title: "Clubs",
+          title: t("tabs.clubs"),
           tabBarIcon: ({ color, size }) => <Ionicons name="business" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="schedule"
         options={{
-          title: "Classes",
+          title: t("tabs.schedule"),
           tabBarIcon: ({ color, size }) => <Ionicons name="calendar" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="account"
         options={{
-          title: "My",
+          title: t("tabs.account"),
           tabBarIcon: ({ color, size }) => <Ionicons name="person-circle" size={size} color={color} />,
         }}
       />

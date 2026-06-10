@@ -16,7 +16,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import type { ComponentProps } from "react";
 import { useBranding } from "./branding";
-import { colors, radius, spacing, withAlpha } from "./theme";
+import { useI18n } from "./i18n";
+import { colors as staticColors, radius, spacing, useThemeColors, withAlpha } from "./theme";
 
 type IonName = ComponentProps<typeof Ionicons>["name"];
 
@@ -36,12 +37,13 @@ export function Screen({
   padBottom?: boolean;
 }) {
   const insets = useSafeAreaInsets();
+  const colors = useThemeColors();
   const padding = { paddingTop: spacing.md, paddingBottom: padBottom ? insets.bottom + 80 : spacing.md };
 
   if (scroll) {
     return (
       <ScrollView
-        style={[styles.screen, style]}
+        style={[styles.screen, { backgroundColor: colors.bg }, style]}
         contentContainerStyle={[styles.scrollContent, padding]}
         refreshControl={
           onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={colors.primary} /> : undefined
@@ -52,7 +54,7 @@ export function Screen({
       </ScrollView>
     );
   }
-  return <View style={[styles.screen, padding, style]}>{children}</View>;
+  return <View style={[styles.screen, { backgroundColor: colors.bg }, padding, style]}>{children}</View>;
 }
 
 export function ClubHeader({
@@ -89,13 +91,15 @@ export function ClubHeader({
 }
 
 export function Card({ children, style }: { children: React.ReactNode; style?: ViewStyle }) {
-  return <View style={[styles.card, style]}>{children}</View>;
+  const colors = useThemeColors();
+  return <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }, style]}>{children}</View>;
 }
 
 export function SectionTitle({ title, action }: { title: string; action?: React.ReactNode }) {
+  const colors = useThemeColors();
   return (
     <View style={styles.sectionRow}>
-      <Text style={styles.sectionTitle}>{title}</Text>
+      <Text style={[styles.sectionTitle, { color: colors.text }]}>{title}</Text>
       {action}
     </View>
   );
@@ -117,6 +121,7 @@ export function PrimaryButton({
   icon?: IonName;
 }) {
   const { accent } = useBranding();
+  const colors = useThemeColors();
   const isOutline = variant === "outline";
   const isDanger = variant === "danger";
   return (
@@ -194,6 +199,7 @@ export function IconRow({
   value: string;
   accent?: string;
 }) {
+  const colors = useThemeColors();
   return (
     <View style={styles.iconRow}>
       <View style={[styles.iconCircle, { backgroundColor: withAlpha(accent || colors.primary, 0.12) }]}>
@@ -208,8 +214,9 @@ export function IconRow({
 }
 
 export function Badge({ label, tone = "default" }: { label: string; tone?: "default" | "success" | "warning" | "danger" }) {
+  const colors = useThemeColors();
   const bg =
-    tone === "success" ? "#dcfce7" : tone === "warning" ? "#fef3c7" : tone === "danger" ? colors.dangerBg : "#f1f5f9";
+    tone === "success" ? "#dcfce7" : tone === "warning" ? "#fef3c7" : tone === "danger" ? colors.dangerBg : colors.bg;
   const fg =
     tone === "success" ? colors.success : tone === "warning" ? colors.warning : tone === "danger" ? colors.danger : colors.textMuted;
   return (
@@ -245,6 +252,8 @@ export function ClubCard({
   nextClassAt,
   onPress,
   compact,
+  isFavorite,
+  onToggleFavorite,
 }: {
   name: string;
   clubType: string;
@@ -258,11 +267,19 @@ export function ClubCard({
   nextClassAt?: string | null;
   onPress: () => void;
   compact?: boolean;
+  isFavorite?: boolean;
+  onToggleFavorite?: () => void;
 }) {
+  const colors = useThemeColors();
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.clubCard, compact && styles.clubCardCompact, pressed && { opacity: 0.92 }]}
+      style={({ pressed }) => [
+        styles.clubCard,
+        { backgroundColor: colors.card, borderColor: colors.border },
+        compact && styles.clubCardCompact,
+        pressed && { opacity: 0.92 },
+      ]}
     >
       <View style={[styles.clubCardAccent, { backgroundColor: accent }]} />
       <View style={styles.clubCardBody}>
@@ -274,10 +291,10 @@ export function ClubCard({
           </View>
         )}
         <View style={{ flex: 1 }}>
-          <Text style={[styles.clubCardName, compact && { fontSize: 15 }]} numberOfLines={1}>
+          <Text style={[styles.clubCardName, { color: colors.text }, compact && { fontSize: 15 }]} numberOfLines={1}>
             {name}
           </Text>
-          <Text style={styles.clubCardMeta} numberOfLines={1}>
+          <Text style={[styles.clubCardMeta, { color: colors.textMuted }]} numberOfLines={1}>
             {clubType.replace(/_/g, " ")}
             {location ? ` · ${location}` : ""}
           </Text>
@@ -289,6 +306,18 @@ export function ClubCard({
             </Text>
           ) : null}
         </View>
+        {onToggleFavorite ? (
+          <Pressable
+            onPress={(e) => {
+              e.stopPropagation?.();
+              onToggleFavorite();
+            }}
+            hitSlop={8}
+            style={styles.favBtn}
+          >
+            <Ionicons name={isFavorite ? "heart" : "heart-outline"} size={20} color={isFavorite ? "#ef4444" : colors.textMuted} />
+          </Pressable>
+        ) : null}
         <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
       </View>
     </Pressable>
@@ -306,7 +335,8 @@ export function CategoryChip({
   color?: string;
   onPress: () => void;
 }) {
-  const bg = active ? color || colors.primary : "#f1f5f9";
+  const colors = useThemeColors();
+  const bg = active ? color || colors.primary : colors.bg;
   const fg = active ? "#fff" : colors.text;
   return (
     <Pressable onPress={onPress} style={[styles.chip, { backgroundColor: bg }]}>
@@ -316,9 +346,10 @@ export function CategoryChip({
 }
 
 export function DiscoverHero({ title, subtitle }: { title: string; subtitle?: string }) {
+  const { t } = useI18n();
   return (
     <LinearGradient colors={["#0f172a", "#1e3a5f"]} style={styles.discoverHero}>
-      <Text style={styles.discoverBrand}>Dojo</Text>
+      <Text style={styles.discoverBrand}>{t("platform.brand")}</Text>
       <Text style={styles.discoverTitle}>{title}</Text>
       {subtitle ? <Text style={styles.discoverSub}>{subtitle}</Text> : null}
     </LinearGradient>
@@ -342,13 +373,14 @@ export function ClassRowCard({
   accent: string;
   onPress?: () => void;
 }) {
+  const colors = useThemeColors();
   const inner = (
     <View style={styles.classRow}>
       <View style={[styles.classRowBar, { backgroundColor: accent }]} />
       <View style={{ flex: 1 }}>
-        <Text style={styles.classRowName}>{name}</Text>
-        <Text style={styles.classRowClub}>{clubName}</Text>
-        <Text style={styles.classRowMeta}>
+        <Text style={[styles.classRowName, { color: colors.text }]}>{name}</Text>
+        <Text style={[styles.classRowClub, { color: colors.primary }]}>{clubName}</Text>
+        <Text style={[styles.classRowMeta, { color: colors.textMuted }]}>
           {time}
           {coach ? ` · ${coach}` : ""}
           {spots ? ` · ${spots}` : ""}
@@ -366,9 +398,10 @@ export function ClassRowCard({
 }
 
 export function SearchInput({ value, onChangeText, placeholder }: { value: string; onChangeText: (v: string) => void; placeholder: string }) {
+  const colors = useThemeColors();
   return (
     <TextInput
-      style={styles.search}
+      style={[styles.search, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
       value={value}
       onChangeText={onChangeText}
       placeholder={placeholder}
@@ -381,28 +414,26 @@ export function SearchInput({ value, onChangeText, placeholder }: { value: strin
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
+  screen: { flex: 1 },
   scrollContent: { paddingHorizontal: spacing.md, gap: spacing.md },
   header: { paddingHorizontal: spacing.md, paddingVertical: spacing.lg, borderBottomLeftRadius: radius.xl, borderBottomRightRadius: radius.xl },
   headerRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   logo: { width: 52, height: 52, borderRadius: 14, backgroundColor: "#fff" },
   logoFallback: { alignItems: "center", justifyContent: "center" },
-  logoLetter: { fontSize: 22, fontWeight: "800", color: colors.primary },
+  logoLetter: { fontSize: 22, fontWeight: "800", color: staticColors.primary },
   headerText: { flex: 1 },
   clubName: { fontSize: 20, fontWeight: "800", color: "#fff" },
   memberName: { fontSize: 15, color: "rgba(255,255,255,0.9)", marginTop: 2 },
   subtitle: { fontSize: 13, color: "rgba(255,255,255,0.75)", marginTop: 4 },
   card: {
-    backgroundColor: colors.card,
     borderRadius: radius.lg,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: colors.border,
   },
   sectionRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.sm },
-  sectionTitle: { fontSize: 17, fontWeight: "700", color: colors.text },
+  sectionTitle: { fontSize: 17, fontWeight: "700" },
   btn: {
-    backgroundColor: colors.primary,
+    backgroundColor: staticColors.primary,
     borderRadius: radius.md,
     paddingVertical: 13,
     paddingHorizontal: 16,
@@ -410,54 +441,50 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     minHeight: 48,
   },
-  btnOutline: { backgroundColor: "transparent", borderWidth: 1.5, borderColor: colors.border },
-  btnDanger: { backgroundColor: colors.dangerBg, borderWidth: 1, borderColor: "#fecaca" },
+  btnOutline: { backgroundColor: "transparent", borderWidth: 1.5, borderColor: staticColors.border },
+  btnDanger: { backgroundColor: staticColors.dangerBg, borderWidth: 1, borderColor: "#fecaca" },
   btnDisabled: { opacity: 0.5 },
   btnPressed: { opacity: 0.88 },
   btnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
-  btnTextOutline: { color: colors.primary },
-  btnTextDanger: { color: colors.danger },
+  btnTextOutline: { color: staticColors.primary },
+  btnTextDanger: { color: staticColors.danger },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
   badgeText: { fontSize: 12, fontWeight: "700" },
   skeleton: { backgroundColor: "#e2e8f0", borderRadius: radius.md },
   empty: { alignItems: "center", paddingVertical: 40, paddingHorizontal: 24 },
-  emptyTitle: { fontSize: 16, fontWeight: "600", color: colors.text },
-  emptySub: { fontSize: 14, color: colors.textMuted, textAlign: "center", marginTop: 6 },
+  emptyTitle: { fontSize: 16, fontWeight: "600", color: staticColors.text },
+  emptySub: { fontSize: 14, color: staticColors.textMuted, textAlign: "center", marginTop: 6 },
   search: {
-    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: radius.md,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
-    color: colors.text,
     marginBottom: spacing.sm,
   },
   btnInner: { flexDirection: "row", alignItems: "center", gap: 8 },
   quickAction: { flex: 1, alignItems: "center", gap: 8 },
   quickIcon: { width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center" },
-  quickLabel: { fontSize: 12, fontWeight: "600", color: colors.text, textAlign: "center" },
+  quickLabel: { fontSize: 12, fontWeight: "600", color: staticColors.text, textAlign: "center" },
   premiumEmpty: { alignItems: "center", paddingVertical: 28, paddingHorizontal: 16, gap: 8 },
   iconRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   iconCircle: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  iconLabel: { fontSize: 12, color: colors.textMuted, fontWeight: "600" },
-  iconValue: { fontSize: 15, fontWeight: "700", color: colors.text, marginTop: 1 },
+  iconLabel: { fontSize: 12, color: staticColors.textMuted, fontWeight: "600" },
+  iconValue: { fontSize: 15, fontWeight: "700", color: staticColors.text, marginTop: 1 },
   clubCard: {
-    backgroundColor: colors.card,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.border,
     overflow: "hidden",
     marginBottom: spacing.sm,
   },
+  favBtn: { padding: 4 },
   clubCardCompact: { marginBottom: 0 },
   clubCardAccent: { height: 4 },
   clubCardBody: { flexDirection: "row", alignItems: "center", gap: 12, padding: spacing.md },
   clubCardLogo: { width: 48, height: 48, borderRadius: 14, backgroundColor: "#fff" },
   clubCardTypeIcon: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  clubCardName: { fontSize: 17, fontWeight: "800", color: colors.text },
-  clubCardMeta: { fontSize: 13, color: colors.textMuted, marginTop: 2, textTransform: "capitalize" },
+  clubCardName: { fontSize: 17, fontWeight: "800" },
+  clubCardMeta: { fontSize: 13, marginTop: 2, textTransform: "capitalize" },
   clubCardStat: { fontSize: 12, fontWeight: "600", marginTop: 6 },
   chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, marginRight: 8 },
   chipText: { fontSize: 13, fontWeight: "700" },
@@ -467,7 +494,7 @@ const styles = StyleSheet.create({
   discoverSub: { fontSize: 15, color: "#94a3b8", marginTop: 8, lineHeight: 22 },
   classRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: spacing.md },
   classRowBar: { width: 4, height: 48, borderRadius: 4 },
-  classRowName: { fontSize: 16, fontWeight: "700", color: colors.text },
-  classRowClub: { fontSize: 13, fontWeight: "600", color: colors.primary, marginTop: 2 },
-  classRowMeta: { fontSize: 12, color: colors.textMuted, marginTop: 4 },
+  classRowName: { fontSize: 16, fontWeight: "700" },
+  classRowClub: { fontSize: 13, fontWeight: "600", marginTop: 2 },
+  classRowMeta: { fontSize: 12, marginTop: 4 },
 });

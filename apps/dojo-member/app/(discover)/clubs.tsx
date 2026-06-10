@@ -11,9 +11,12 @@ import {
 } from "@/lib/components";
 import { getClubTypeVisual } from "@/lib/clubVisuals";
 import { useClubTypes, useDiscoverClubs, type ClubTypeOption, type DiscoverClub } from "@/lib/discover";
-import { colors, spacing } from "@/lib/theme";
+import { useI18n } from "@/lib/i18n";
+import { spacing, useThemeColors } from "@/lib/theme";
 
 export default function ClubsScreen() {
+  const { t } = useI18n();
+  const colors = useThemeColors();
   const router = useRouter();
   const params = useLocalSearchParams<{ type?: string }>();
   const [query, setQuery] = useState("");
@@ -31,8 +34,8 @@ export default function ClubsScreen() {
   }, [clubTypes, clubs, clubType]);
 
   return (
-    <View style={styles.root}>
-      <DiscoverHero title="All clubs" subtitle={`${data?.total ?? 0} clubs on Dojo`} />
+    <View style={[styles.root, { backgroundColor: colors.bg }]}>
+      <DiscoverHero title={t("clubs.title")} subtitle={t("clubs.subtitle", { count: data?.total ?? 0 })} />
       <View style={styles.body}>
         <SearchInput value={query} onChangeText={setQuery} placeholder="Search clubs, city, or code…" />
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chips}>
@@ -89,7 +92,7 @@ export default function ClubsScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bg },
+  root: { flex: 1 },
   body: { flex: 1, paddingHorizontal: spacing.md, paddingTop: spacing.md },
   chips: { marginBottom: spacing.sm, maxHeight: 44 },
   list: { paddingBottom: 100, gap: 0 },

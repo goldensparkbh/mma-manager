@@ -1,30 +1,36 @@
 import { format, isToday, isTomorrow } from "date-fns";
 import * as Haptics from "expo-haptics";
+import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { FlatList, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "@/lib/auth";
-import { Badge, Card, ClubHeader, PremiumEmptyState, PrimaryButton, SearchInput, Skeleton } from "@/lib/components";
+import { ClassRowCard, ClubHeader, PremiumEmptyState, SearchInput, Skeleton } from "@/lib/components";
+import { QueryErrorState } from "@/lib/errors";
 import { ClassesIllustration } from "@/lib/illustrations";
 import { FadeInView } from "@/lib/motion";
 import { useBranding } from "@/lib/branding";
 import { useBookClass, useBookings, useClasses } from "@/lib/hooks";
+import { useI18n } from "@/lib/i18n";
 import { useToast } from "@/lib/toast";
-import { colors, spacing } from "@/lib/theme";
+import { spacing, useThemeColors } from "@/lib/theme";
 import type { Booking, ClassSession } from "@/lib/types";
 
-function dayLabel(date: Date) {
-  if (isToday(date)) return "Today";
-  if (isTomorrow(date)) return "Tomorrow";
+function dayLabel(date: Date, t: (k: "common.today" | "common.tomorrow") => string) {
+  if (isToday(date)) return t("common.today");
+  if (isTomorrow(date)) return t("common.tomorrow");
   return format(date, "EEEE, d MMM");
 }
 
 export default function ClassesScreen() {
+  const router = useRouter();
   const { show } = useToast();
   const { activeSubscription, clubName, portalInfo } = useAuth();
   const { accent } = useBranding();
+  const { t } = useI18n();
+  const colors = useThemeColors();
   const [query, setQuery] = useState("");
 
-  const { data: sessionsData, isLoading, refetch, isRefetching } = useClasses();
+  const { data: sessionsData, isLoading, isError, refetch, isRefetching } = useClasses();
   const { data: bookingsData } = useBookings();
   const sessions: ClassSession[] = sessionsData ?? [];
   const bookings: Booking[] = bookingsData ?? [];
@@ -52,10 +58,10 @@ export default function ClassesScreen() {
     }
     return [...map.entries()].map(([key, items]) => ({
       key,
-      title: dayLabel(new Date(key)),
+      title: dayLabel(new Date(key), t),
       items,
     }));
-  }, [filtered]);
+  }, [filtered, t]);
 
   const onBook = async (sessionId: string) => {
     try {
@@ -68,12 +74,14 @@ export default function ClassesScreen() {
   };
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: colors.bg }]}>
       <ClubHeader clubName={clubName} logoUrl={portalInfo?.logoUrl} accent={accent} subtitle="Book a class" />
       <View style={styles.body}>
         <SearchInput value={query} onChangeText={setQuery} placeholder="Search classes or coach…" />
         {isLoading ? (
           <Skeleton height={120} />
+        ) : isError ? (
+          <QueryErrorState onRetry={() => refetch()} />
         ) : (
           <FlatList
             data={sections}
@@ -90,30 +98,34 @@ export default function ClassesScreen() {
             }
             renderItem={({ item: section, index }) => (
               <FadeInView delay={index * 40} style={styles.section}>
-                <Text style={styles.sectionTitle}>{section.title}</Text>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>{section.title}</Text>
                 {section.items.map((item) => {
                   const isBooked = bookedIds.has(item.id);
-                  const full = (item.bookedCount ?? 0) >= item.capacity;
+                  const spots = item.capacity > 0 ? `${item.bookedCount ?? 0}/${item.capacity}` : undefined;
                   return (
-                    <Card key={item.id} style={styles.card}>
-                      <Text style={styles.name}>{item.name}</Text>
-                      <Text style={styles.meta}>{format(new Date(item.startsAt), "HH:mm")}</Text>
-                      {item.coachName ? <Text style={styles.meta}>Coach {item.coachName}</Text> : null}
-                      {item.location ? <Text style={styles.meta}>{item.location}</Text> : null}
-                      <View style={styles.row}>
-                        <Badge label={`${item.bookedCount ?? 0}/${item.capacity}`} />
-                        {isBooked ? (
-                          <Badge label="Booked" tone="success" />
-                        ) : (
-                          <PrimaryButton
-                            label={full ? "Waitlist" : "Book"}
-                            disabled={!activeSubscription}
-                            loading={bookClass.isPending}
-                            onPress={() => onBook(item.id)}
-                          />
-                        )}
-                      </View>
-                    </Card>
+                    <ClassRowCard
+                      key={item.id}
+                      name={item.name}
+                      clubName={clubName}
+                      time={format(new Date(item.startsAt), "HH:mm")}
+                      coach={item.coachName}
+                      spots={isBooked ? t("class.booked") : spots}
+                      accent={accent}
+                      onPress={() =>
+                        router.push({
+                          pathname: "/class/[id]",
+                          params: {
+                            id: item.id,
+                            mode: "member",
+                            clubName,
+                            startsAt: item.startsAt,
+                            coach: item.coachName || "",
+                            capacity: String(item.capacity),
+                            booked: String(item.bookedCount ?? 0),
+                          },
+                        })
+                      }
+                    />
                   );
                 })}
               </FadeInView>
@@ -126,13 +138,9 @@ export default function ClassesScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bg },
+  root: { flex: 1 },
   body: { flex: 1, paddingHorizontal: spacing.md, paddingTop: spacing.md },
   list: { paddingBottom: 100, gap: spacing.md },
   section: { gap: spacing.sm, marginBottom: spacing.md },
-  sectionTitle: { fontSize: 15, fontWeight: "700", color: colors.text, marginBottom: 4 },
-  card: { gap: 4 },
-  name: { fontSize: 16, fontWeight: "700", color: colors.text },
-  meta: { fontSize: 13, color: colors.textMuted },
-  row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8, gap: 12 },
+  sectionTitle: { fontSize: 15, fontWeight: "700", marginBottom: 4 },
 });
