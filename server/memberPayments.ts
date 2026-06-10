@@ -20,6 +20,7 @@ export async function createMemberCheckout(params: {
   memberId: string;
   packageId: string;
   saveCard?: boolean;
+  redirectUrl?: string;
 }) {
   if (!isTapConfigured()) throw new Error("Online payments are not configured");
 
@@ -64,7 +65,7 @@ export async function createMemberCheckout(params: {
       memberId: params.memberId,
       packageId: params.packageId,
     },
-    redirectUrl: `${baseUrl}/portal/${slug}/payment/result`,
+    redirectUrl: params.redirectUrl || `${baseUrl}/portal/${slug}/payment/result`,
     webhookUrl: `${baseUrl}/api/webhooks/tap`,
     saveCard: params.saveCard ?? true,
   });

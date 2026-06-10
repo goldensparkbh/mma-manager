@@ -1259,7 +1259,7 @@ export async function createPlatformCheckout(tenantId: string, userId: string, b
       email: tenant.user_email || tenant.email,
       phone: tenant.phone || undefined,
     },
-    description: `Dojo Manager — ${sub.planName} (${billingCycle})`,
+    description: `Nawady — ${sub.planName} (${billingCycle})`,
     metadata: {
       paymentId: payment.id,
       tenantId,

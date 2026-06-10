@@ -10,18 +10,21 @@ import {
   Skeleton,
 } from "@/lib/components";
 import { useDiscoverSchedule } from "@/lib/discover";
-import { colors, spacing } from "@/lib/theme";
-
-function dayLabel(date: Date) {
-  if (isToday(date)) return "Today";
-  if (isTomorrow(date)) return "Tomorrow";
-  return format(date, "EEEE, d MMM");
-}
+import { useI18n } from "@/lib/i18n";
+import { spacing, useThemeColors } from "@/lib/theme";
 
 export default function ScheduleScreen() {
   const router = useRouter();
+  const { t } = useI18n();
+  const colors = useThemeColors();
   const [query, setQuery] = useState("");
   const { data, isLoading, refetch, isRefetching } = useDiscoverSchedule({ q: query });
+
+  const dayLabel = (date: Date) => {
+    if (isToday(date)) return t("common.today");
+    if (isTomorrow(date)) return t("common.tomorrow");
+    return format(date, "EEEE, d MMM");
+  };
 
   const sections = useMemo(() => {
     const map = new Map<string, NonNullable<typeof data>>();
@@ -36,17 +39,17 @@ export default function ScheduleScreen() {
         title: dayLabel(new Date(key)),
         data: items,
       }));
-  }, [data]);
+  }, [data, t]);
 
   return (
-    <View style={styles.root}>
-      <DiscoverHero title="Class schedule" subtitle="Upcoming sessions across all clubs" />
+    <View style={[styles.root, { backgroundColor: colors.bg }]}>
+      <DiscoverHero title={t("schedule.title")} subtitle={t("schedule.subtitle")} />
       <View style={styles.body}>
-        <SearchInput value={query} onChangeText={setQuery} placeholder="Search class, coach, or club…" />
+        <SearchInput value={query} onChangeText={setQuery} placeholder={t("schedule.search")} />
         {isLoading ? (
           <Skeleton height={300} />
         ) : sections.length === 0 ? (
-          <PremiumEmptyState title="No classes found" subtitle="Try another search or check back later" />
+          <PremiumEmptyState title={t("schedule.noClasses")} subtitle={t("schedule.noClassesSub")} />
         ) : (
           <SectionList
             sections={sections}
@@ -56,15 +59,13 @@ export default function ScheduleScreen() {
             contentContainerStyle={styles.list}
             stickySectionHeadersEnabled
             renderSectionHeader={({ section }) => (
-              <View style={styles.sectionHead}>
-                <Text style={styles.sectionTitle}>{section.title}</Text>
+              <View style={[styles.sectionHead, { backgroundColor: colors.bg }]}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>{section.title}</Text>
               </View>
             )}
             renderItem={({ item }) => {
               const spots =
-                item.capacity > 0
-                  ? `${item.bookedCount ?? 0}/${item.capacity} spots`
-                  : undefined;
+                item.capacity > 0 ? `${item.bookedCount ?? 0}/${item.capacity}` : undefined;
               return (
                 <ClassRowCard
                   name={item.name}
@@ -73,7 +74,20 @@ export default function ScheduleScreen() {
                   coach={item.coachName}
                   spots={spots}
                   accent={item.primaryColor || colors.primary}
-                  onPress={() => router.push(`/club/${item.clubSlug}`)}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/class/[id]",
+                      params: {
+                        id: item.id,
+                        clubSlug: item.clubSlug,
+                        clubName: item.clubName,
+                        startsAt: item.startsAt,
+                        coach: item.coachName || "",
+                        capacity: String(item.capacity),
+                        booked: String(item.bookedCount ?? 0),
+                      },
+                    })
+                  }
                 />
               );
             }}
@@ -85,13 +99,9 @@ export default function ScheduleScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bg },
+  root: { flex: 1 },
   body: { flex: 1, paddingHorizontal: spacing.md, paddingTop: spacing.md },
   list: { paddingBottom: 100 },
-  sectionHead: {
-    backgroundColor: colors.bg,
-    paddingVertical: 8,
-    paddingTop: 12,
-  },
-  sectionTitle: { fontSize: 15, fontWeight: "800", color: colors.text },
+  sectionHead: { paddingVertical: 8, paddingTop: 12 },
+  sectionTitle: { fontSize: 15, fontWeight: "800" },
 });

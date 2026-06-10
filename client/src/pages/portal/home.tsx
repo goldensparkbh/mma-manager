@@ -2,7 +2,7 @@ import { useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, addDays } from "date-fns";
 import { ar, enUS } from "date-fns/locale";
-import { Calendar, CreditCard, Loader2, LogOut, MapPin, User } from "lucide-react";
+import { Award, Calendar, CheckCircle2, CreditCard, Loader2, LogOut, MapPin, User } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { Booking, ClassSession, MemberPayment, SubscriptionPackage } from "@shared/schema";
 import { useLocation } from "wouter";
 import { PortalInstallBanner } from "@/components/portal-install-banner";
+import { PortalQrCard } from "@/components/portal-qr-card";
 
 export default function PortalHome() {
   const { t, language } = useLanguage();
@@ -69,6 +70,22 @@ export default function PortalHome() {
   >({
     queryKey: ["/api/portal/camps"],
     queryFn: () => portalApiJson("/api/portal/camps"),
+    enabled: !!member,
+  });
+
+  const { data: progression } = useQuery<{
+    memberBelts: Array<{ id: string; beltName?: string | null; beltColor?: string | null; stripes?: number; awardedAt?: string }>;
+  }>({
+    queryKey: ["/api/portal/progression"],
+    queryFn: () => portalApiJson("/api/portal/progression"),
+    enabled: !!member,
+  });
+
+  const { data: attendance = [], isLoading: loadingAttendance } = useQuery<
+    Array<{ id: string; date: string; checkIn?: string | null }>
+  >({
+    queryKey: ["/api/portal/attendance"],
+    queryFn: () => portalApiJson("/api/portal/attendance"),
     enabled: !!member,
   });
 
@@ -217,6 +234,7 @@ export default function PortalHome() {
             <TabsTrigger value="bookings" className="flex-1">{t("portal.myBookings")}</TabsTrigger>
             <TabsTrigger value="camps" className="flex-1">{t("camps.title")}</TabsTrigger>
             <TabsTrigger value="payments" className="flex-1">{t("portal.payments")}</TabsTrigger>
+            <TabsTrigger value="profile" className="flex-1">{t("portal.profile")}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="classes" className="space-y-3 mt-4">
@@ -388,6 +406,69 @@ export default function PortalHome() {
                 </CardContent>
               </Card>
             )}
+          </TabsContent>
+
+          <TabsContent value="profile" className="space-y-3 mt-4">
+            <PortalQrCard />
+            <Card>
+              <CardHeader className="pb-2 p-4">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Award className="h-4 w-4" />
+                  {t("portal.progression")}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0 space-y-2">
+                {!progression?.memberBelts?.length ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">{t("portal.noBelts")}</p>
+                ) : (
+                  progression.memberBelts.slice(0, 8).map((belt) => (
+                    <div key={belt.id} className="flex items-center gap-3 border-b pb-2 last:border-0">
+                      <span
+                        className="h-3 w-3 rounded-full shrink-0"
+                        style={{ backgroundColor: belt.beltColor || accent }}
+                      />
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">{belt.beltName || "—"}</p>
+                        {belt.awardedAt && (
+                          <p className="text-xs text-muted-foreground">
+                            {format(new Date(belt.awardedAt), "d MMM yyyy", { locale })}
+                          </p>
+                        )}
+                      </div>
+                      {(belt.stripes ?? 0) > 0 && (
+                        <span className="text-xs text-muted-foreground">
+                          {belt.stripes} {t("portal.stripes")}
+                        </span>
+                      )}
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2 p-4">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4" />
+                  {t("portal.attendance")}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0 space-y-2">
+                {loadingAttendance ? (
+                  <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                ) : attendance.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">{t("portal.noAttendance")}</p>
+                ) : (
+                  attendance.slice(0, 12).map((row) => (
+                    <div key={row.id} className="flex justify-between text-sm border-b pb-2 last:border-0">
+                      <span>{row.date}</span>
+                      <span className="text-muted-foreground">
+                        {row.checkIn ? format(new Date(row.checkIn), "HH:mm", { locale }) : "—"}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </main>

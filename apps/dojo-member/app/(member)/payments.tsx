@@ -22,7 +22,7 @@ export default function PaymentsScreen() {
   const { show } = useToast();
   const { clubName, portalInfo, refresh } = useAuth();
   const { accent } = useBranding();
-  const { locale } = useI18n();
+  const { t, locale } = useI18n();
   const colors = useThemeColors();
 
   const { data: packagesData, isLoading: loadingPackages, refetch: refetchPackages, isRefetching } = usePackages();
@@ -51,7 +51,7 @@ export default function PaymentsScreen() {
           const tapId = parsed.queryParams?.tap_id;
           if (tapId) {
             refreshAll();
-            show("Payment completed", "success");
+            show(t("member.paymentComplete"), "success");
           }
         }
       }
@@ -62,7 +62,7 @@ export default function PaymentsScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.bg }]}>
-      <ClubHeader clubName={clubName} logoUrl={portalInfo?.logoUrl} accent={accent} subtitle="Renew & pay" />
+      <ClubHeader clubName={clubName} logoUrl={portalInfo?.logoUrl} accent={accent} subtitle={t("member.renewPay")} />
       <FlatList
         data={packages}
         keyExtractor={(item) => item.id}
@@ -71,15 +71,15 @@ export default function PaymentsScreen() {
         contentContainerStyle={styles.list}
         ListHeaderComponent={
           <>
-            <Text style={[styles.heading, { color: colors.text }]}>Available packages</Text>
+            <Text style={[styles.heading, { color: colors.text }]}>{t("member.availablePackages")}</Text>
             {loadingPackages ? <Skeleton height={100} /> : null}
           </>
         }
         ListEmptyComponent={
           !loadingPackages ? (
             <PremiumEmptyState
-              title="No packages available"
-              subtitle="Contact your club for membership options"
+              title={t("member.noPackages")}
+              subtitle={t("member.noPackagesSub")}
               illustration={<PaymentsIllustration size={150} />}
             />
           ) : null
@@ -90,13 +90,13 @@ export default function PaymentsScreen() {
             <Text style={[styles.name, { color: colors.text }]}>{item.name}</Text>
             <Text style={[styles.meta, { color: colors.textMuted }]}>
               {item.packageType === "sessions"
-                ? `${item.sessionCount} sessions`
-                : `${item.duration} days validity`}
+                ? t("member.sessionsPkg", { count: item.sessionCount ?? 0 })
+                : t("member.daysValidity", { days: item.duration })}
             </Text>
             <View style={styles.row}>
               <Text style={[styles.price, { color: colors.text }]}>{formatCurrency(item.price, "BHD", locale)}</Text>
               <PrimaryButton
-                label="Pay now"
+                label={t("member.payNow")}
                 loading={checkout.isPending}
                 onPress={() => onBuy(item)}
               />
@@ -106,11 +106,11 @@ export default function PaymentsScreen() {
         )}
         ListFooterComponent={
           <View style={styles.history}>
-            <Text style={[styles.heading, { color: colors.text }]}>Payment history</Text>
+            <Text style={[styles.heading, { color: colors.text }]}>{t("member.paymentHistory")}</Text>
             {loadingPayments ? (
               <Skeleton height={80} />
             ) : payments.length === 0 ? (
-              <PremiumEmptyState title="No payments yet" illustration={<PaymentsIllustration size={120} />} />
+              <PremiumEmptyState title={t("member.noPayments")} illustration={<PaymentsIllustration size={120} />} />
             ) : (
               payments.slice(0, 15).map((p) => (
                 <Card key={p.id} style={styles.historyRow}>

@@ -19,14 +19,14 @@ export const DOCUMENTATION_TOPICS: DocTopic[] = [
         },
         content: {
             en: `
-Welcome to Dojo Manager! To access the platform:
+Welcome to Nawady! To access the platform:
 Login: Enter your registered email and password on the login screen.
 Setup Wizard: If this is your first time, the system will guide you through creating your admin account.
 Language: You can switch between Arabic and English using the selector in the sidebar.
 Profile: Access your profile settings from the bottom of the sidebar.
             `,
             ar: `
-أهلاً بك في نظام دوجو! للوصول إلى المنصة:
+أهلاً بك في نوادي! للوصول إلى المنصة:
 تسجيل الدخول: أدخل بريدك الإلكتروني المسجل وكلمة المرور في شاشة تسجيل الدخول.
 معالج الإعداد: إذا كانت هذه هي المرة الأولى، فسيقوم النظام بإرشادك لإنشاء حساب المدير الخاص بك.
 اللغة: يمكنك التبديل بين اللغتين العربية والإنجليزية باستخدام محدد اللغة في الشريط الجانبي.

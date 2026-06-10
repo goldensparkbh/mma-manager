@@ -28,7 +28,8 @@ import {
   usePublicSchedule,
 } from "@/lib/discover";
 import { useI18n } from "@/lib/i18n";
-import { isClubSaved, saveClub, toggleSavedClub } from "@/lib/savedClubs";
+import { saveRecentClub } from "@/lib/recentClubs";
+import { isClubFavorite, toggleFavoriteClub } from "@/lib/savedClubs";
 import { radius, spacing, useThemeColors, withAlpha } from "@/lib/theme";
 
 const SOCIAL_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
@@ -61,19 +62,19 @@ export default function ClubDetailScreen() {
 
   useEffect(() => {
     if (!profile) return;
-    saveClub({
+    saveRecentClub({
       slug: profile.portalSlug,
       name: profile.name,
       clubType: profile.clubType,
       logoUrl: profile.logoUrl,
       primaryColor: profile.primaryColor,
     }).catch(() => {});
-    isClubSaved(profile.portalSlug).then(setFavorite).catch(() => {});
+    isClubFavorite(profile.portalSlug).then(setFavorite).catch(() => {});
   }, [profile]);
 
   const onToggleFavorite = useCallback(async () => {
     if (!profile) return;
-    const next = await toggleSavedClub({
+    const next = await toggleFavoriteClub({
       slug: profile.portalSlug,
       name: profile.name,
       clubType: profile.clubType,

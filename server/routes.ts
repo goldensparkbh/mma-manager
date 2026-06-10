@@ -110,9 +110,9 @@ router.post("/api/webhooks/tap", async (req, res) => {
 
 router.get("/api/settings/public", optionalAuth, async (req, res) => {
   const auth = (req as Request & { auth?: ReturnType<typeof getAuth> }).auth;
-  if (!auth?.tenantId) return res.json({ name: "Dojo Manager" });
+  if (!auth?.tenantId) return res.json({ name: "Nawady" });
   const settings = await data.getSettings(auth.tenantId);
-  res.json(settings || { name: "Dojo Manager" });
+  res.json(settings || { name: "Nawady" });
 });
 
 // ─── Member portal (public) ─────────────────────────────────────────────────
@@ -421,6 +421,30 @@ router.post("/api/portal/push-token", requireMemberAccount, async (req, res) => 
   }
 });
 
+router.get("/api/portal/attendance", requireMemberAccount, async (req, res) => {
+  const auth = getAuth(req);
+  const records = await data.getAttendanceByMember(auth.tenantId!, [auth.memberId!]);
+  res.json(records.slice(0, 60));
+});
+
+router.get("/api/portal/progression", requireMemberAccount, async (req, res) => {
+  const auth = getAuth(req);
+  const belts = await data.getBelts(auth.tenantId!);
+  const memberBelts = await data.getMemberBelts(auth.tenantId!, auth.memberId!);
+  const beltMap = new Map(belts.map((b) => [b.id as string, b]));
+  const awards = memberBelts.map((mb) => {
+    const row = mb as Record<string, unknown>;
+    const belt = beltMap.get(String(row.beltId ?? ""));
+    return {
+      ...row,
+      beltName: belt?.name ?? null,
+      beltColor: belt?.color ?? null,
+      beltOrder: belt?.order ?? null,
+    };
+  });
+  res.json({ belts, memberBelts: awards });
+});
+
 router.get("/api/portal/qr", requireMemberAccount, async (req, res) => {
   const auth = getAuth(req);
   const { ensureMemberQrToken } = await import("./checkin.js");
@@ -555,6 +579,7 @@ router.post("/api/portal/payments/checkout", requireMemberAccount, async (req, r
       memberId: auth.memberId!,
       packageId: req.body.packageId,
       saveCard: req.body.saveCard !== false,
+      redirectUrl: typeof req.body.redirectUrl === "string" ? req.body.redirectUrl : undefined,
     });
     res.json(result);
   } catch (err) {

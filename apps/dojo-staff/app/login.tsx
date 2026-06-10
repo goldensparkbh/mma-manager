@@ -6,10 +6,12 @@ import { useAuth } from "@/lib/auth";
 import { PrimaryButton } from "@/lib/components";
 import { DashboardIllustration } from "@/lib/illustrations";
 import { FadeInView } from "@/lib/motion";
+import { useI18n } from "@/lib/i18n";
 import { colors, radius, spacing } from "@/lib/theme";
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { t } = useI18n();
   const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -32,7 +34,7 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <LinearGradient colors={["#1e3a8a", "#0f172a"]} style={styles.hero}>
-        <Text style={styles.brand}>Nawady Staff</Text>
+        <Text style={styles.brand}>{t("login.brand")}</Text>
         <Text style={styles.sub}>Scan, schedule, and manage your club on the go</Text>
       </LinearGradient>
       <View style={styles.card}>
@@ -41,9 +43,9 @@ export default function LoginScreen() {
             <DashboardIllustration size={160} />
           </View>
         </FadeInView>
-        <TextInput style={styles.input} placeholder="Email" autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} placeholderTextColor={colors.textMuted} />
-        <TextInput style={styles.input} placeholder="Password" secureTextEntry value={password} onChangeText={setPassword} placeholderTextColor={colors.textMuted} />
-        <PrimaryButton label="Sign in" loading={loading} disabled={!email || !password} onPress={onSubmit} />
+        <TextInput style={styles.input} placeholder={t("login.email")} autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} placeholderTextColor={colors.textMuted} />
+        <TextInput style={styles.input} placeholder={t("login.password")} secureTextEntry value={password} onChangeText={setPassword} placeholderTextColor={colors.textMuted} />
+        <PrimaryButton label={t("login.signIn")} loading={loading} disabled={!email || !password} onPress={onSubmit} />
         {error ? <Text style={styles.error}>{error}</Text> : null}
       </View>
     </KeyboardAvoidingView>

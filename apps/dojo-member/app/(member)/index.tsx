@@ -67,7 +67,7 @@ export default function HomeScreen() {
         logoUrl={portalInfo?.logoUrl}
         accent={accent}
         memberName={member?.name}
-        subtitle={portalInfo?.welcomeMessage || "Welcome back"}
+        subtitle={portalInfo?.welcomeMessage || t("member.welcomeBack")}
       />
       <Pressable onPress={() => router.push("/(discover)/clubs")} style={styles.browseLink}>
         <Text style={[styles.browseText, { color: accent }]}>{t("member.browsePlatform")}</Text>
@@ -75,41 +75,41 @@ export default function HomeScreen() {
 
       <FadeInView delay={0}>
         <View style={styles.quickRow}>
-          <QuickAction icon="calendar" label="Classes" onPress={() => router.push("/(member)/classes")} accent={accent} />
-          <QuickAction icon="qr-code" label="Check-in" onPress={() => router.push("/(member)/profile")} accent={accent} />
-          <QuickAction icon="card" label="Pay" onPress={() => router.push("/(member)/payments")} accent={accent} />
-          <QuickAction icon="bookmark" label="Bookings" onPress={() => router.push("/(member)/bookings")} accent={accent} />
+          <QuickAction icon="calendar" label={t("tabs.classes")} onPress={() => router.push("/(member)/classes")} accent={accent} />
+          <QuickAction icon="qr-code" label={t("member.checkInQr")} onPress={() => router.push("/(member)/profile")} accent={accent} />
+          <QuickAction icon="card" label={t("tabs.pay")} onPress={() => router.push("/(member)/payments")} accent={accent} />
+          <QuickAction icon="bookmark" label={t("tabs.bookings")} onPress={() => router.push("/(member)/bookings")} accent={accent} />
         </View>
       </FadeInView>
 
       <FadeInView delay={60}>
         <Card style={{ ...styles.membershipCard, borderColor: withAlpha(accent, 0.35) }}>
-          <SectionTitle title="Membership" />
+          <SectionTitle title={t("member.membership")} />
           {activeSubscription ? (
             <>
-              <IconRow icon="ribbon" label="Plan" value={activeSubscription.planName} accent={accent} />
+              <IconRow icon="ribbon" label={t("member.plan")} value={activeSubscription.planName} accent={accent} />
               {activeSubscription.packageType === "sessions" ? (
-                <IconRow icon="fitness" label="Sessions left" value={String(activeSubscription.sessionsRemaining ?? 0)} accent={accent} />
+                <IconRow icon="fitness" label={t("member.sessionsLeft")} value={String(activeSubscription.sessionsRemaining ?? 0)} accent={accent} />
               ) : activeSubscription.endDate ? (
-                <IconRow icon="time" label="Valid until" value={format(new Date(activeSubscription.endDate), "d MMM yyyy")} accent={accent} />
+                <IconRow icon="time" label={t("member.validUntil")} value={format(new Date(activeSubscription.endDate), "d MMM yyyy")} accent={accent} />
               ) : null}
-              <Badge label="Active" tone="success" />
+              <Badge label={t("member.active")} tone="success" />
             </>
           ) : (
             <>
               <PremiumEmptyState
-                title="No active plan"
-                subtitle="Renew to book classes and check in"
+                title={t("member.noPlan")}
+                subtitle={t("member.noPlanSub")}
                 illustration={<ClassesIllustration size={140} />}
               />
-              <PrimaryButton label="View packages" icon="card" onPress={() => router.push("/(member)/payments")} />
+              <PrimaryButton label={t("member.viewPackages")} icon="card" onPress={() => router.push("/(member)/payments")} />
             </>
           )}
         </Card>
       </FadeInView>
 
       <FadeInView delay={120}>
-        <SectionTitle title="Next class" />
+        <SectionTitle title={t("member.nextClass")} />
         {loadingBookings ? (
           <Skeleton height={100} />
         ) : nextBooking ? (
@@ -119,8 +119,8 @@ export default function HomeScreen() {
           </Card>
         ) : (
           <PremiumEmptyState
-            title="Nothing booked yet"
-            subtitle="Find your next session in Classes"
+            title={t("member.nothingBooked")}
+            subtitle={t("member.nothingBookedSub")}
             illustration={<BookingsIllustration size={130} />}
           />
         )}
@@ -128,23 +128,23 @@ export default function HomeScreen() {
 
       <FadeInView delay={180}>
         <Pressable style={[styles.qrCta, { backgroundColor: accent }]} onPress={() => router.push("/(member)/profile")}>
-          <Text style={styles.qrTitle}>Check-in QR</Text>
-          <Text style={styles.qrSub}>Tap to open fullscreen code at the door</Text>
+          <Text style={styles.qrTitle}>{t("member.checkInQr")}</Text>
+          <Text style={styles.qrSub}>{t("member.checkInQrSub")}</Text>
         </Pressable>
       </FadeInView>
 
       <FadeInView delay={220}>
-        <SectionTitle title="Events & camps" />
+        <SectionTitle title={t("member.events")} />
         {loadingCamps ? (
           <Skeleton height={100} />
         ) : camps.length === 0 ? (
-          <PremiumEmptyState title="No public events right now" subtitle="New camps will appear here" />
+          <PremiumEmptyState title={t("member.noEvents")} subtitle={t("member.newCamps")} />
         ) : (
           camps.slice(0, 3).map((camp) => (
             <Card key={camp.id} style={styles.gap}>
               <IconRow icon="trophy" label={camp.title} value={format(new Date(camp.startDate), "EEE d MMM · HH:mm")} accent={accent} />
               {camp.price != null ? <Text style={[styles.meta, { color: colors.textMuted }]}>{camp.price} BHD</Text> : null}
-              <PrimaryButton label="Register" icon="checkmark-circle" loading={registerCamp.isPending} onPress={() => onRegisterCamp(camp.id)} />
+              <PrimaryButton label={t("member.register")} icon="checkmark-circle" loading={registerCamp.isPending} onPress={() => onRegisterCamp(camp.id)} />
             </Card>
           ))
         )}

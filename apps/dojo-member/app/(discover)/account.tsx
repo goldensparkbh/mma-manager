@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "@/lib/auth";
 import {
   Card,
@@ -12,21 +12,34 @@ import {
   SectionTitle,
 } from "@/lib/components";
 import { getClubTypeVisual } from "@/lib/clubVisuals";
-import { getSavedClubs, type SavedClub } from "@/lib/savedClubs";
-import { colors, spacing } from "@/lib/theme";
+import { useI18n } from "@/lib/i18n";
+import { getRecentClubs, type RecentClub } from "@/lib/recentClubs";
+import { getFavoriteClubs, removeFavoriteClub, type SavedClub } from "@/lib/savedClubs";
+import { spacing, useThemeColors } from "@/lib/theme";
 
 export default function AccountScreen() {
   const router = useRouter();
+  const { t } = useI18n();
+  const colors = useThemeColors();
   const { member, slug, clubName, portalInfo, logout, leaveClub } = useAuth();
-  const [saved, setSaved] = useState<SavedClub[]>([]);
+  const [favorites, setFavorites] = useState<SavedClub[]>([]);
+  const [recent, setRecent] = useState<RecentClub[]>([]);
 
-  const loadSaved = useCallback(async () => {
-    setSaved(await getSavedClubs());
+  const load = useCallback(async () => {
+    const [fav, rec] = await Promise.all([getFavoriteClubs(), getRecentClubs()]);
+    setFavorites(fav);
+    const favSlugs = new Set(fav.map((c) => c.slug));
+    setRecent(rec.filter((c) => !favSlugs.has(c.slug)));
   }, []);
 
   useEffect(() => {
-    loadSaved();
-  }, [loadSaved]);
+    load();
+  }, [load]);
+
+  const onRemoveFavorite = async (clubSlug: string) => {
+    await removeFavoriteClub(clubSlug);
+    await load();
+  };
 
   const onSignOut = async () => {
     await logout();
@@ -40,38 +53,62 @@ export default function AccountScreen() {
 
   return (
     <Screen scroll>
-      <DiscoverHero title="My account" subtitle="Manage membership and saved clubs" />
+      <DiscoverHero title={t("account.title")} subtitle={t("account.subtitle")} />
 
       {member && slug ? (
         <Card style={styles.gap}>
-          <SectionTitle title="Signed in" />
-          <IconRow icon="person" label="Member" value={member.name} accent={portalInfo?.primaryColor} />
-          <IconRow icon="business" label="Club" value={clubName} accent={portalInfo?.primaryColor} />
-          <PrimaryButton
-            label="Open my club"
-            icon="home"
-            onPress={() => router.push("/(member)")}
-          />
-          <PrimaryButton label="Sign out" variant="outline" onPress={onSignOut} />
-          <PrimaryButton label="Switch club" variant="outline" onPress={onLeaveClub} />
+          <SectionTitle title={t("account.signedIn")} />
+          <IconRow icon="person" label={t("account.member")} value={member.name} accent={portalInfo?.primaryColor} />
+          <IconRow icon="business" label={t("account.club")} value={clubName} accent={portalInfo?.primaryColor} />
+          <PrimaryButton label={t("account.openClub")} icon="home" onPress={() => router.push("/(member)")} />
+          <PrimaryButton label={t("account.signOut")} variant="outline" onPress={onSignOut} />
+          <PrimaryButton label={t("account.switchClub")} variant="outline" onPress={onLeaveClub} />
         </Card>
       ) : (
         <Card style={styles.gap}>
-          <Text style={styles.promptTitle}>Not signed in to a club</Text>
-          <Text style={styles.promptSub}>
-            Browse clubs, open a profile, and sign in when you want to book or pay.
-          </Text>
-          <PrimaryButton label="Browse clubs" icon="compass" onPress={() => router.push("/(discover)/clubs")} />
+          <Text style={[styles.promptTitle, { color: colors.text }]}>{t("account.notSignedIn")}</Text>
+          <Text style={[styles.promptSub, { color: colors.textMuted }]}>{t("account.notSignedInSub")}</Text>
+          <PrimaryButton label={t("account.browseClubs")} icon="compass" onPress={() => router.push("/(discover)/clubs")} />
         </Card>
       )}
 
-      <SectionTitle title="Recently viewed" />
-      {saved.length === 0 ? (
+      <SectionTitle title={t("account.favorites")} />
+      {favorites.length === 0 ? (
         <Card>
-          <Text style={styles.promptSub}>Clubs you open will appear here for quick access.</Text>
+          <Text style={[styles.promptSub, { color: colors.textMuted }]}>{t("account.favoritesEmpty")}</Text>
         </Card>
       ) : (
-        saved.map((club) => {
+        favorites.map((club) => {
+          const vis = getClubTypeVisual(club.clubType);
+          return (
+            <View key={club.slug}>
+              <ClubCard
+                compact
+                name={club.name}
+                clubType={vis.label}
+                logoUrl={club.logoUrl}
+                accent={club.primaryColor || vis.color}
+                typeIcon={vis.icon}
+                typeColor={vis.color}
+                typeColorSoft={vis.colorSoft}
+                isFavorite
+                onPress={() => router.push(`/club/${club.slug}`)}
+              />
+              <Pressable onPress={() => onRemoveFavorite(club.slug)} style={styles.removeBtn}>
+                <Text style={{ color: colors.danger, fontWeight: "600", fontSize: 13 }}>{t("account.removeFavorite")}</Text>
+              </Pressable>
+            </View>
+          );
+        })
+      )}
+
+      <SectionTitle title={t("account.recent")} />
+      {recent.length === 0 ? (
+        <Card>
+          <Text style={[styles.promptSub, { color: colors.textMuted }]}>{t("account.recentEmpty")}</Text>
+        </Card>
+      ) : (
+        recent.map((club) => {
           const vis = getClubTypeVisual(club.clubType);
           return (
             <ClubCard
@@ -95,6 +132,7 @@ export default function AccountScreen() {
 
 const styles = StyleSheet.create({
   gap: { gap: spacing.sm },
-  promptTitle: { fontSize: 17, fontWeight: "700", color: colors.text },
-  promptSub: { fontSize: 14, color: colors.textMuted, lineHeight: 20 },
+  promptTitle: { fontSize: 17, fontWeight: "700" },
+  promptSub: { fontSize: 14, lineHeight: 20 },
+  removeBtn: { alignItems: "flex-end", marginTop: -4, marginBottom: 8, paddingRight: 4 },
 });

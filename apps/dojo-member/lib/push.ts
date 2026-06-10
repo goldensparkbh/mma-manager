@@ -33,7 +33,7 @@ export async function registerMemberPush(api: ReturnType<typeof createApi>) {
   });
 }
 
-export function setupNotificationListeners() {
+export function setupNotificationListeners(onNavigate?: (path: string) => void) {
   const received = Notifications.addNotificationReceivedListener((event) => {
     const content = event.request.content;
     addNotification({
@@ -43,8 +43,12 @@ export function setupNotificationListeners() {
     }).catch(() => {});
   });
 
-  const response = Notifications.addNotificationResponseReceivedListener(() => {
-    // Navigation handled by deep link data if present
+  const response = Notifications.addNotificationResponseReceivedListener((event) => {
+    const data = event.notification.request.content.data as Record<string, string> | undefined;
+    if (!onNavigate || !data) return;
+    if (data.clubSlug) onNavigate(`/club/${data.clubSlug}`);
+    else if (data.screen === "notifications") onNavigate("/notifications");
+    else if (data.screen === "bookings") onNavigate("/(member)/bookings");
   });
 
   return () => {

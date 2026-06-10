@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import * as Haptics from "expo-haptics";
+import * as LocalAuthentication from "expo-local-authentication";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
@@ -65,19 +66,26 @@ export default function ProfileScreen() {
         <ClubHeader clubName={clubName} logoUrl={portalInfo?.logoUrl} accent={accent} memberName={member?.name} />
 
         <Card style={styles.gap}>
-          <Text style={[styles.label, { color: colors.textMuted }]}>Account</Text>
+          <Text style={[styles.label, { color: colors.textMuted }]}>{t("member.account")}</Text>
           <Text style={[styles.value, { color: colors.text }]}>{member?.phone}</Text>
           {activeSubscription ? (
             <Text style={[styles.meta, { color: colors.textMuted }]}>{activeSubscription.planName}</Text>
           ) : (
-            <Text style={[styles.meta, { color: colors.textMuted }]}>No active plan</Text>
+            <Text style={[styles.meta, { color: colors.textMuted }]}>{t("member.noActivePlan")}</Text>
           )}
         </Card>
 
         <PrimaryButton
-          label={loadingQr ? t("common.loading") : "Show check-in QR"}
+          label={loadingQr ? t("common.loading") : t("member.showQr")}
           icon="qr-code"
-          onPress={() => setQrOpen(true)}
+          onPress={async () => {
+            const hw = await LocalAuthentication.hasHardwareAsync();
+            if (hw) {
+              const auth = await LocalAuthentication.authenticateAsync({ promptMessage: t("member.showQr") });
+              if (!auth.success) return;
+            }
+            setQrOpen(true);
+          }}
           disabled={loadingQr || !qr?.checkInUrl}
         />
 
@@ -123,7 +131,7 @@ export default function ProfileScreen() {
           ))
         )}
 
-        <SectionTitle title="Settings" />
+        <SectionTitle title={t("member.settings")} />
         <Card style={styles.gap}>
           <Pressable onPress={toggleLanguage} style={styles.settingRow}>
             <Text style={{ color: colors.text, fontWeight: "600" }}>{t("settings.language")}</Text>
@@ -139,7 +147,7 @@ export default function ProfileScreen() {
 
         {family.length > 1 ? (
           <>
-            <SectionTitle title="Family members" />
+            <SectionTitle title={t("member.family")} />
             {family.map((m) => (
               <Pressable
                 key={m.id}
@@ -151,13 +159,13 @@ export default function ProfileScreen() {
                 ]}
               >
                 <Text style={[styles.familyName, { color: colors.text }]}>{m.name}</Text>
-                {m.id === member?.id ? <Text style={[styles.activeTag, { color: accent }]}>Active</Text> : null}
+                {m.id === member?.id ? <Text style={[styles.activeTag, { color: accent }]}>{t("member.active")}</Text> : null}
               </Pressable>
             ))}
           </>
         ) : null}
 
-        <PrimaryButton label="Browse all clubs" variant="outline" icon="compass" onPress={() => router.push("/(discover)")} />
+        <PrimaryButton label={t("member.browseAll")} variant="outline" icon="compass" onPress={() => router.push("/(discover)")} />
         <PrimaryButton label={t("account.switchClub")} variant="outline" onPress={onSwitchClub} />
         <PrimaryButton label={t("account.signOut")} variant="danger" onPress={onLogout} />
         <Text style={[styles.version, { color: colors.textMuted }]}>{t("app.name")}</Text>
@@ -165,8 +173,8 @@ export default function ProfileScreen() {
 
       <Modal visible={qrOpen} animationType="slide" presentationStyle="fullScreen" onRequestClose={() => setQrOpen(false)}>
         <View style={[styles.qrModal, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }]}>
-          <Text style={styles.qrHeading}>Check-in QR</Text>
-          <Text style={styles.qrHint}>Show this at the club entrance</Text>
+          <Text style={styles.qrHeading}>{t("member.checkInQr")}</Text>
+          <Text style={styles.qrHint}>{t("member.qrHint")}</Text>
           <QrIllustration size={120} />
           {loadingQr ? (
             <Skeleton height={220} style={{ width: 220 }} />

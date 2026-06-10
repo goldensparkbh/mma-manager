@@ -67,7 +67,7 @@ export default function ClassesScreen() {
     try {
       await bookClass.mutateAsync(sessionId);
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      show("Class booked", "success");
+      show(t("member.classBooked"), "success");
     } catch (e) {
       show((e as Error).message, "error");
     }
@@ -75,9 +75,9 @@ export default function ClassesScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.bg }]}>
-      <ClubHeader clubName={clubName} logoUrl={portalInfo?.logoUrl} accent={accent} subtitle="Book a class" />
+      <ClubHeader clubName={clubName} logoUrl={portalInfo?.logoUrl} accent={accent} subtitle={t("member.bookClass")} />
       <View style={styles.body}>
-        <SearchInput value={query} onChangeText={setQuery} placeholder="Search classes or coach…" />
+        <SearchInput value={query} onChangeText={setQuery} placeholder={t("member.searchClasses")} />
         {isLoading ? (
           <Skeleton height={120} />
         ) : isError ? (
@@ -91,8 +91,8 @@ export default function ClassesScreen() {
             contentContainerStyle={styles.list}
             ListEmptyComponent={
               <PremiumEmptyState
-                title="No classes found"
-                subtitle="Try another search or check back later"
+                title={t("member.noClassesFound")}
+                subtitle={t("member.noClassesFoundSub")}
                 illustration={<ClassesIllustration size={150} />}
               />
             }

@@ -10,12 +10,16 @@ import { useBranding } from "@/lib/branding";
 import { useBookings, useCancelBooking } from "@/lib/hooks";
 import type { Booking } from "@/lib/types";
 import { useToast } from "@/lib/toast";
-import { colors, spacing } from "@/lib/theme";
+import { useI18n } from "@/lib/i18n";
+import { bookingStatusLabel, bookingStatusTone } from "@/lib/format";
+import { spacing, useThemeColors } from "@/lib/theme";
 
 export default function BookingsScreen() {
   const { show } = useToast();
   const { clubName, portalInfo } = useAuth();
   const { accent } = useBranding();
+  const { t, locale } = useI18n();
+  const colors = useThemeColors();
 
   const { data: bookingsData, isLoading, refetch, isRefetching } = useBookings();
   const bookings: Booking[] = bookingsData ?? [];
@@ -43,16 +47,16 @@ export default function BookingsScreen() {
   );
 
   const onCancel = (id: string, name?: string) => {
-    Alert.alert("Cancel booking", `Cancel ${name || "this class"}?`, [
-      { text: "Keep", style: "cancel" },
+    Alert.alert(t("member.cancelBooking"), t("member.cancelConfirm", { name: name || "this class" }), [
+      { text: t("member.keep"), style: "cancel" },
       {
-        text: "Cancel booking",
+        text: t("member.cancelBooking"),
         style: "destructive",
         onPress: async () => {
           try {
             await cancelBooking.mutateAsync(id);
             await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            show("Booking cancelled", "success");
+            show(t("member.bookingCancelled"), "success");
           } catch (e) {
             show((e as Error).message, "error");
           }
@@ -62,8 +66,8 @@ export default function BookingsScreen() {
   };
 
   return (
-    <View style={styles.root}>
-      <ClubHeader clubName={clubName} logoUrl={portalInfo?.logoUrl} accent={accent} subtitle="Your schedule" />
+    <View style={[styles.root, { backgroundColor: colors.bg }]}>
+      <ClubHeader clubName={clubName} logoUrl={portalInfo?.logoUrl} accent={accent} subtitle={t("member.yourSchedule")} />
       {isLoading ? (
         <Skeleton height={120} style={styles.pad} />
       ) : (
@@ -73,22 +77,22 @@ export default function BookingsScreen() {
           refreshing={isRefetching}
           onRefresh={() => refetch()}
           contentContainerStyle={styles.list}
-          ListHeaderComponent={<Text style={styles.heading}>Upcoming</Text>}
+          ListHeaderComponent={<Text style={[styles.heading, { color: colors.text }]}>{t("member.upcoming")}</Text>}
           ListEmptyComponent={
             <PremiumEmptyState
-              title="No upcoming bookings"
-              subtitle="Book a class from the Classes tab"
+              title={t("member.noUpcoming")}
+              subtitle={t("member.noUpcomingSub")}
               illustration={<BookingsIllustration size={150} />}
             />
           }
           ListFooterComponent={
             past.length > 0 ? (
               <View style={styles.past}>
-                <Text style={styles.heading}>Recent</Text>
+                <Text style={[styles.heading, { color: colors.text }]}>{t("member.recent")}</Text>
                 {past.map((b) => (
                   <Card key={b.id} style={styles.card}>
-                    <Text style={styles.name}>{b.sessionName}</Text>
-                    <Text style={styles.meta}>
+                    <Text style={[styles.name, { color: colors.text }]}>{b.sessionName}</Text>
+                    <Text style={[styles.meta, { color: colors.textMuted }]}>
                       {b.startsAt && format(new Date(b.startsAt), "EEE d MMM · HH:mm")}
                     </Text>
                     <Badge label={b.status} />
@@ -100,14 +104,14 @@ export default function BookingsScreen() {
           renderItem={({ item, index }) => (
             <FadeInView delay={index * 50}>
             <Card style={styles.card}>
-              <Text style={styles.name}>{item.sessionName}</Text>
-              <Text style={styles.meta}>
+              <Text style={[styles.name, { color: colors.text }]}>{item.sessionName}</Text>
+              <Text style={[styles.meta, { color: colors.textMuted }]}>
                 {item.startsAt && format(new Date(item.startsAt), "EEE d MMM · HH:mm")}
               </Text>
               <View style={styles.row}>
-                <Badge label={item.status} tone={item.status === "waitlist" ? "warning" : "success"} />
+                <Badge label={bookingStatusLabel(item.status, locale)} tone={bookingStatusTone(item.status)} />
                 <PrimaryButton
-                  label="Cancel"
+                  label={t("common.cancel")}
                   variant="danger"
                   loading={cancelBooking.isPending}
                   onPress={() => onCancel(item.id, item.sessionName)}
@@ -123,13 +127,13 @@ export default function BookingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bg },
+  root: { flex: 1 },
   pad: { margin: spacing.md },
   list: { padding: spacing.md, paddingBottom: 100, gap: spacing.sm },
-  heading: { fontSize: 17, fontWeight: "700", color: colors.text, marginBottom: spacing.sm },
+  heading: { fontSize: 17, fontWeight: "700", marginBottom: spacing.sm },
   card: { gap: 6, marginBottom: spacing.sm },
-  name: { fontSize: 16, fontWeight: "700", color: colors.text },
-  meta: { fontSize: 13, color: colors.textMuted },
+  name: { fontSize: 16, fontWeight: "700" },
+  meta: { fontSize: 13 },
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8, gap: 12 },
   past: { marginTop: spacing.lg },
 });

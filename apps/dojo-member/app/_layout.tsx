@@ -34,7 +34,9 @@ function RootStack() {
     return () => sub.remove();
   }, [router]);
 
-  useEffect(() => setupNotificationListeners(), []);
+  useEffect(() => {
+    return setupNotificationListeners((path) => router.push(path as never));
+  }, [router]);
 
   return (
     <>

@@ -49,7 +49,7 @@ export async function createTapCharge(params: {
     threeDSecure: true,
     save_card: params.saveCard ?? false,
     description: params.description,
-    statement_descriptor: "Dojo Manager",
+    statement_descriptor: "Nawady",
     metadata: params.metadata,
     reference: { transaction: params.metadata.paymentId, order: params.metadata.tenantId },
     receipt: { email: true, sms: false },

@@ -20,6 +20,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run check
+      - run: npm run test
 
       - name: Deploy to DigitalOcean App Platform
         uses: digitalocean/app_action@v2

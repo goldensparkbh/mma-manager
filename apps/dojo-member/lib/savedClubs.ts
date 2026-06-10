@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const KEY = "saved_clubs";
-const MAX = 12;
+const KEY = "favorite_clubs";
+const MAX = 24;
 
 export type SavedClub = {
   slug: string;
@@ -12,7 +12,7 @@ export type SavedClub = {
   savedAt: string;
 };
 
-export async function getSavedClubs(): Promise<SavedClub[]> {
+export async function getFavoriteClubs(): Promise<SavedClub[]> {
   const raw = await AsyncStorage.getItem(KEY);
   if (!raw) return [];
   try {
@@ -22,8 +22,13 @@ export async function getSavedClubs(): Promise<SavedClub[]> {
   }
 }
 
-export async function saveClub(club: Omit<SavedClub, "savedAt">) {
-  const existing = await getSavedClubs();
+/** @deprecated use getFavoriteClubs */
+export async function getSavedClubs() {
+  return getFavoriteClubs();
+}
+
+export async function saveFavoriteClub(club: Omit<SavedClub, "savedAt">) {
+  const existing = await getFavoriteClubs();
   const next: SavedClub[] = [
     { ...club, savedAt: new Date().toISOString() },
     ...existing.filter((c) => c.slug !== club.slug),
@@ -32,22 +37,37 @@ export async function saveClub(club: Omit<SavedClub, "savedAt">) {
   return next;
 }
 
-export async function removeSavedClub(slug: string) {
-  const next = (await getSavedClubs()).filter((c) => c.slug !== slug);
+export async function removeFavoriteClub(slug: string) {
+  const next = (await getFavoriteClubs()).filter((c) => c.slug !== slug);
   await AsyncStorage.setItem(KEY, JSON.stringify(next));
   return next;
 }
 
-export async function isClubSaved(slug: string) {
-  return (await getSavedClubs()).some((c) => c.slug === slug);
+/** @deprecated */
+export async function removeSavedClub(slug: string) {
+  return removeFavoriteClub(slug);
 }
 
-export async function toggleSavedClub(club: Omit<SavedClub, "savedAt">) {
-  const saved = await isClubSaved(club.slug);
+export async function isClubFavorite(slug: string) {
+  return (await getFavoriteClubs()).some((c) => c.slug === slug);
+}
+
+/** @deprecated */
+export async function isClubSaved(slug: string) {
+  return isClubFavorite(slug);
+}
+
+export async function toggleFavoriteClub(club: Omit<SavedClub, "savedAt">) {
+  const saved = await isClubFavorite(club.slug);
   if (saved) {
-    await removeSavedClub(club.slug);
+    await removeFavoriteClub(club.slug);
     return false;
   }
-  await saveClub(club);
+  await saveFavoriteClub(club);
   return true;
+}
+
+/** @deprecated */
+export async function toggleSavedClub(club: Omit<SavedClub, "savedAt">) {
+  return toggleFavoriteClub(club);
 }

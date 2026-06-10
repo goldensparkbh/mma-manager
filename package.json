@@ -10,6 +10,7 @@
     "build": "vite build",
     "start": "NODE_ENV=production tsx server/index.ts",
     "check": "tsc",
+    "test": "tsx script/smoke-test.ts",
     "db:migrate": "tsx script/migrate.ts",
     "mobile:member": "npm --prefix apps/dojo-member start",
     "mobile:staff": "npm --prefix apps/dojo-staff start"

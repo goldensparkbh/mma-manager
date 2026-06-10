@@ -1,6 +1,6 @@
 {
-  "name": "Dojo Member Portal",
-  "short_name": "Dojo",
+  "name": "Nawady Member Portal",
+  "short_name": "Nawady",
   "description": "Book classes, manage membership, and check in at your club",
   "start_url": "/",
   "display": "standalone",
