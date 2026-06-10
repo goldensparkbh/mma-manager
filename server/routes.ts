@@ -311,11 +311,12 @@ router.post("/api/auth/register", async (req, res) => {
 
 router.post("/api/auth/login", async (req, res) => {
   try {
-    const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ error: "Email and password required" });
+    const { email: rawEmail, password } = req.body;
+    if (!rawEmail || !password) return res.status(400).json({ error: "Email and password required" });
+    const email = String(rawEmail).trim().toLowerCase();
 
     // Platform admin login (checked before tenant users)
-    const adminResult = await query("SELECT * FROM platform_admins WHERE email = $1", [email]);
+    const adminResult = await query("SELECT * FROM platform_admins WHERE LOWER(email) = $1", [email]);
     if (adminResult.rows[0]) {
       const valid = await comparePassword(password, adminResult.rows[0].password_hash);
       if (!valid) return res.status(401).json({ error: "Invalid credentials" });
@@ -346,7 +347,7 @@ router.post("/api/auth/login", async (req, res) => {
     // Tenant user login
     const userResult = await query(
       `SELECT u.*, t.status as tenant_status, t.trial_ends_at, t.name as tenant_name, t.slug as tenant_slug
-       FROM users u JOIN tenants t ON u.tenant_id = t.id WHERE u.email = $1`,
+       FROM users u JOIN tenants t ON u.tenant_id = t.id WHERE LOWER(u.email) = $1`,
       [email],
     );
     if (!userResult.rows[0]) return res.status(401).json({ error: "Invalid credentials" });

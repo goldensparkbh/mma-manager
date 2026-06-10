@@ -44,13 +44,52 @@ export async function seedDefaults() {
     `);
   }
 
-  const admins = await query("SELECT id FROM platform_admins LIMIT 1");
-  if (admins.rows.length === 0 && process.env.PLATFORM_ADMIN_EMAIL && process.env.PLATFORM_ADMIN_PASSWORD) {
-    const bcrypt = (await import("bcryptjs")).default;
-    const hash = await bcrypt.hash(process.env.PLATFORM_ADMIN_PASSWORD, 12);
+  await syncPlatformAdminFromEnv();
+}
+
+/** Create or refresh platform admin from env (DigitalOcean / .env.local). */
+export async function syncPlatformAdminFromEnv() {
+  const email = process.env.PLATFORM_ADMIN_EMAIL?.trim().toLowerCase();
+  const password = process.env.PLATFORM_ADMIN_PASSWORD;
+  if (!email || !password) return;
+
+  const bcrypt = (await import("bcryptjs")).default;
+  const hash = await bcrypt.hash(password, 12);
+
+  const existing = await query<{ id: string }>(
+    "SELECT id FROM platform_admins WHERE LOWER(email) = $1",
+    [email],
+  );
+  if (existing.rows[0]) {
+    await query(
+      "UPDATE platform_admins SET password_hash = $1, is_active = true WHERE id = $2",
+      [hash, existing.rows[0].id],
+    );
+    console.log(`Platform admin password synced for ${email}`);
+    return;
+  }
+
+  const anyAdmin = await query("SELECT id, email FROM platform_admins LIMIT 1");
+  if (anyAdmin.rows.length === 0) {
     await query(
       "INSERT INTO platform_admins (email, password_hash, display_name) VALUES ($1, $2, $3)",
-      [process.env.PLATFORM_ADMIN_EMAIL, hash, "Platform Admin"],
+      [email, hash, "Platform Admin"],
+    );
+    console.log(`Platform admin created for ${email}`);
+    return;
+  }
+
+  // One admin exists but different email — optional takeover via env flag
+  if (process.env.PLATFORM_ADMIN_FORCE_SYNC === "true") {
+    await query(
+      "UPDATE platform_admins SET email = $1, password_hash = $2, is_active = true WHERE id = $3",
+      [email, hash, anyAdmin.rows[0].id],
+    );
+    console.log(`Platform admin email/password force-synced to ${email}`);
+  } else {
+    console.warn(
+      `PLATFORM_ADMIN_EMAIL (${email}) does not match existing platform admin (${anyAdmin.rows[0].email}). ` +
+        "Set PLATFORM_ADMIN_FORCE_SYNC=true to update the existing account, or log in with the existing email.",
     );
   }
 }
