@@ -25,7 +25,7 @@ export default function ProfileScreen() {
         <Text style={styles.value}>{user?.role}</Text>
       </Card>
       <PrimaryButton label="Sign out" variant="danger" onPress={onLogout} />
-      <Text style={styles.version}>Dojo Staff</Text>
+      <Text style={styles.version}>Nawady Staff</Text>
     </Screen>
   );
 }

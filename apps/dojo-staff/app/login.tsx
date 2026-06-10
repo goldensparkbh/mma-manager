@@ -32,7 +32,7 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <LinearGradient colors={["#1e3a8a", "#0f172a"]} style={styles.hero}>
-        <Text style={styles.brand}>Dojo Staff</Text>
+        <Text style={styles.brand}>Nawady Staff</Text>
         <Text style={styles.sub}>Scan, schedule, and manage your club on the go</Text>
       </LinearGradient>
       <View style={styles.card}>
