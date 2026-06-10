@@ -116,7 +116,7 @@ export async function getDiscoverClubProfile(slug: string) {
   const tenantId = tenant.id as string;
   const bookingSettings = await bookings.getBookingSettings(tenantId);
   if (!bookingSettings.portalEnabled) return null;
-  const settings = await data.getSettings(tenantId);
+  const settings = (await data.getSettings(tenantId)) as Record<string, unknown> | null;
   const portalSlug =
     (bookingSettings.publicSlug as string) || (tenant.slug as string);
 
@@ -135,15 +135,15 @@ export async function getDiscoverClubProfile(slug: string) {
     slug: tenant.slug as string,
     portalSlug,
     clubType: (settings?.clubType as string) || "hybrid",
-    location: (settings?.location as string) || null,
-    phone: (settings?.phone as string) || null,
-    logoUrl: (settings?.logoUrlLight as string) || (settings?.logoUrlDark as string) || null,
+    location: (settings?.location as string | undefined) || null,
+    phone: (settings?.phone as string | undefined) || null,
+    logoUrl: (settings?.logoUrlLight as string | undefined) || (settings?.logoUrlDark as string | undefined) || null,
     primaryColor: bookingSettings.portalPrimaryColor || "#3b82f6",
     welcomeMessage: bookingSettings.portalWelcomeMessage || null,
     portalEnabled: bookingSettings.portalEnabled,
     upcomingClassCount: (row.upcoming_class_count as number) ?? 0,
     memberCount: (row.member_count as number) ?? 0,
-    socials: (settings?.socials as Record<string, string>) || {},
+    socials: (settings?.socials as Record<string, string> | undefined) || {},
   };
 }
 
