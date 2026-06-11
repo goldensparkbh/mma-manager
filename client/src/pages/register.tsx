@@ -28,7 +28,7 @@ export default function Register() {
     phone: "",
     password: "",
     confirmPassword: "",
-    planSlug: "starter",
+    planSlug: "free",
     clubType: "hybrid",
   });
 

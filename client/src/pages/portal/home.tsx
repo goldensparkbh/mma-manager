@@ -1,7 +1,8 @@
 import { useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { format, addDays } from "date-fns";
+import { addDays } from "date-fns";
 import { ar, enUS } from "date-fns/locale";
+import { safeFormat } from "@/lib/formatDate";
 import { Award, Calendar, CheckCircle2, CreditCard, Loader2, LogOut, MapPin, User } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -252,7 +253,7 @@ export default function PortalHome() {
                       <CardTitle className="text-base">{session.name}</CardTitle>
                       <p className="text-sm text-muted-foreground flex items-center gap-1">
                         <Calendar className="h-3.5 w-3.5" />
-                        {format(new Date(session.startsAt), "EEE d MMM · HH:mm", { locale })}
+                        {safeFormat(session.startsAt, "EEE d MMM · HH:mm", { locale })}
                       </p>
                       {session.coachName && (
                         <p className="text-xs text-muted-foreground flex items-center gap-1">
@@ -299,7 +300,7 @@ export default function PortalHome() {
                     <div>
                       <p className="font-medium">{booking.sessionName}</p>
                       <p className="text-sm text-muted-foreground">
-                        {booking.startsAt && format(new Date(booking.startsAt), "EEE d MMM · HH:mm", { locale })}
+                        {safeFormat(booking.startsAt, "EEE d MMM · HH:mm", { locale })}
                       </p>
                       <Badge variant="outline" className="mt-1 text-[10px]">
                         {t(`portal.status.${booking.status}`)}
@@ -331,7 +332,7 @@ export default function PortalHome() {
                     <div>
                       <p className="font-medium">{camp.title}</p>
                       <p className="text-sm text-muted-foreground">
-                        {format(new Date(camp.startDate), "EEE d MMM · HH:mm", { locale })}
+                        {safeFormat(camp.startDate, "EEE d MMM · HH:mm", { locale })}
                       </p>
                       {camp.price != null && (
                         <p className="text-xs text-muted-foreground mt-1">{camp.price} {t("embed.currency")}</p>
@@ -431,7 +432,7 @@ export default function PortalHome() {
                         <p className="font-medium text-sm">{belt.beltName || "—"}</p>
                         {belt.awardedAt && (
                           <p className="text-xs text-muted-foreground">
-                            {format(new Date(belt.awardedAt), "d MMM yyyy", { locale })}
+                            {safeFormat(belt.awardedAt, "d MMM yyyy", { locale })}
                           </p>
                         )}
                       </div>
@@ -462,7 +463,7 @@ export default function PortalHome() {
                     <div key={row.id} className="flex justify-between text-sm border-b pb-2 last:border-0">
                       <span>{row.date}</span>
                       <span className="text-muted-foreground">
-                        {row.checkIn ? format(new Date(row.checkIn), "HH:mm", { locale }) : "—"}
+                        {safeFormat(row.checkIn, "HH:mm", { locale })}
                       </span>
                     </div>
                   ))

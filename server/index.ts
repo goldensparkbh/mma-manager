@@ -19,9 +19,11 @@ async function main() {
   app.use(express.json({ limit: "10mb" }));
 
   const distPath = path.resolve(__dirname, "..", "dist");
+  const clubTypesPath = path.resolve(__dirname, "..", "client", "public", "club-types");
 
   // Serve static assets and SPA before API router (router auth would block GET /)
   app.use("/uploads", express.static(getUploadDir()));
+  app.use("/club-types", express.static(clubTypesPath));
   app.use(express.static(distPath));
   app.get("*", (req, res, next) => {
     if (req.path.startsWith("/api") || req.path.startsWith("/uploads")) return next();

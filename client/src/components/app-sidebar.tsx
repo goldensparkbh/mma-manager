@@ -39,6 +39,9 @@ import { useClubConfig } from "@/lib/clubConfig";
 import { PERMISSIONS } from "@/lib/permissions";
 import { APP_VERSION } from "@/lib/app-version";
 import { useSupportChat } from "@/context/support-chat-context";
+import { PLAN_FEATURES, type PlanFeature } from "@/lib/planFeatures";
+import { UpgradeBanner } from "@/components/plan-gate";
+import { Lock } from "lucide-react";
 
 const mainItems = [
   {
@@ -49,7 +52,7 @@ const mainItems = [
 ];
 
 export function AppSidebar() {
-  const { user, signOutUser, clubSettings, role, hasPermission } = useAuth();
+  const { user, signOutUser, clubSettings, role, hasPermission, hasPlanFeature, isFreePlan } = useAuth();
   const { showBeltsNav, showStore, progressionLabel } = useClubConfig();
   const [location, setLocation] = useLocation();
   const { t, dir } = useLanguage();
@@ -57,75 +60,86 @@ export function AppSidebar() {
   const { openChat } = useSupportChat();
   const logoUrl = clubSettings?.logoUrlDark || clubSettings?.logoUrlLight || "/logo_dark_icon.svg";
 
-  const financeItems = [
+  const financeItems: { key: string; url: string; icon: typeof CreditCard; permission: string; planFeature?: PlanFeature }[] = [
     {
       key: "nav.subscriptions",
       url: "/subscriptions",
       icon: CreditCard,
-      permission: PERMISSIONS.SUBSCRIPTIONS_VIEW
+      permission: PERMISSIONS.SUBSCRIPTIONS_VIEW,
+      planFeature: PLAN_FEATURES.SUBSCRIPTIONS,
     },
     {
       key: "nav.store",
       url: "/store",
       icon: Package,
-      permission: PERMISSIONS.STORE_VIEW
+      permission: PERMISSIONS.STORE_VIEW,
+      planFeature: PLAN_FEATURES.STORE,
     },
     {
       key: "nav.sales",
       url: "/sales",
       icon: ShoppingCart,
-      permission: PERMISSIONS.SALES_VIEW
+      permission: PERMISSIONS.SALES_VIEW,
+      planFeature: PLAN_FEATURES.SALES,
     },
     {
       key: "nav.expenses",
       url: "/expenses",
       icon: TrendingDown,
-      permission: PERMISSIONS.FINANCE_VIEW
+      permission: PERMISSIONS.FINANCE_VIEW,
+      planFeature: PLAN_FEATURES.FINANCE,
     },
     {
       key: "nav.analytics",
       url: "/analytics",
       icon: BarChart3,
-      permission: PERMISSIONS.FINANCE_VIEW
+      permission: PERMISSIONS.FINANCE_VIEW,
+      planFeature: PLAN_FEATURES.ANALYTICS,
     },
     {
       key: "nav.finance",
       url: "/finance",
       icon: BarChart3,
-      permission: PERMISSIONS.FINANCE_VIEW
+      permission: PERMISSIONS.FINANCE_VIEW,
+      planFeature: PLAN_FEATURES.FINANCE,
     },
   ];
 
-  const memberItems = [
+  const memberItems: { key: string; url: string; icon: typeof Users; permission: string; planFeature?: PlanFeature }[] = [
     {
       key: "nav.members",
       url: "/members",
       icon: Users,
-      permission: PERMISSIONS.MEMBERS_VIEW
+      permission: PERMISSIONS.MEMBERS_VIEW,
+      planFeature: PLAN_FEATURES.MEMBERS,
     },
     {
       key: "nav.attendance",
       url: "/attendance",
       icon: Calendar,
-      permission: PERMISSIONS.ATTENDANCE_VIEW
+      permission: PERMISSIONS.ATTENDANCE_VIEW,
+      planFeature: PLAN_FEATURES.ATTENDANCE,
     },
     {
       key: "nav.schedule",
       url: "/schedule",
       icon: CalendarDays,
-      permission: PERMISSIONS.CLASSES_VIEW
+      permission: PERMISSIONS.CLASSES_VIEW,
+      planFeature: PLAN_FEATURES.SCHEDULE,
     },
     {
       key: "nav.camps",
       url: "/camps",
       icon: CalendarDays,
-      permission: PERMISSIONS.CLASSES_VIEW
+      permission: PERMISSIONS.CLASSES_VIEW,
+      planFeature: PLAN_FEATURES.CAMPS,
     },
     {
       key: "nav.belts",
       url: "/belts",
       icon: Award,
-      permission: PERMISSIONS.BELTS_VIEW
+      permission: PERMISSIONS.BELTS_VIEW,
+      planFeature: PLAN_FEATURES.BELTS,
     },
   ];
 
@@ -138,6 +152,9 @@ export function AppSidebar() {
   const visibleMemberItems = memberItems
     .filter(item => hasPermission(item.permission))
     .filter(item => item.url !== "/belts" || showBeltsNav);
+
+  const navLocked = (item: { planFeature?: PlanFeature }) =>
+    item.planFeature ? !hasPlanFeature(item.planFeature) : false;
 
   const isActive = (url: string) => {
     if (url === "/") return location === "/";
@@ -213,23 +230,27 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {visibleMemberItems.map((item) => (
+              {visibleMemberItems.map((item) => {
+                const locked = navLocked(item);
+                const href = locked ? "/billing" : item.url;
+                return (
                 <SidebarMenuItem key={item.url}>
                   <SidebarMenuButton
                     asChild
-                    isActive={isActive(item.url)}
+                    isActive={!locked && isActive(item.url)}
                     data-testid={`nav-${item.url.replace("/", "")}`}
-                    className="text-white hover:text-white hover:bg-white/10 data-[active=true]:bg-white/20 data-[active=true]:text-white"
+                    className={`text-white hover:text-white hover:bg-white/10 data-[active=true]:bg-white/20 data-[active=true]:text-white ${locked ? "opacity-70" : ""}`}
                   >
-                    <Link href={item.url}>
+                    <Link href={href}>
                       <item.icon className="w-4 h-4" />
                       <span className="flex-1 ltr:text-left rtl:text-right">
                         {item.url === "/belts" ? progressionLabel : t(item.key)}
                       </span>
+                      {locked ? <Lock className="w-3 h-3 shrink-0 opacity-80" /> : null}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
-              ))}
+              );})}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -240,22 +261,26 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {visibleFinanceItems.map((item) => (
+              {visibleFinanceItems.map((item) => {
+                const locked = navLocked(item);
+                const href = locked ? "/billing" : item.url;
+                return (
                 <SidebarMenuItem key={item.key || item.url}>
                   <SidebarMenuButton
                     asChild
-                    isActive={isActive(item.url)}
+                    isActive={!locked && isActive(item.url)}
                     data-testid={`nav-${item.url.replace("/", "")}`}
                     tooltip={t(item.key)}
-                    className="text-white hover:text-white hover:bg-white/10 data-[active=true]:bg-white/20 data-[active=true]:text-white"
+                    className={`text-white hover:text-white hover:bg-white/10 data-[active=true]:bg-white/20 data-[active=true]:text-white ${locked ? "opacity-70" : ""}`}
                   >
-                    <Link href={item.url}>
+                    <Link href={href}>
                       <item.icon className="w-4 h-4" />
                       <span className="flex-1 ltr:text-left rtl:text-right">{t(item.key)}</span>
+                      {locked ? <Lock className="w-3 h-3 shrink-0 opacity-80" /> : null}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
-              ))}
+              );})}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -347,6 +372,15 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {isFreePlan ? (
+          <div className="px-3 pb-2">
+            <Link href="/billing" className="block rounded-lg border border-primary/40 bg-primary/10 p-3 text-white hover:bg-primary/15 transition-colors">
+              <p className="text-xs font-semibold text-primary-foreground/90">{t("plan.sidebarTitle")}</p>
+              <p className="text-[11px] text-white/70 mt-1 leading-snug">{t("plan.sidebarDescription")}</p>
+            </Link>
+          </div>
+        ) : null}
       </SidebarContent>
 
       <SidebarFooter className="p-4 border-t border-sidebar-border bg-sidebar">

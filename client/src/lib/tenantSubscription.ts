@@ -1,4 +1,5 @@
 import type { Tenant, TenantSubscription } from "@shared/schema";
+import { isFreePlan } from "@/lib/planFeatures";
 
 export type SubscriptionBlockReason =
   | "subscription_suspended"
@@ -18,6 +19,10 @@ export function getTenantSubscriptionStatus(
   if (!tenant) return { active: false, reason: "subscription_suspended" };
   if (tenant.status === "suspended") return { active: false, reason: "subscription_suspended" };
   if (tenant.status === "cancelled") return { active: false, reason: "subscription_cancelled" };
+
+  if (isFreePlan(subscription?.planSlug)) {
+    return { active: true };
+  }
 
   const periodEnd = subscription?.currentPeriodEnd || tenant.trialEndsAt;
   if (periodEnd && new Date(periodEnd) < new Date()) {

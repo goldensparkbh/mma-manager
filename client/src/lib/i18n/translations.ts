@@ -170,6 +170,16 @@ export const translations = {
             trialDaysLeft: "تجربة: {days} يوم متبقي",
             trialEnded: "انتهت التجربة",
         },
+        plan: {
+            sidebarTitle: "ترقية إلى لوحة الويب الكاملة",
+            sidebarDescription: "افتح المالية، المتجر، التحليلات والمزيد — أدر ناديك بالكامل على الويب.",
+            upgradeTitle: "افتح {feature}",
+            upgradeDescription: "ترقّ إلى خطة Nawady المدفوعة على لوحة الويب لإدارة ناديك بالكامل — مالية، متجر، تحليلات والمزيد.",
+            upgradeCompact: "افتح {feature} — خطة {plan}",
+            viewPlans: "عرض الخطط",
+            lockedTitle: "{feature} — ميزة مميزة",
+            lockedDescription: "هذه الميزة متاحة في خطط Nawady المدفوعة. استخدم تطبيق الموظفين مجاناً لإدارة الأعضاء والحضور، أو ترقّ للوحة الويب الكاملة.",
+        },
         payment: {
             missingId: "معرف الدفع مفقود.",
             verifying: "جاري التحقق من الدفع...",
@@ -1518,6 +1528,16 @@ export const translations = {
             trialReminderDesc: "Pay via TAP before your trial ends to avoid losing access. Reminder emails are sent automatically.",
             trialDaysLeft: "Trial: {days}d left",
             trialEnded: "Trial ended",
+        },
+        plan: {
+            sidebarTitle: "Upgrade to full web dashboard",
+            sidebarDescription: "Unlock finance, store, analytics & more — run your whole club on the web.",
+            upgradeTitle: "Unlock {feature}",
+            upgradeDescription: "Upgrade your Nawady plan on the web dashboard for the full business suite — finance, store, analytics, and more.",
+            upgradeCompact: "Unlock {feature} — {plan} plan",
+            viewPlans: "View plans",
+            lockedTitle: "{feature} — premium feature",
+            lockedDescription: "This feature is included in paid Nawady plans. Use the free staff app for members & attendance, or upgrade for the full web platform.",
         },
         payment: {
             missingId: "Payment reference missing.",

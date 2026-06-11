@@ -9,6 +9,7 @@ import {
   subWeeks,
 } from "date-fns";
 import { ar, enUS } from "date-fns/locale";
+import { safeFormat } from "@/lib/formatDate";
 import {
   CalendarDays,
   ChevronLeft,
@@ -389,7 +390,7 @@ export default function SchedulePage() {
                           >
                             <p className="font-semibold leading-tight">{session.name}</p>
                             <p className="text-muted-foreground">
-                              {format(new Date(session.startsAt), "HH:mm")} – {format(new Date(session.endsAt), "HH:mm")}
+                              {safeFormat(session.startsAt, "HH:mm")} – {safeFormat(session.endsAt, "HH:mm")}
                             </p>
                             {session.coachName && (
                               <p className="text-muted-foreground flex items-center gap-1">

@@ -10,6 +10,7 @@ import {
   parseModuleConfig,
   parseMemberFieldConfig,
 } from "../shared/clubTypes.js";
+import { isFreePlan, parsePlanFeatures } from "../shared/planFeatures.js";
 
 async function logActivity(
   tenantId: string,
@@ -46,6 +47,11 @@ export async function getMember(tenantId: string, id: string) {
 }
 
 export async function createMember(tenantId: string, data: Record<string, unknown>) {
+  const limits = await getTenantPlanLimits(tenantId);
+  const memberCount = await countTenantMembers(tenantId);
+  if (memberCount >= limits.maxMembers) {
+    throw new Error(`Member limit reached (${limits.maxMembers}). Upgrade your plan on the web dashboard to add more members.`);
+  }
   const memberId = await getNextMemberId(tenantId);
   const result = await query(
     `INSERT INTO members (tenant_id, member_id, name, first_name, father_name, last_name, cpr, phone, email,
@@ -577,6 +583,11 @@ export async function getUsers(tenantId: string) {
 }
 
 export async function createUser(tenantId: string, email: string, password: string, name: string, role: string) {
+  const limits = await getTenantPlanLimits(tenantId);
+  const userCount = await countTenantUsers(tenantId);
+  if (userCount >= limits.maxUsers) {
+    throw new Error(`Staff limit reached (${limits.maxUsers}). Upgrade your plan on the web dashboard to add more staff.`);
+  }
   const existing = await query("SELECT id FROM users WHERE tenant_id = $1 AND email = $2", [tenantId, email]);
   if (existing.rows.length > 0) throw new Error("User already exists");
   const hash = await hashPassword(password);
@@ -768,12 +779,19 @@ export async function getDashboardStats(tenantId: string, startDate?: string, en
   });
 
   const recentTransactions = [
-    ...sales.filter((s) => String(s.date).split("T")[0] >= start
-      && String(s.date).split("T")[0] <= end
-      && s.status !== "cancelled"),
-    ...subscriptions.filter((s) => String(s.startDate) >= start && String(s.startDate) <= end)
-      .map((s) => ({ ...s, date: s.startDate })),
-  ].sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 10);
+    ...sales
+      .filter((s) => String(s.date).split("T")[0] >= start
+        && String(s.date).split("T")[0] <= end
+        && s.status !== "cancelled")
+      .map((s) => ({ ...s, type: "sale" as const })),
+    ...subscriptions
+      .filter((s) => String(s.startDate) >= start && String(s.startDate) <= end)
+      .map((s) => ({ ...s, type: "subscription" as const, date: s.startDate })),
+  ].sort((a, b) => {
+    const dateA = String((a as { date?: unknown }).date ?? "");
+    const dateB = String((b as { date?: unknown }).date ?? "");
+    return dateB.localeCompare(dateA);
+  }).slice(0, 10);
 
   return {
     totalMembers: members.length,
@@ -810,29 +828,34 @@ export async function provisionTenant(params: {
 
   const planResult = await query(
     "SELECT * FROM subscription_plans WHERE slug = $1 AND is_active = true",
-    [params.planSlug || "starter"],
+    [params.planSlug || "free"],
   );
   const plan = planResult.rows[0] as PlanRow;
   if (!plan) throw new Error("Invalid plan");
 
+  const isFree = isFreePlan(plan.slug);
   const trialEnd = new Date();
   trialEnd.setDate(trialEnd.getDate() + 14);
 
+  const tenantStatus = isFree ? "active" : "trial";
+  const tenantTrialEnd = isFree ? null : trialEnd.toISOString();
+
   const tenantResult = await query(
     `INSERT INTO tenants (name, slug, email, phone, status, plan_id, trial_ends_at)
-     VALUES ($1,$2,$3,$4,'trial',$5,$6) RETURNING *`,
-    [params.clubName, slug, params.email, params.phone || null, plan.id, trialEnd.toISOString()],
+     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+    [params.clubName, slug, params.email, params.phone || null, tenantStatus, plan.id, tenantTrialEnd],
   );
   const tenant = tenantResult.rows[0];
   const tenantId = tenant.id;
 
+  const farFuture = new Date("2099-12-31T23:59:59Z");
   await createTenantSubscriptionSnapshot({
     tenantId,
     plan,
-    status: "trialing",
+    status: isFree ? "active" : "trialing",
     billingCycle: "monthly",
     periodStart: new Date(),
-    periodEnd: trialEnd,
+    periodEnd: isFree ? farFuture : trialEnd,
   });
 
   const hash = await hashPassword(params.password);
@@ -1102,6 +1125,36 @@ export async function getTenantSubscription(tenantId: string) {
   return result.rows[0] ? mapTenantSubscriptionRow(result.rows[0]) : null;
 }
 
+export async function getTenantPlanFeatures(tenantId: string): Promise<string[]> {
+  const sub = await getTenantSubscription(tenantId);
+  if (sub?.features) return parsePlanFeatures(sub.features);
+  if (sub?.planSlug === "enterprise") return ["*"];
+  const tenant = await query("SELECT plan_id FROM tenants WHERE id = $1", [tenantId]);
+  if (!tenant.rows[0]?.plan_id) return parsePlanFeatures([]);
+  const plan = await query("SELECT features FROM subscription_plans WHERE id = $1", [tenant.rows[0].plan_id]);
+  return parsePlanFeatures(plan.rows[0]?.features);
+}
+
+export async function getTenantPlanLimits(tenantId: string) {
+  const sub = await getTenantSubscription(tenantId);
+  return {
+    maxMembers: (sub?.maxMembers as number) ?? 50,
+    maxUsers: (sub?.maxUsers as number) ?? 3,
+    planSlug: (sub?.planSlug as string) ?? "free",
+    features: await getTenantPlanFeatures(tenantId),
+  };
+}
+
+export async function countTenantUsers(tenantId: string): Promise<number> {
+  const r = await query<{ c: number }>("SELECT COUNT(*)::int AS c FROM users WHERE tenant_id = $1", [tenantId]);
+  return r.rows[0]?.c ?? 0;
+}
+
+export async function countTenantMembers(tenantId: string): Promise<number> {
+  const r = await query<{ c: number }>("SELECT COUNT(*)::int AS c FROM members WHERE tenant_id = $1", [tenantId]);
+  return r.rows[0]?.c ?? 0;
+}
+
 export async function checkTenantAccess(tenantId: string): Promise<{
   allowed: boolean;
   reason?: string;
@@ -1117,16 +1170,21 @@ export async function checkTenantAccess(tenantId: string): Promise<{
     return { allowed: false, reason: "Subscription cancelled", code: "subscription_cancelled" };
   }
 
+  const sub = await getTenantSubscription(tenantId);
+  if (isFreePlan(sub?.planSlug as string)) {
+    return { allowed: true };
+  }
+
   const subResult = await query(
     `SELECT status, current_period_end FROM tenant_subscriptions
      WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 1`,
     [tenantId],
   );
-  const sub = subResult.rows[0];
-  const periodEnd = sub?.current_period_end || trial_ends_at;
+  const subRow = subResult.rows[0];
+  const periodEnd = subRow?.current_period_end || trial_ends_at;
 
   if (periodEnd && new Date(periodEnd) < new Date()) {
-    if (status === "trial" || sub?.status === "trialing") {
+    if (status === "trial" || subRow?.status === "trialing") {
       await maybeNotifyTrialExpired(tenantId);
       return { allowed: false, reason: "Trial expired", code: "trial_expired" };
     }

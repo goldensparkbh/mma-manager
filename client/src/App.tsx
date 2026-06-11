@@ -42,6 +42,8 @@ import AnalyticsPage from "@/pages/analytics";
 import CampsPage from "@/pages/camps";
 import CheckInPage from "@/pages/checkin";
 import StaffScanPage from "@/pages/scan";
+import { RequirePlanFeature } from "@/components/plan-gate";
+import { PLAN_FEATURES } from "@/lib/planFeatures";
 
 function AccessDenied() {
   const { t } = useLanguage();
@@ -80,31 +82,47 @@ function Router() {
         <RequirePermission permission={PERMISSIONS.SUBSCRIPTIONS_VIEW}><Subscriptions /></RequirePermission>
       </Route>
       <Route path="/store">
-        <RequirePermission permission={PERMISSIONS.STORE_VIEW}><Store /></RequirePermission>
+        <RequirePermission permission={PERMISSIONS.STORE_VIEW}>
+          <RequirePlanFeature feature={PLAN_FEATURES.STORE}><Store /></RequirePlanFeature>
+        </RequirePermission>
       </Route>
       <Route path="/sales">
-        <RequirePermission permission={PERMISSIONS.SALES_VIEW}><Sales /></RequirePermission>
+        <RequirePermission permission={PERMISSIONS.SALES_VIEW}>
+          <RequirePlanFeature feature={PLAN_FEATURES.SALES}><Sales /></RequirePlanFeature>
+        </RequirePermission>
       </Route>
       <Route path="/belts">
-        <RequirePermission permission={PERMISSIONS.BELTS_VIEW}><Belts /></RequirePermission>
+        <RequirePermission permission={PERMISSIONS.BELTS_VIEW}>
+          <RequirePlanFeature feature={PLAN_FEATURES.BELTS}><Belts /></RequirePlanFeature>
+        </RequirePermission>
       </Route>
       <Route path="/analytics">
-        <RequirePermission permission={PERMISSIONS.FINANCE_VIEW}><AnalyticsPage /></RequirePermission>
+        <RequirePermission permission={PERMISSIONS.FINANCE_VIEW}>
+          <RequirePlanFeature feature={PLAN_FEATURES.ANALYTICS}><AnalyticsPage /></RequirePlanFeature>
+        </RequirePermission>
       </Route>
       <Route path="/camps">
-        <RequirePermission permission={PERMISSIONS.CLASSES_VIEW}><CampsPage /></RequirePermission>
+        <RequirePermission permission={PERMISSIONS.CLASSES_VIEW}>
+          <RequirePlanFeature feature={PLAN_FEATURES.CAMPS}><CampsPage /></RequirePlanFeature>
+        </RequirePermission>
       </Route>
       <Route path="/finance">
-        <RequirePermission permission={PERMISSIONS.FINANCE_VIEW}><Finance /></RequirePermission>
+        <RequirePermission permission={PERMISSIONS.FINANCE_VIEW}>
+          <RequirePlanFeature feature={PLAN_FEATURES.FINANCE}><Finance /></RequirePlanFeature>
+        </RequirePermission>
       </Route>
       <Route path="/expenses">
-        <RequirePermission permission={PERMISSIONS.FINANCE_VIEW}><Expenses /></RequirePermission>
+        <RequirePermission permission={PERMISSIONS.FINANCE_VIEW}>
+          <RequirePlanFeature feature={PLAN_FEATURES.FINANCE}><Expenses /></RequirePlanFeature>
+        </RequirePermission>
       </Route>
       <Route path="/users">
         <RequirePermission permission={PERMISSIONS.USERS_VIEW}><Users /></RequirePermission>
       </Route>
       <Route path="/logs">
-        <RequirePermission permission={PERMISSIONS.LOGS_VIEW}><Logs /></RequirePermission>
+        <RequirePermission permission={PERMISSIONS.LOGS_VIEW}>
+          <RequirePlanFeature feature={PLAN_FEATURES.LOGS}><Logs /></RequirePlanFeature>
+        </RequirePermission>
       </Route>
       <Route path="/system-settings">
         <RequirePermission permission={PERMISSIONS.SETTINGS_VIEW}><SystemSettings /></RequirePermission>

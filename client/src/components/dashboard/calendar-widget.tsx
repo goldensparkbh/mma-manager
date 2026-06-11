@@ -12,8 +12,9 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Event, InsertEvent } from "@shared/schema";
 import { useLanguage } from "@/context/language-context";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isSameMonth, addMonths, subMonths, startOfDay, parseISO, startOfWeek, endOfWeek, addWeeks, subWeeks } from "date-fns";
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek, addWeeks, subWeeks } from "date-fns";
 import { ar, enUS } from "date-fns/locale";
+import { safeIsSameDay } from "@/lib/formatDate";
 import { ChevronLeft, ChevronRight, Plus, Trash2, Clock, Calendar as CalendarIcon, Filter } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -126,7 +127,7 @@ export function CalendarWidget() {
 
     const getEventsForDay = (date: Date) => {
         return events?.filter(event => {
-            const matchesDate = isSameDay(parseISO(event.startDate), date);
+            const matchesDate = safeIsSameDay(event.startDate, date);
             const matchesColor = event.color ? selectedColors.includes(event.color) : true;
             return matchesDate && matchesColor;
         }) || [];

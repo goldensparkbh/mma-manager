@@ -9,7 +9,9 @@ import { query } from "./db/index.js";
 import { toCamelCase, rowsToCamel } from "./utils.js";
 import { saveFile } from "./storage.js";
 import * as data from "./data.js";
+import { resolvePublicAssetUrl } from "./publicUrl.js";
 import { getAllClubTypes } from "../shared/clubTypes.js";
+import { API_FEATURE_GATES, hasPlanFeature } from "../shared/planFeatures.js";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -213,7 +215,11 @@ router.get("/api/portal/:slug/info", async (req, res) => {
       name: tenant.name,
       slug: tenant.slug,
       portalEnabled: settings.portalEnabled,
-      logoUrl: (clubSettings as { logoUrlLight?: string })?.logoUrlLight || (clubSettings as { logoUrlDark?: string })?.logoUrlDark,
+      logoUrl: resolvePublicAssetUrl(
+        (clubSettings as { logoUrlLight?: string })?.logoUrlLight ||
+          (clubSettings as { logoUrlDark?: string })?.logoUrlDark,
+        (clubSettings as { clubType?: string })?.clubType,
+      ),
       primaryColor: settings.portalPrimaryColor || "#3b82f6",
       welcomeMessage: settings.portalWelcomeMessage,
     });
@@ -636,6 +642,7 @@ router.get("/api/auth/me", async (req, res) => {
   const permissions = user.role === "admin" ? ["*"] : await getRolePermissions(auth.tenantId!, user.role as string);
   const coachId = await data.getCoachForUser(auth.tenantId!, auth.userId!);
   const access = await data.checkTenantAccess(auth.tenantId!);
+  const planLimits = await data.getTenantPlanLimits(auth.tenantId!);
   res.json({
     user: { ...user, coachId },
     tenant: {
@@ -647,6 +654,8 @@ router.get("/api/auth/me", async (req, res) => {
     },
     subscription,
     permissions,
+    planFeatures: planLimits.features,
+    planLimits: { maxMembers: planLimits.maxMembers, maxUsers: planLimits.maxUsers, planSlug: planLimits.planSlug },
     subscriptionActive: access.allowed,
     subscriptionBlockReason: access.allowed ? null : access.code,
   });
@@ -703,6 +712,24 @@ function isAllowedWhenInactive(path: string, method: string) {
     return method === "GET" || path.includes("/tenant/payments/") || path.includes("/tenant/support/");
   }
   return false;
+}
+
+async function planFeatureAccess(req: Request, res: Response, next: () => void) {
+  const auth = getAuth(req);
+  if (auth.isPlatformAdmin || auth.impersonatedBy || !auth.tenantId) return next();
+  const path = req.path || req.url.split("?")[0];
+  for (const gate of API_FEATURE_GATES) {
+    if (path.startsWith(`/api${gate.prefix}`)) {
+      const features = await data.getTenantPlanFeatures(auth.tenantId);
+      if (hasPlanFeature(features, gate.feature)) return next();
+      return res.status(403).json({
+        error: `Upgrade your Nawady plan to use this feature`,
+        upgradeRequired: true,
+        feature: gate.feature,
+      });
+    }
+  }
+  return next();
 }
 
 async function tenantAccess(req: Request, res: Response, next: () => void) {
@@ -809,6 +836,7 @@ router.delete("/api/platform/plans/:id", requirePlatformAdmin, requirePlatformPe
 
 router.use("/api", requireStaffAccount as unknown as import("express").RequestHandler);
 router.use("/api", tenantAccess as unknown as import("express").RequestHandler);
+router.use("/api", planFeatureAccess as unknown as import("express").RequestHandler);
 router.use("/api", requireTenant);
 
 const tid = (req: Request) => getAuth(req).tenantId!;

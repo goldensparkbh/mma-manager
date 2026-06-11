@@ -33,18 +33,76 @@ export async function runMigrations() {
 }
 
 export async function seedDefaults() {
-  const plans = await query("SELECT id FROM subscription_plans LIMIT 1");
-  if (plans.rows.length === 0) {
-    await query(`
-      INSERT INTO subscription_plans (name, slug, description, price_monthly, price_yearly, max_members, max_users, features, sort_order)
-      VALUES
-        ('Starter', 'starter', 'Perfect for small clubs', 29.00, 290.00, 100, 3, '["members","attendance","subscriptions"]', 1),
-        ('Professional', 'professional', 'For growing clubs', 59.00, 590.00, 500, 10, '["members","attendance","subscriptions","store","finance","belts"]', 2),
-        ('Enterprise', 'enterprise', 'Unlimited features', 99.00, 990.00, 9999, 50, '["*"]', 3)
-    `);
-  }
-
+  await syncSubscriptionPlans();
   await syncPlatformAdminFromEnv();
+}
+
+/** Ensure platform plans exist / stay up to date (incl. free tier for staff app). */
+export async function syncSubscriptionPlans() {
+  const plans = [
+    {
+      name: "Free",
+      slug: "free",
+      description: "Manage members, classes, packages & check-ins via the staff app — always free",
+      price_monthly: 0,
+      price_yearly: 0,
+      max_members: 50,
+      max_users: 3,
+      features: '["members","attendance","subscriptions","schedule","registrations","settings","users"]',
+      sort_order: 0,
+    },
+    {
+      name: "Starter",
+      slug: "starter",
+      description: "Growing clubs — higher limits, same core tools",
+      price_monthly: 29,
+      price_yearly: 290,
+      max_members: 100,
+      max_users: 5,
+      features: '["members","attendance","subscriptions","schedule","registrations","settings","users"]',
+      sort_order: 1,
+    },
+    {
+      name: "Professional",
+      slug: "professional",
+      description: "Full business suite — store, finance, analytics & progression",
+      price_monthly: 59,
+      price_yearly: 590,
+      max_members: 500,
+      max_users: 10,
+      features: '["members","attendance","subscriptions","schedule","registrations","settings","users","store","sales","finance","analytics","belts","camps"]',
+      sort_order: 2,
+    },
+    {
+      name: "Enterprise",
+      slug: "enterprise",
+      description: "Unlimited features for large organizations",
+      price_monthly: 99,
+      price_yearly: 990,
+      max_members: 9999,
+      max_users: 50,
+      features: '["*"]',
+      sort_order: 3,
+    },
+  ];
+
+  for (const p of plans) {
+    await query(
+      `INSERT INTO subscription_plans (name, slug, description, price_monthly, price_yearly, max_members, max_users, features, sort_order, is_active)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,true)
+       ON CONFLICT (slug) DO UPDATE SET
+         name = EXCLUDED.name,
+         description = EXCLUDED.description,
+         price_monthly = EXCLUDED.price_monthly,
+         price_yearly = EXCLUDED.price_yearly,
+         max_members = EXCLUDED.max_members,
+         max_users = EXCLUDED.max_users,
+         features = EXCLUDED.features,
+         sort_order = EXCLUDED.sort_order,
+         is_active = true`,
+      [p.name, p.slug, p.description, p.price_monthly, p.price_yearly, p.max_members, p.max_users, p.features, p.sort_order],
+    );
+  }
 }
 
 /** Create or refresh platform admin from env (DigitalOcean / .env.local). */

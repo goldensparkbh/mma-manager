@@ -1,8 +1,8 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useLanguage } from "@/context/language-context";
 import { Sale, Subscription } from "@shared/schema";
-import { format } from "date-fns";
 import { ar, enUS } from "date-fns/locale";
+import { safeFormat } from "@/lib/formatDate";
 import { Calendar, CreditCard, Package, User, Hash, Clock, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -23,13 +23,7 @@ export function TransactionDetailsDialog({ transaction, isOpen, onClose }: Trans
     const sale = isSale ? (transaction as unknown as Sale) : null;
     const sub = !isSale ? (transaction as unknown as Subscription) : null;
 
-    const formatDate = (dateStr: string) => {
-        try {
-            return format(new Date(dateStr), "PPP p", { locale });
-        } catch {
-            return dateStr;
-        }
-    };
+    const formatDate = (dateStr: string) => safeFormat(dateStr, "PPP p", { locale, fallback: dateStr });
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>

@@ -12,8 +12,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Link } from "wouter";
-import { format } from "date-fns";
-import { ar, enUS } from "date-fns/locale";
+import { safeFormat, safeIsSameDay } from "@/lib/formatDate";
 import type { DashboardStats, Sale, Subscription } from "@shared/schema";
 import { useState } from "react";
 import { useAuth } from "@/context/auth-context";
@@ -95,6 +94,7 @@ export default function Dashboard() {
   const getStatusBadge = (endDate: string | null) => {
     if (!endDate) return null;
     const end = new Date(endDate);
+    if (Number.isNaN(end.getTime())) return null;
     const now = new Date();
     const diffDays = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
@@ -374,7 +374,7 @@ export default function Dashboard() {
                       stats.recentTransactions.map((tx: any, idx: number) => (
                         <tr key={`${tx.type}-${tx.id}-${idx}`} className="border-b last:border-0 hover-elevate">
                           <td className="py-3 px-2">
-                            {format(new Date(tx.type === 'sale' ? tx.date : tx.startDate), "yyyy/MM/dd")}
+                            {safeFormat(tx.date ?? tx.startDate, "yyyy/MM/dd")}
                           </td>
                           <td className="py-3 px-2 font-medium">
                             {tx.type === 'sale' ? (tx.buyerName || t('sales.defaultBuyer')) : tx.memberName}

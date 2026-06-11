@@ -1,4 +1,5 @@
 import { query } from "./db/index.js";
+import { resolvePublicAssetUrl } from "./publicUrl.js";
 import { toCamelCase } from "./utils.js";
 import * as bookings from "./bookings.js";
 import * as data from "./data.js";
@@ -99,7 +100,10 @@ export async function listDiscoverableClubs(params: {
       clubType: (c.clubType as string) || "hybrid",
       location: c.location as string | null,
       phone: c.phone as string | null,
-      logoUrl: (c.logoUrlLight as string) || (c.logoUrlDark as string) || null,
+      logoUrl: resolvePublicAssetUrl(
+        (c.logoUrlLight as string) || (c.logoUrlDark as string) || null,
+        c.clubType as string,
+      ),
       primaryColor: (c.portalPrimaryColor as string) || "#3b82f6",
       welcomeMessage: c.portalWelcomeMessage as string | null,
       upcomingClassCount: (c.upcomingClassCount as number) ?? 0,
@@ -137,7 +141,10 @@ export async function getDiscoverClubProfile(slug: string) {
     clubType: (settings?.clubType as string) || "hybrid",
     location: (settings?.location as string | undefined) || null,
     phone: (settings?.phone as string | undefined) || null,
-    logoUrl: (settings?.logoUrlLight as string | undefined) || (settings?.logoUrlDark as string | undefined) || null,
+    logoUrl: resolvePublicAssetUrl(
+      (settings?.logoUrlLight as string | undefined) || (settings?.logoUrlDark as string | undefined) || null,
+      (settings?.clubType as string) || "hybrid",
+    ),
     primaryColor: bookingSettings.portalPrimaryColor || "#3b82f6",
     welcomeMessage: bookingSettings.portalWelcomeMessage || null,
     portalEnabled: bookingSettings.portalEnabled,
@@ -237,7 +244,7 @@ export async function getDiscoverSchedule(params: {
       clubName: c.clubName as string,
       clubSlug: c.clubSlug as string,
       clubType: (c.clubType as string) || "hybrid",
-      logoUrl: c.logoUrlLight as string | null,
+      logoUrl: resolvePublicAssetUrl(c.logoUrlLight as string | null, c.clubType as string),
       primaryColor: (c.portalPrimaryColor as string) || "#3b82f6",
     };
   });

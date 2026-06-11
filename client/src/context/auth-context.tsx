@@ -3,6 +3,7 @@ import { apiJson, setToken, clearToken, getToken } from "@/lib/api";
 import { normalizeWhatsAppTemplates, type WhatsAppTemplate } from "@/lib/whatsapp";
 import type { User, Tenant, TenantSubscription } from "@shared/schema";
 import { getTenantSubscriptionStatus, type SubscriptionBlockReason } from "@/lib/tenantSubscription";
+import { hasPlanFeature as checkPlanFeature, isFreePlan as checkIsFreePlan } from "@/lib/planFeatures";
 
 type AuthUser = {
   id: string;
@@ -44,6 +45,9 @@ type AuthContextValue = {
   } | null;
   signOutUser: () => void;
   hasPermission: (permission: string) => boolean;
+  hasPlanFeature: (feature: string) => boolean;
+  planFeatures: string[];
+  isFreePlan: boolean;
   refreshClubSettings: () => Promise<void>;
   login: (email: string, password: string) => Promise<{ redirectTo: string }>;
   register: (data: {
@@ -99,6 +103,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [subscriptionBlockReason, setSubscriptionBlockReason] = useState<SubscriptionBlockReason | null>(null);
   const [role, setRole] = useState<string | null>(null);
   const [permissions, setPermissions] = useState<string[]>([]);
+  const [planFeatures, setPlanFeatures] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [clubSettings, setClubSettings] = useState<AuthContextValue["clubSettings"]>(null);
 
@@ -130,6 +135,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         tenant?: Tenant;
         subscription?: TenantSubscription;
         permissions?: string[];
+        planFeatures?: string[];
         subscriptionBlockReason?: SubscriptionBlockReason | null;
       }>("/api/auth/me");
       setUser(data.user);
@@ -138,6 +144,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSubscriptionBlockReason(data.subscriptionBlockReason || null);
       setRole(data.user.role);
       setPermissions(data.permissions || (data.user.role === "admin" ? ["*"] : []));
+      setPlanFeatures(data.planFeatures || data.subscription?.features || []);
       if (!data.user.isPlatformAdmin) {
         const subStatus = getTenantSubscriptionStatus(
           data.tenant || null,
@@ -177,10 +184,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSubscription(data.subscription || null);
     const me = await apiJson<{
       permissions?: string[];
+      planFeatures?: string[];
       subscription?: TenantSubscription;
       subscriptionBlockReason?: SubscriptionBlockReason | null;
     }>("/api/auth/me");
     setPermissions(me.permissions || (data.user.role === "admin" ? ["*"] : []));
+    setPlanFeatures(me.planFeatures || me.subscription?.features || []);
     if (me.subscription) setSubscription(me.subscription);
     setSubscriptionBlockReason(me.subscriptionBlockReason || data.subscriptionBlockReason || null);
     const subStatus = getTenantSubscriptionStatus(
@@ -211,6 +220,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setTenant(data.tenant);
     setRole("admin");
     setPermissions(["*"]);
+    const me = await apiJson<{ planFeatures?: string[]; subscription?: TenantSubscription }>("/api/auth/me");
+    setPlanFeatures(me.planFeatures || me.subscription?.features || []);
+    if (me.subscription) setSubscription(me.subscription);
     await fetchClubSettings();
   };
 
@@ -222,6 +234,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSubscriptionBlockReason(null);
     setRole(null);
     setPermissions([]);
+    setPlanFeatures([]);
     setClubSettings(null);
   };
 
@@ -236,6 +249,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return false;
   };
 
+  const hasPlanFeatureFn = (feature: string) => checkPlanFeature(planFeatures, feature);
+
   const value = useMemo(
     () => ({
       user,
@@ -244,15 +259,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       subscriptionBlockReason,
       role,
       permissions,
+      planFeatures,
+      isFreePlan: checkIsFreePlan(subscription?.planSlug),
       loading,
       clubSettings,
       signOutUser,
       hasPermission,
+      hasPlanFeature: hasPlanFeatureFn,
       refreshClubSettings: fetchClubSettings,
       login,
       register,
     }),
-    [user, tenant, subscription, subscriptionBlockReason, role, permissions, loading, clubSettings, fetchClubSettings],
+    [user, tenant, subscription, subscriptionBlockReason, role, permissions, planFeatures, loading, clubSettings, fetchClubSettings],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
