@@ -1,10 +1,10 @@
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { useAuth } from "@/lib/auth";
 import {
   Card,
-  ClubCard,
+  ClubGridCard,
   DiscoverHero,
   IconRow,
   PrimaryButton,
@@ -16,6 +16,41 @@ import { useI18n } from "@/lib/i18n";
 import { getRecentClubs, type RecentClub } from "@/lib/recentClubs";
 import { getFavoriteClubs, removeFavoriteClub, type SavedClub } from "@/lib/savedClubs";
 import { spacing, useThemeColors } from "@/lib/theme";
+
+function ClubGrid({
+  clubs,
+  onPress,
+  onToggleFavorite,
+}: {
+  clubs: Array<SavedClub | RecentClub>;
+  onPress: (slug: string) => void;
+  onToggleFavorite?: (club: SavedClub | RecentClub) => void;
+}) {
+  return (
+    <View style={styles.grid}>
+      {clubs.map((club) => {
+        const vis = getClubTypeVisual(club.clubType);
+        const isFavorite = onToggleFavorite != null;
+        return (
+          <View key={club.slug} style={styles.gridItem}>
+            <ClubGridCard
+              name={club.name}
+              clubType={vis.label}
+              logoUrl={club.logoUrl}
+              accent={club.primaryColor || vis.color}
+              typeIcon={vis.icon}
+              typeColor={vis.color}
+              typeColorSoft={vis.colorSoft}
+              isFavorite={isFavorite}
+              onToggleFavorite={onToggleFavorite ? () => onToggleFavorite(club) : undefined}
+              onPress={() => onPress(club.slug)}
+            />
+          </View>
+        );
+      })}
+    </View>
+  );
+}
 
 export default function AccountScreen() {
   const router = useRouter();
@@ -36,8 +71,8 @@ export default function AccountScreen() {
     load();
   }, [load]);
 
-  const onRemoveFavorite = async (clubSlug: string) => {
-    await removeFavoriteClub(clubSlug);
+  const onRemoveFavorite = async (club: SavedClub | RecentClub) => {
+    await removeFavoriteClub(club.slug);
     await load();
   };
 
@@ -78,28 +113,11 @@ export default function AccountScreen() {
           <Text style={[styles.promptSub, { color: colors.textMuted }]}>{t("account.favoritesEmpty")}</Text>
         </Card>
       ) : (
-        favorites.map((club) => {
-          const vis = getClubTypeVisual(club.clubType);
-          return (
-            <View key={club.slug}>
-              <ClubCard
-                compact
-                name={club.name}
-                clubType={vis.label}
-                logoUrl={club.logoUrl}
-                accent={club.primaryColor || vis.color}
-                typeIcon={vis.icon}
-                typeColor={vis.color}
-                typeColorSoft={vis.colorSoft}
-                isFavorite
-                onPress={() => router.push(`/club/${club.slug}`)}
-              />
-              <Pressable onPress={() => onRemoveFavorite(club.slug)} style={styles.removeBtn}>
-                <Text style={{ color: colors.danger, fontWeight: "600", fontSize: 13 }}>{t("account.removeFavorite")}</Text>
-              </Pressable>
-            </View>
-          );
-        })
+        <ClubGrid
+          clubs={favorites}
+          onPress={(clubSlug) => router.push(`/club/${clubSlug}`)}
+          onToggleFavorite={onRemoveFavorite}
+        />
       )}
 
       <SectionTitle title={t("account.recent")} />
@@ -108,23 +126,7 @@ export default function AccountScreen() {
           <Text style={[styles.promptSub, { color: colors.textMuted }]}>{t("account.recentEmpty")}</Text>
         </Card>
       ) : (
-        recent.map((club) => {
-          const vis = getClubTypeVisual(club.clubType);
-          return (
-            <ClubCard
-              key={club.slug}
-              compact
-              name={club.name}
-              clubType={vis.label}
-              logoUrl={club.logoUrl}
-              accent={club.primaryColor || vis.color}
-              typeIcon={vis.icon}
-              typeColor={vis.color}
-              typeColorSoft={vis.colorSoft}
-              onPress={() => router.push(`/club/${club.slug}`)}
-            />
-          );
-        })
+        <ClubGrid clubs={recent} onPress={(clubSlug) => router.push(`/club/${clubSlug}`)} />
       )}
     </Screen>
   );
@@ -134,5 +136,6 @@ const styles = StyleSheet.create({
   gap: { gap: spacing.sm },
   promptTitle: { fontSize: 17, fontWeight: "700" },
   promptSub: { fontSize: 14, lineHeight: 20 },
-  removeBtn: { alignItems: "flex-end", marginTop: -4, marginBottom: 8, paddingRight: 4 },
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.md },
+  gridItem: { width: "48%" },
 });

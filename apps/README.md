@@ -9,7 +9,7 @@ Two Expo (React Native) apps live alongside the web platform:
 
 ## Prerequisites
 
-- Node.js 18+
+- Node.js 20.19+ (Expo SDK 54)
 - [Expo Go](https://expo.dev/go) on a physical device, or Xcode / Android Studio for simulators
 - The API server running (`npm run dev` or `npm run start` from repo root)
 
@@ -66,7 +66,20 @@ EXPO_PUBLIC_API_URL=http://localhost:3000 npm start
 6. **Pay** — buy packages via TAP, payment history.
 7. **Profile** — fullscreen check-in QR, family switch, sign out.
 
-## Staff app
+## Business model
+
+Clubs can use the **staff app for free** to manage members, packages, classes, registrations, and attendance (up to plan limits). The **web dashboard** exposes the same free-tier features; premium modules (finance, store, analytics, camps, belts) unlock with paid Nawady plans.
+
+| Plan | Price | What's included |
+|------|-------|-----------------|
+| **Free** | $0 | Members, attendance, packages, schedule, registrations, club profile, 3 staff, 50 members |
+| **Starter** | $29/mo | Free features + higher limits |
+| **Professional** | $59/mo | + Store, finance, analytics, belts, camps |
+| **Enterprise** | $99/mo | Everything |
+
+New clubs register on the **Free** plan by default (web `/register` or staff app **Create free club**). Upgrade anytime at `/billing` on the web dashboard.
+
+## Staff app — club signup
 
 ```bash
 cd apps/dojo-staff
@@ -74,12 +87,13 @@ npm install
 EXPO_PUBLIC_API_URL=http://localhost:3000 npm start
 ```
 
-1. Sign in with staff email/password (same as web dashboard).
-2. **Today** — check-in count, today's classes, recent arrivals.
-3. **Scan** — fast QR scanner with haptic feedback.
-4. **Schedule** — 7-day class list with capacity.
+1. **Create free club** from login screen, or sign in with staff email/password.
+2. **Today** — check-in count, today's classes, upgrade prompts for web dashboard.
+3. **Scan** — QR check-in with haptic feedback.
+4. **Schedule** — upcoming sessions (read-only).
 5. **Members** — search and manual check-in.
-6. **Profile** — account info and sign out.
+6. **Club** — profile, packages, registrations, staff team, link to full web dashboard.
+7. Premium features (finance, store, analytics) → upgrade on web `/billing`.
 
 Platform admin accounts must use the web dashboard.
 

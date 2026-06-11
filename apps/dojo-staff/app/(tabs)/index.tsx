@@ -2,7 +2,7 @@ import { format } from "date-fns";
 import { useRouter } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
 import { useAuth } from "@/lib/auth";
-import { Card, EmptyState, PrimaryButton, QuickAction, Screen, StaffHeader, StatCard } from "@/lib/components";
+import { Card, EmptyState, PrimaryButton, QuickAction, Screen, StaffHeader, StatCard, UpgradeBanner } from "@/lib/components";
 import { useAttendance, useTodaySessions } from "@/lib/hooks";
 import { DashboardIllustration } from "@/lib/illustrations";
 import { FadeInView } from "@/lib/motion";
@@ -11,7 +11,7 @@ import { colors, spacing } from "@/lib/theme";
 
 export default function DashboardScreen() {
   const router = useRouter();
-  const { tenant, user } = useAuth();
+  const { tenant, user, isFreePlan } = useAuth();
   const { data: sessionsData, isLoading: loadingSessions, refetch, isRefetching } = useTodaySessions();
   const { data: attendanceData, isLoading: loadingAtt } = useAttendance();
   const sessions: ClassSession[] = sessionsData ?? [];
@@ -20,6 +20,7 @@ export default function DashboardScreen() {
   return (
     <Screen scroll refreshing={isRefetching} onRefresh={() => refetch()}>
       <StaffHeader title="Operations hub" subtitle={format(new Date(), "EEEE, d MMMM")} tenantName={tenant?.name} />
+      {isFreePlan ? <UpgradeBanner compact /> : null}
 
       <FadeInView delay={0}>
         <View style={styles.quickRow}>

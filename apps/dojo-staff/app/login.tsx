@@ -1,6 +1,6 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useState } from "react";
-import { KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View } from "react-native";
+import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/lib/auth";
 import { PrimaryButton } from "@/lib/components";
@@ -46,6 +46,9 @@ export default function LoginScreen() {
         <TextInput style={styles.input} placeholder={t("login.email")} autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} placeholderTextColor={colors.textMuted} />
         <TextInput style={styles.input} placeholder={t("login.password")} secureTextEntry value={password} onChangeText={setPassword} placeholderTextColor={colors.textMuted} />
         <PrimaryButton label={t("login.signIn")} loading={loading} disabled={!email || !password} onPress={onSubmit} />
+        <Pressable onPress={() => router.push("/register")} style={{ marginTop: 8 }}>
+          <Text style={styles.registerLink}>New club? Create a free account</Text>
+        </Pressable>
         {error ? <Text style={styles.error}>{error}</Text> : null}
       </View>
     </KeyboardAvoidingView>
@@ -60,5 +63,6 @@ const styles = StyleSheet.create({
   card: { flex: 1, marginTop: -20, backgroundColor: colors.card, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.lg, gap: 12 },
   input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 14, fontSize: 16, color: colors.text, backgroundColor: colors.bg },
   error: { color: colors.danger, textAlign: "center" },
+  registerLink: { color: colors.primary, textAlign: "center", fontWeight: "600", fontSize: 14 },
   illus: { alignItems: "center", marginBottom: 8 },
 });

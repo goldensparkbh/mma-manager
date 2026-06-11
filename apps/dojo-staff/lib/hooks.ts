@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays } from "date-fns";
 import { useAuth } from "./auth";
 import { getApiUrl } from "./config";
-import type { AttendanceRecord, BookingSettings, ClassSession, Member } from "./types";
+import type { AttendanceRecord, Booking, BookingSettings, ClassSession, ClubSettings, Member, Package, StaffAccount } from "./types";
 
 const today = () => new Date().toISOString().split("T")[0];
 
@@ -82,5 +82,81 @@ export function useQrCheckIn(slug: string) {
       if (!res.ok) throw new Error(body.error || "Check-in failed");
       return body as { member?: { name?: string }; alreadyCheckedIn?: boolean };
     },
+  });
+}
+
+export function useClubSettings() {
+  const { api } = useAuth();
+  return useQuery<ClubSettings>({
+    queryKey: ["staff", "settings"],
+    queryFn: () => api.get<ClubSettings>("/api/settings"),
+    staleTime: 60_000,
+  });
+}
+
+export function useUpdateClubSettings() {
+  const { api } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (patch: Partial<ClubSettings>) => api.patch("/api/settings", patch),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["staff", "settings"] }),
+  });
+}
+
+export function usePackages() {
+  const { api } = useAuth();
+  return useQuery<Package[]>({
+    queryKey: ["staff", "packages"],
+    queryFn: () => api.get<Package[]>("/api/packages"),
+  });
+}
+
+export function useSavePackage() {
+  const { api } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Partial<Package> & { id?: string }) =>
+      data.id ? api.patch(`/api/packages/${data.id}`, data) : api.post("/api/packages", data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["staff", "packages"] }),
+  });
+}
+
+export function useBookings(from?: string, to?: string) {
+  const { api } = useAuth();
+  const f = from || new Date().toISOString();
+  const t = to || addDays(new Date(), 14).toISOString();
+  return useQuery<Booking[]>({
+    queryKey: ["staff", "bookings", f, t],
+    queryFn: () =>
+      api.get<Booking[]>(`/api/bookings?from=${encodeURIComponent(f)}&to=${encodeURIComponent(t)}`),
+  });
+}
+
+export function useStaffUsers() {
+  const { api } = useAuth();
+  return useQuery<StaffAccount[]>({
+    queryKey: ["staff", "users"],
+    queryFn: () => api.get<StaffAccount[]>("/api/users"),
+  });
+}
+
+export function useInviteStaff() {
+  const { api } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { email: string; password: string; name: string; role: string }) =>
+      api.post("/api/users/invite", data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["staff", "users"] }),
+  });
+}
+
+export function useClubTypes() {
+  return useQuery<{ id: string; label: string }[]>({
+    queryKey: ["staff", "club-types"],
+    queryFn: async () => {
+      const rows = await fetch(`${getApiUrl()}/api/club-types`).then((r) => r.json()) as { id: string; nameEn: string }[];
+      return rows.map((t) => ({ id: t.id, label: t.nameEn }));
+    },
+    staleTime: 300_000,
   });
 }

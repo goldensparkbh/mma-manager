@@ -19,7 +19,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="scan" options={{ title: t("tabs.scan"), tabBarIcon: ({ color, size }) => <Ionicons name="qr-code" size={size} color={color} /> }} />
       <Tabs.Screen name="schedule" options={{ title: t("tabs.schedule"), tabBarIcon: ({ color, size }) => <Ionicons name="calendar" size={size} color={color} /> }} />
       <Tabs.Screen name="members" options={{ title: t("tabs.members"), tabBarIcon: ({ color, size }) => <Ionicons name="people" size={size} color={color} /> }} />
-      <Tabs.Screen name="profile" options={{ title: t("tabs.profile"), tabBarIcon: ({ color, size }) => <Ionicons name="person" size={size} color={color} /> }} />
+      <Tabs.Screen name="club" options={{ title: "Club", tabBarIcon: ({ color, size }) => <Ionicons name="business" size={size} color={color} /> }} />
     </Tabs>
   );
 }

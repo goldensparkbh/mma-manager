@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, radius, spacing } from "./theme";
+import { openWebDashboard } from "./plan";
 
 export function Screen({
   children,
@@ -139,6 +140,49 @@ export function QuickAction({
   );
 }
 
+export function UpgradeBanner({ compact }: { compact?: boolean }) {
+  return (
+    <Pressable onPress={() => openWebDashboard("/billing")} style={[styles.upgrade, compact && styles.upgradeCompact]}>
+      <Ionicons name="sparkles" size={compact ? 18 : 22} color="#fbbf24" />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.upgradeTitle}>{compact ? "Unlock full web dashboard" : "Run your whole club on the web"}</Text>
+        {!compact ? (
+          <Text style={styles.upgradeSub}>Finance, store, analytics & more — upgrade anytime on Nawady web.</Text>
+        ) : null}
+      </View>
+      <Ionicons name="open-outline" size={18} color={colors.primary} />
+    </Pressable>
+  );
+}
+
+export function MenuRow({
+  icon,
+  label,
+  subtitle,
+  onPress,
+  badge,
+}: {
+  icon: ComponentProps<typeof Ionicons>["name"];
+  label: string;
+  subtitle?: string;
+  onPress: () => void;
+  badge?: string;
+}) {
+  return (
+    <Pressable onPress={onPress} style={styles.menuRow}>
+      <View style={styles.menuIcon}>
+        <Ionicons name={icon} size={20} color={colors.primary} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.menuLabel}>{label}</Text>
+        {subtitle ? <Text style={styles.menuSub}>{subtitle}</Text> : null}
+      </View>
+      {badge ? <Text style={styles.menuBadge}>{badge}</Text> : null}
+      <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   header: { paddingHorizontal: spacing.md, paddingVertical: spacing.lg, marginHorizontal: -spacing.md, marginTop: -spacing.md, marginBottom: spacing.md, borderBottomLeftRadius: radius.lg, borderBottomRightRadius: radius.lg },
@@ -159,4 +203,13 @@ const styles = StyleSheet.create({
   quick: { flex: 1, alignItems: "center", gap: 8 },
   quickIcon: { width: 52, height: 52, borderRadius: 16, backgroundColor: "rgba(59,130,246,0.15)", alignItems: "center", justifyContent: "center" },
   quickLabel: { fontSize: 12, fontWeight: "600", color: colors.text },
+  upgrade: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "rgba(59,130,246,0.12)", borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, borderColor: "rgba(59,130,246,0.35)", marginBottom: spacing.sm },
+  upgradeCompact: { paddingVertical: 10 },
+  upgradeTitle: { fontSize: 14, fontWeight: "700", color: colors.text },
+  upgradeSub: { fontSize: 12, color: colors.textMuted, marginTop: 4, lineHeight: 17 },
+  menuRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
+  menuIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: "rgba(59,130,246,0.12)", alignItems: "center", justifyContent: "center" },
+  menuLabel: { fontSize: 16, fontWeight: "600", color: colors.text },
+  menuSub: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+  menuBadge: { fontSize: 11, fontWeight: "700", color: colors.primary, backgroundColor: "rgba(59,130,246,0.15)", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, overflow: "hidden" },
 });

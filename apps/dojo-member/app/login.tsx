@@ -14,6 +14,7 @@ import { useRouter } from "expo-router";
 import { useAuth } from "@/lib/auth";
 import { PrimaryButton } from "@/lib/components";
 import { useI18n } from "@/lib/i18n";
+import { resolveImageUrl } from "@/lib/resolveUrl";
 import { radius, spacing, useThemeColors, withAlpha } from "@/lib/theme";
 
 export default function LoginScreen() {
@@ -51,8 +52,8 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView style={[styles.root, { backgroundColor: colors.bg }]} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <LinearGradient colors={[accent, withAlpha(accent, 0.9)]} style={styles.hero}>
-        {portalInfo?.logoUrl ? (
-          <Image source={{ uri: portalInfo.logoUrl }} style={styles.logo} contentFit="contain" />
+        {resolveImageUrl(portalInfo?.logoUrl) ? (
+          <Image source={{ uri: resolveImageUrl(portalInfo?.logoUrl)! }} style={styles.logo} contentFit="contain" />
         ) : null}
         <Text style={styles.heroTitle}>{clubName || t("login.title")}</Text>
         <Text style={styles.heroSub}>{t("login.subtitle")}</Text>

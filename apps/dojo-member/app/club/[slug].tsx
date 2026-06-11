@@ -30,6 +30,7 @@ import {
 import { useI18n } from "@/lib/i18n";
 import { saveRecentClub } from "@/lib/recentClubs";
 import { isClubFavorite, toggleFavoriteClub } from "@/lib/savedClubs";
+import { resolveImageUrl } from "@/lib/resolveUrl";
 import { radius, spacing, useThemeColors, withAlpha } from "@/lib/theme";
 
 const SOCIAL_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
@@ -147,8 +148,8 @@ export default function ClubDetailScreen() {
           </Pressable>
         </View>
         <View style={styles.heroRow}>
-          {profile.logoUrl ? (
-            <Image source={{ uri: profile.logoUrl }} style={styles.logo} contentFit="contain" />
+          {resolveImageUrl(profile.logoUrl) ? (
+            <Image source={{ uri: resolveImageUrl(profile.logoUrl)! }} style={styles.logo} contentFit="contain" />
           ) : (
             <View style={[styles.logoFallback, { backgroundColor: withAlpha("#fff", 0.2) }]}>
               <Ionicons name={vis.icon} size={32} color="#fff" />

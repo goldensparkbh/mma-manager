@@ -15,7 +15,12 @@ export default function RootLayout() {
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="index" />
             <Stack.Screen name="login" />
+            <Stack.Screen name="register" />
             <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="settings" options={{ headerShown: true }} />
+            <Stack.Screen name="packages" options={{ headerShown: true }} />
+            <Stack.Screen name="registrations" options={{ headerShown: true }} />
+            <Stack.Screen name="team" options={{ headerShown: true }} />
           </Stack>
         </ToastProvider>
       </AuthProvider>

@@ -1,9 +1,9 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { FlatList, ScrollView, StyleSheet, Text, View } from "react-native";
 import {
   CategoryChip,
-  ClubCard,
+  ClubGridCard,
   DiscoverHero,
   PremiumEmptyState,
   SearchInput,
@@ -15,7 +15,7 @@ import { useI18n } from "@/lib/i18n";
 import { spacing, useThemeColors } from "@/lib/theme";
 
 export default function ClubsScreen() {
-  const { t } = useI18n();
+  const { t, clubTypeName } = useI18n();
   const colors = useThemeColors();
   const router = useRouter();
   const params = useLocalSearchParams<{ type?: string }>();
@@ -33,67 +33,106 @@ export default function ClubsScreen() {
     return all.filter((t: ClubTypeOption) => used.has(t.id) || t.id === clubType);
   }, [clubTypes, clubs, clubType]);
 
-  return (
-    <View style={[styles.root, { backgroundColor: colors.bg }]}>
-      <DiscoverHero title={t("clubs.title")} subtitle={t("clubs.subtitle", { count: data?.total ?? 0 })} />
-      <View style={styles.body}>
-        <SearchInput value={query} onChangeText={setQuery} placeholder="Search clubs, city, or code…" />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chips}>
-          <CategoryChip label="All" active={!clubType} onPress={() => setClubType("")} />
-          {categories.map((t: ClubTypeOption) => (
+  const renderClub = useCallback(
+    ({ item: club }: { item: DiscoverClub }) => {
+      const vis = getClubTypeVisual(club.clubType);
+      return (
+        <View style={styles.gridItem}>
+          <ClubGridCard
+            name={club.name}
+            clubType={vis.label}
+            location={club.location}
+            logoUrl={club.logoUrl}
+            accent={club.primaryColor || vis.color}
+            typeIcon={vis.icon}
+            typeColor={vis.color}
+            typeColorSoft={vis.colorSoft}
+            upcomingCount={club.upcomingClassCount}
+            onPress={() => router.push(`/club/${club.portalSlug}`)}
+          />
+        </View>
+      );
+    },
+    [router],
+  );
+
+  const listHeader = (
+    <View style={styles.header}>
+      <SearchInput value={query} onChangeText={setQuery} placeholder={t("clubs.search")} />
+      <View style={styles.chipsWrap}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chipsContent}
+        >
+          <CategoryChip label={t("clubs.all")} active={!clubType} onPress={() => setClubType("")} />
+          {categories.map((ct: ClubTypeOption) => (
             <CategoryChip
-              key={t.id}
-              label={t.nameEn}
-              active={clubType === t.id}
-              color={getClubTypeVisual(t.id).color}
-              onPress={() => setClubType(clubType === t.id ? "" : t.id)}
+              key={ct.id}
+              label={clubTypeName(ct.nameEn, ct.nameAr)}
+              active={clubType === ct.id}
+              color={getClubTypeVisual(ct.id).color}
+              onPress={() => setClubType(clubType === ct.id ? "" : ct.id)}
             />
           ))}
         </ScrollView>
-
-        {isLoading ? (
-          <Skeleton height={400} />
-        ) : (
-          <FlatList
-            data={clubs}
-            keyExtractor={(c) => c.id}
-            refreshing={isRefetching}
-            onRefresh={() => refetch()}
-            contentContainerStyle={styles.list}
-            showsVerticalScrollIndicator={false}
-            ListEmptyComponent={
-              <PremiumEmptyState
-                title="No clubs found"
-                subtitle="Try a different search or sport filter"
-              />
-            }
-            renderItem={({ item: club }) => {
-              const vis = getClubTypeVisual(club.clubType);
-              return (
-                <ClubCard
-                  name={club.name}
-                  clubType={vis.label}
-                  location={club.location}
-                  logoUrl={club.logoUrl}
-                  accent={club.primaryColor || vis.color}
-                  typeIcon={vis.icon}
-                  typeColor={vis.color}
-                  typeColorSoft={vis.colorSoft}
-                  upcomingCount={club.upcomingClassCount}
-                  onPress={() => router.push(`/club/${club.portalSlug}`)}
-                />
-              );
-            }}
-          />
-        )}
       </View>
+    </View>
+  );
+
+  return (
+    <View style={[styles.root, { backgroundColor: colors.bg }]}>
+      <DiscoverHero title={t("clubs.title")} subtitle={t("clubs.subtitle", { count: data?.total ?? 0 })} />
+      {isLoading ? (
+        <View style={styles.body}>
+          {listHeader}
+          <View style={styles.gridSkeleton}>
+            <Skeleton height={200} style={styles.gridItem} />
+            <Skeleton height={200} style={styles.gridItem} />
+            <Skeleton height={200} style={styles.gridItem} />
+            <Skeleton height={200} style={styles.gridItem} />
+          </View>
+        </View>
+      ) : (
+        <FlatList
+          style={styles.list}
+          data={clubs}
+          keyExtractor={(c) => c.id}
+          renderItem={renderClub}
+          numColumns={2}
+          refreshing={isRefetching}
+          onRefresh={() => refetch()}
+          columnWrapperStyle={styles.gridRow}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          ListHeaderComponent={listHeader}
+          ListEmptyComponent={
+            <PremiumEmptyState title={t("clubs.notFound")} subtitle={t("clubs.notFoundSub")} />
+          }
+        />
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  body: { flex: 1, paddingHorizontal: spacing.md, paddingTop: spacing.md },
-  chips: { marginBottom: spacing.sm, maxHeight: 44 },
-  list: { paddingBottom: 100, gap: 0 },
+  body: { flex: 1, paddingHorizontal: spacing.md },
+  header: { paddingBottom: spacing.sm },
+  chipsWrap: {
+    minHeight: 44,
+    marginBottom: spacing.md,
+    overflow: "hidden",
+  },
+  chipsContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 2,
+    gap: 0,
+  },
+  list: { flex: 1, paddingHorizontal: spacing.md },
+  listContent: { paddingBottom: 100, flexGrow: 1 },
+  gridRow: { gap: spacing.sm, marginBottom: spacing.sm },
+  gridItem: { flex: 1, maxWidth: "48.5%" },
+  gridSkeleton: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
 });

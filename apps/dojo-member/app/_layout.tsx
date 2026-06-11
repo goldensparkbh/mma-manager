@@ -7,6 +7,7 @@ import { BrandingProvider } from "@/lib/branding";
 import { I18nProvider } from "@/lib/i18n";
 import { AppQueryProvider } from "@/lib/query";
 import { setupNotificationListeners } from "@/lib/push";
+import { FontProvider } from "@/lib/fonts";
 import { ThemeProvider, useTheme } from "@/lib/theme";
 import { ToastProvider } from "@/lib/toast";
 
@@ -59,17 +60,19 @@ function RootStack() {
 export default function RootLayout() {
   return (
     <AppQueryProvider>
-      <ThemeProvider>
-        <I18nProvider>
-          <AuthProvider>
-            <BrandingProvider>
-              <ToastProvider>
-                <RootStack />
-              </ToastProvider>
-            </BrandingProvider>
-          </AuthProvider>
-        </I18nProvider>
-      </ThemeProvider>
+      <FontProvider>
+        <ThemeProvider>
+          <I18nProvider>
+            <AuthProvider>
+              <BrandingProvider>
+                <ToastProvider>
+                  <RootStack />
+                </ToastProvider>
+              </BrandingProvider>
+            </AuthProvider>
+          </I18nProvider>
+        </ThemeProvider>
+      </FontProvider>
     </AppQueryProvider>
   );
 }

@@ -17,7 +17,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.dojomanager.member",
       "infoPlist": {
-        "NSCameraUsageDescription": "Show your membership QR code for check-in"
+        "NSCameraUsageDescription": "Show your membership QR code for check-in",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -44,7 +45,11 @@
       ]
     ],
     "extra": {
-      "apiUrl": "https://orca-app-afy8n.ondigitalocean.app"
+      "apiUrl": "https://orca-app-afy8n.ondigitalocean.app",
+      "router": {},
+      "eas": {
+        "projectId": "ac417661-6282-4015-8195-437da92cb09b"
+      }
     }
   }
 }
