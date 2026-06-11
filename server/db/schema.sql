@@ -757,3 +757,37 @@ CREATE TABLE IF NOT EXISTS push_device_tokens (
 );
 CREATE INDEX IF NOT EXISTS idx_push_tokens_member ON push_device_tokens(tenant_id, member_id) WHERE member_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_push_tokens_user ON push_device_tokens(tenant_id, user_id) WHERE user_id IS NOT NULL;
+
+-- Platform-wide settings (push config, etc.)
+CREATE TABLE IF NOT EXISTS platform_settings (
+  key VARCHAR(100) PRIMARY KEY,
+  value JSONB NOT NULL DEFAULT '{}',
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Admin broadcast notifications (web popups + mobile push)
+CREATE TABLE IF NOT EXISTS platform_broadcasts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title VARCHAR(255) NOT NULL,
+  body TEXT NOT NULL,
+  link_url VARCHAR(500),
+  targets JSONB NOT NULL DEFAULT '[]',
+  web_staff_count INTEGER DEFAULT 0,
+  mobile_member_sent INTEGER DEFAULT 0,
+  mobile_staff_sent INTEGER DEFAULT 0,
+  created_by UUID REFERENCES platform_admins(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_platform_broadcasts_created ON platform_broadcasts(created_at DESC);
+
+-- Web staff users who have seen/dismissed a broadcast popup
+CREATE TABLE IF NOT EXISTS web_notification_receipts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  broadcast_id UUID NOT NULL REFERENCES platform_broadcasts(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL,
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  read_at TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (broadcast_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_web_notification_receipts_user ON web_notification_receipts(user_id);

@@ -1539,6 +1539,59 @@ router.post("/api/platform/support/conversations/:id/messages", requirePlatformA
   res.status(201).json(msg);
 });
 
+router.get("/api/platform/push/config", requirePlatformAdmin, requirePlatformPermission(PLATFORM_PERMISSIONS.PUSH_VIEW), async (_req, res) => {
+  const { getPushConfig, getPushStats } = await import("./platformPush.js");
+  const [config, stats] = await Promise.all([getPushConfig(), getPushStats()]);
+  res.json({ config, stats });
+});
+
+router.patch("/api/platform/push/config", requirePlatformAdmin, requirePlatformPermission(PLATFORM_PERMISSIONS.PUSH_EDIT), async (req, res) => {
+  try {
+    const { updatePushConfig } = await import("./platformPush.js");
+    res.json(await updatePushConfig(req.body));
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+router.get("/api/platform/push/broadcasts", requirePlatformAdmin, requirePlatformPermission(PLATFORM_PERMISSIONS.PUSH_VIEW), async (_req, res) => {
+  const { listBroadcasts } = await import("./platformPush.js");
+  res.json(await listBroadcasts());
+});
+
+router.post("/api/platform/push/broadcast", requirePlatformAdmin, requirePlatformPermission(PLATFORM_PERMISSIONS.PUSH_SEND), async (req, res) => {
+  try {
+    const auth = getAuth(req);
+    const { title, body, linkUrl, targets } = req.body;
+    if (!title?.trim() || !body?.trim()) {
+      return res.status(400).json({ error: "Title and body are required" });
+    }
+    const { sendBroadcast } = await import("./platformPush.js");
+    const result = await sendBroadcast({
+      title: String(title).trim(),
+      body: String(body).trim(),
+      linkUrl: linkUrl ? String(linkUrl).trim() : undefined,
+      targets: Array.isArray(targets) ? targets : ["web_staff", "mobile_member", "mobile_staff"],
+      createdBy: auth.userId,
+    });
+    res.status(201).json(result);
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+router.get("/api/notifications/broadcasts/unread", requireStaffAccount, requireTenant, async (req, res) => {
+  const auth = getAuth(req);
+  const { getUnreadWebBroadcasts } = await import("./platformPush.js");
+  res.json(await getUnreadWebBroadcasts(auth.userId));
+});
+
+router.post("/api/notifications/broadcasts/:id/ack", requireStaffAccount, requireTenant, async (req, res) => {
+  const auth = getAuth(req);
+  const { ackWebBroadcast } = await import("./platformPush.js");
+  res.json(await ackWebBroadcast(auth.userId, auth.tenantId!, req.params.id));
+});
+
 router.get("/api/platform/admins", requirePlatformAdmin, requirePlatformPermission(PLATFORM_PERMISSIONS.ADMINS_VIEW), async (_req, res) => {
   res.json(await data.getAllPlatformAdmins());
 });

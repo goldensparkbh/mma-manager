@@ -34,6 +34,7 @@ import { ScreenSaver } from "@/components/screen-saver";
 import { SubscriptionGate } from "@/components/subscription-gate";
 import { SupportChatProvider } from "@/context/support-chat-context";
 import { ImpersonationBanner } from "@/components/impersonation-banner";
+import { WebBroadcastListener } from "@/components/web-broadcast-listener";
 import { useEffect } from "react";
 import { PERMISSIONS } from "@/lib/permissions";
 import PortalApp from "@/pages/portal";
@@ -181,6 +182,7 @@ function AppShell() {
     <SubscriptionGate>
     <SupportChatProvider>
     <ThemeProvider defaultTheme="light" storageKey="club-theme">
+      <WebBroadcastListener />
       <ScreenSaver />
       <TooltipProvider>
         <SidebarProvider style={style as React.CSSProperties}>

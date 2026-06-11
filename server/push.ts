@@ -35,6 +35,7 @@ export async function sendExpoPush(
   title: string,
   body: string,
   data?: Record<string, unknown>,
+  opts?: { accessToken?: string },
 ): Promise<number> {
   if (!tokens.length) return 0;
   const messages = tokens.map((to) => ({
@@ -50,15 +51,20 @@ export async function sendExpoPush(
     chunks.push(messages.slice(i, i + 100));
   }
 
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  };
+  if (opts?.accessToken) {
+    headers.Authorization = `Bearer ${opts.accessToken}`;
+  }
+
   let sent = 0;
   for (const chunk of chunks) {
     try {
       const res = await fetch("https://exp.host/--/api/v2/push/send", {
         method: "POST",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify(chunk),
       });
       if (res.ok) sent += chunk.length;

@@ -59,6 +59,7 @@ export function optionalAuth(req: Request, _res: Response, next: NextFunction) {
 
 export function requireTenant(req: Request, res: Response, next: NextFunction) {
   const auth = (req as Request & { auth?: AuthPayload }).auth;
+  if (auth?.isPlatformAdmin) return next();
   if (!auth?.tenantId) {
     return res.status(403).json({ error: "Tenant access required" });
   }

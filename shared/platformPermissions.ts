@@ -10,6 +10,9 @@ export const PLATFORM_PERMISSIONS = {
   SUPPORT_REPLY: "platform.support.reply",
   ADMINS_VIEW: "platform.admins.view",
   ADMINS_EDIT: "platform.admins.edit",
+  PUSH_VIEW: "platform.push.view",
+  PUSH_EDIT: "platform.push.edit",
+  PUSH_SEND: "platform.push.send",
 } as const;
 
 export type PlatformPermission = (typeof PLATFORM_PERMISSIONS)[keyof typeof PLATFORM_PERMISSIONS];

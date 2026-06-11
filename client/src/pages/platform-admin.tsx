@@ -30,6 +30,7 @@ import {
   Plus, Trash2, Power,
 } from "lucide-react";
 import { PlatformPaymentsPanel, PlatformSupportPanel, PlatformAdminsPanel, ImpersonateTenantButton } from "@/components/platform-admin-panels";
+import { PlatformPushPanel } from "@/components/platform-push-panel";
 import { PlatformLeadsPanel } from "@/components/platform-leads-panel";
 
 type PlatformStats = {
@@ -562,6 +563,8 @@ export default function PlatformAdmin() {
                 {section === "payments" && <PlatformPaymentsPanel />}
 
                 {section === "support" && <PlatformSupportPanel />}
+
+                {section === "push" && <PlatformPushPanel />}
 
                 {section === "admins" && <PlatformAdminsPanel />}
               </main>

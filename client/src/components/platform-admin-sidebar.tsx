@@ -7,6 +7,7 @@ import {
   Megaphone,
   Shield,
   ShieldCheck,
+  Bell,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,7 +34,8 @@ export type PlatformAdminSection =
   | "plans"
   | "payments"
   | "support"
-  | "admins";
+  | "admins"
+  | "push";
 
 type Props = {
   active: PlatformAdminSection;
@@ -52,6 +54,7 @@ const NAV: Array<{
   { id: "plans", labelKey: "platformAdmin.nav.plans", icon: CreditCard, group: "billing" },
   { id: "payments", labelKey: "platformAdmin.nav.payments", icon: CreditCard, group: "billing" },
   { id: "support", labelKey: "platformAdmin.nav.support", icon: Headphones, group: "system" },
+  { id: "push", labelKey: "platformAdmin.nav.push", icon: Bell, group: "system" },
   { id: "admins", labelKey: "platformAdmin.nav.admins", icon: ShieldCheck, group: "system" },
 ];
 
@@ -148,4 +151,5 @@ export const SECTION_META: Record<
   payments: { titleKey: "platformAdmin.payments.title", descriptionKey: "platformAdmin.payments.description" },
   support: { titleKey: "platformAdmin.support.title", descriptionKey: "platformAdmin.support.description" },
   admins: { titleKey: "platformAdmin.admins.title", descriptionKey: "platformAdmin.admins.description" },
+  push: { titleKey: "platformAdmin.push.title", descriptionKey: "platformAdmin.push.description" },
 };
