@@ -1,22 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { addDays } from "date-fns";
 import { useAuth } from "./auth";
 import { createApi } from "./api";
+import { useScheduleRange } from "./scheduleRange";
 import type { Booking, CampEvent, ClassSession, MemberPayment, Package } from "./types";
 
 export type { Booking, CampEvent, ClassSession, MemberPayment, Package };
 
-export function usePortalRange() {
-  const from = new Date().toISOString();
-  const to = addDays(new Date(), 14).toISOString();
-  return { from, to };
-}
-
 export function useClasses() {
   const { api, member } = useAuth();
-  const { from, to } = usePortalRange();
+  const { dayKey, from, to } = useScheduleRange();
   return useQuery<ClassSession[]>({
-    queryKey: ["portal", "classes", from, to],
+    queryKey: ["portal", "classes", dayKey],
     queryFn: () =>
       api.get<ClassSession[]>(
         `/api/portal/classes?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
@@ -36,10 +30,12 @@ export function useCoaches() {
 }
 
 export function useBookings() {
-  const { api } = useAuth();
+  const { api, member } = useAuth();
   return useQuery<Booking[]>({
     queryKey: ["portal", "bookings"],
     queryFn: () => api.get<Booking[]>("/api/portal/bookings"),
+    enabled: !!member,
+    refetchOnMount: "always",
   });
 }
 

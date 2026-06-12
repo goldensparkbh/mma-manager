@@ -495,6 +495,7 @@ router.get("/api/portal/coaches", requireMemberAccount, async (req, res) => {
 
 router.get("/api/portal/bookings", requireMemberAccount, async (req, res) => {
   const auth = getAuth(req);
+  await bookings.reconcileOrphanedBookings(auth.tenantId!, auth.memberId!);
   res.json(await bookings.getBookings(auth.tenantId!, { memberId: auth.memberId }));
 });
 
@@ -1219,12 +1220,18 @@ router.post("/api/classes/sessions", async (req, res) => {
   res.status(201).json(await data.createClassSession(tid(req), req.body));
 });
 router.patch("/api/classes/sessions/:id", async (req, res) => {
-  const session = await data.updateClassSession(tid(req), req.params.id, req.body);
+  const tenantId = tid(req);
+  const session = await data.updateClassSession(tenantId, req.params.id, req.body);
   if (!session) return res.status(404).json({ error: "Not found" });
+  if (req.body.status === "cancelled") {
+    await bookings.cancelBookingsForSession(tenantId, req.params.id);
+  }
   res.json(session);
 });
 router.delete("/api/classes/sessions/:id", async (req, res) => {
-  await data.deleteClassSession(tid(req), req.params.id);
+  const tenantId = tid(req);
+  await bookings.cancelBookingsForSession(tenantId, req.params.id);
+  await data.deleteClassSession(tenantId, req.params.id);
   res.status(204).send();
 });
 router.post("/api/classes/sessions/generate", async (req, res) => {

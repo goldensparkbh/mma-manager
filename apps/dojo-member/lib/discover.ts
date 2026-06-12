@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { addDays } from "date-fns";
 import { createApi } from "./api";
+import { useScheduleRange } from "./scheduleRange";
 
 const publicApi = createApi();
 
@@ -78,14 +78,13 @@ export function useClubProfile(slug: string) {
 }
 
 export function useDiscoverSchedule(opts?: { q?: string; clubType?: string; clubSlug?: string }) {
-  const from = new Date().toISOString();
-  const to = addDays(new Date(), 14).toISOString();
+  const { dayKey, from, to } = useScheduleRange();
   const params = new URLSearchParams({ from, to, limit: "100" });
   if (opts?.q?.trim()) params.set("q", opts.q.trim());
   if (opts?.clubType) params.set("clubType", opts.clubType);
   if (opts?.clubSlug) params.set("clubSlug", opts.clubSlug);
   return useQuery<DiscoverClass[]>({
-    queryKey: ["discover", "schedule", opts?.q, opts?.clubType, opts?.clubSlug],
+    queryKey: ["discover", "schedule", dayKey, opts?.q, opts?.clubType, opts?.clubSlug],
     queryFn: () => publicApi.get(`/api/discover/schedule?${params}`),
     staleTime: 30_000,
   });
@@ -108,10 +107,9 @@ export function usePublicClubInfo(slug: string) {
 }
 
 export function usePublicSchedule(slug: string) {
-  const from = new Date().toISOString();
-  const to = addDays(new Date(), 14).toISOString();
+  const { dayKey, from, to } = useScheduleRange();
   return useQuery({
-    queryKey: ["public", "club", slug, "schedule", from],
+    queryKey: ["public", "club", slug, "schedule", dayKey],
     queryFn: () =>
       publicApi.get<Array<{
         id: string;

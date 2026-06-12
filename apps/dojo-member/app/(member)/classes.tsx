@@ -2,9 +2,9 @@ import { format, isToday, isTomorrow } from "date-fns";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { FlatList, ScrollView, StyleSheet, Text, View } from "react-native";
+import { FlatList, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "@/lib/auth";
-import { ClassRowCard, ClubHeader, PremiumEmptyState, SearchInput, Skeleton, Card } from "@/lib/components";
+import { ClassRowCard, ClubHeader, PremiumEmptyState, SearchInput, Skeleton } from "@/lib/components";
 import { QueryErrorState } from "@/lib/errors";
 import { ClassesIllustration } from "@/lib/illustrations";
 import { FadeInView } from "@/lib/motion";
@@ -12,7 +12,7 @@ import { useBranding } from "@/lib/branding";
 import { useBookClass, useBookings, useClasses, useCoaches } from "@/lib/hooks";
 import { useI18n } from "@/lib/i18n";
 import { useToast } from "@/lib/toast";
-import { spacing, useThemeColors } from "@/lib/theme";
+import { spacing, useThemeColors, withAlpha } from "@/lib/theme";
 import type { Booking, ClassSession } from "@/lib/types";
 
 function dayLabel(date: Date, t: (k: "common.today" | "common.tomorrow") => string) {
@@ -32,7 +32,7 @@ export default function ClassesScreen() {
 
   const { data: sessionsData, isLoading, isError, refetch, isRefetching } = useClasses();
   const { data: coachesData } = useCoaches();
-  const { data: bookingsData } = useBookings();
+  const { data: bookingsData, refetch: refetchBookings } = useBookings();
   const sessions: ClassSession[] = sessionsData ?? [];
   const bookings: Booking[] = bookingsData ?? [];
   const bookClass = useBookClass();
@@ -74,80 +74,100 @@ export default function ClassesScreen() {
     }
   };
 
+  const listHeader = (
+    <View style={styles.headerBlock}>
+      <SearchInput value={query} onChangeText={setQuery} placeholder={t("member.searchClasses")} />
+      {coachesData && coachesData.length > 0 ? (
+        <View style={styles.coachesRow}>
+          <Text style={[styles.coachesLabel, { color: colors.textMuted }]}>{t("class.coach")}</Text>
+          <FlatList
+            horizontal
+            data={coachesData}
+            keyExtractor={(c) => c.id}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.coachesList}
+            renderItem={({ item: coach }) => (
+              <View style={[styles.coachPill, { backgroundColor: withAlpha(accent, 0.12), borderColor: withAlpha(accent, 0.25) }]}>
+                <Text style={[styles.coachPillText, { color: colors.text }]} numberOfLines={1}>
+                  {coach.name}
+                </Text>
+              </View>
+            )}
+          />
+        </View>
+      ) : null}
+    </View>
+  );
+
   return (
     <View style={[styles.root, { backgroundColor: colors.bg }]}>
       <ClubHeader clubName={clubName} logoUrl={portalInfo?.logoUrl} accent={accent} subtitle={t("member.bookClass")} />
-      <View style={styles.body}>
-        <SearchInput value={query} onChangeText={setQuery} placeholder={t("member.searchClasses")} />
-        {coachesData && coachesData.length > 0 ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.coachScroll}>
-            {coachesData.map((coach) => (
-              <Card key={coach.id} style={styles.coachChip}>
-                <Text style={[styles.coachName, { color: colors.text }]}>{coach.name}</Text>
-                {coach.bio ? (
-                  <Text style={[styles.coachBio, { color: colors.textMuted }]} numberOfLines={2}>
-                    {coach.bio}
-                  </Text>
-                ) : null}
-              </Card>
-            ))}
-          </ScrollView>
-        ) : null}
-        {isLoading ? (
+      {isLoading ? (
+        <View style={styles.body}>
+          {listHeader}
           <Skeleton height={120} />
-        ) : isError ? (
+          <Skeleton height={120} style={{ marginTop: spacing.sm }} />
+        </View>
+      ) : isError ? (
+        <View style={styles.body}>
+          {listHeader}
           <QueryErrorState onRetry={() => refetch()} />
-        ) : (
-          <FlatList
-            data={sections}
-            keyExtractor={(item) => item.key}
-            refreshing={isRefetching}
-            onRefresh={() => refetch()}
-            contentContainerStyle={styles.list}
-            ListEmptyComponent={
-              <PremiumEmptyState
-                title={t("member.noClassesFound")}
-                subtitle={t("member.noClassesFoundSub")}
-                illustration={<ClassesIllustration size={150} />}
-              />
-            }
-            renderItem={({ item: section, index }) => (
-              <FadeInView delay={index * 40} style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>{section.title}</Text>
-                {section.items.map((item) => {
-                  const isBooked = bookedIds.has(item.id);
-                  const spots = item.capacity > 0 ? `${item.bookedCount ?? 0}/${item.capacity}` : undefined;
-                  return (
-                    <ClassRowCard
-                      key={item.id}
-                      name={item.name}
-                      clubName={clubName}
-                      time={format(new Date(item.startsAt), "HH:mm")}
-                      coach={item.coachName}
-                      spots={isBooked ? t("class.booked") : spots}
-                      accent={accent}
-                      onPress={() =>
-                        router.push({
-                          pathname: "/class/[id]",
-                          params: {
-                            id: item.id,
-                            mode: "member",
-                            clubName,
-                            startsAt: item.startsAt,
-                            coach: item.coachName || "",
-                            capacity: String(item.capacity),
-                            booked: String(item.bookedCount ?? 0),
-                          },
-                        })
-                      }
-                    />
-                  );
-                })}
-              </FadeInView>
-            )}
-          />
-        )}
-      </View>
+        </View>
+      ) : (
+        <FlatList
+          style={styles.list}
+          data={sections}
+          keyExtractor={(item) => item.key}
+          refreshing={isRefetching}
+          onRefresh={() => {
+            refetch();
+            refetchBookings();
+          }}
+          contentContainerStyle={styles.listContent}
+          ListHeaderComponent={listHeader}
+          ListEmptyComponent={
+            <PremiumEmptyState
+              title={t("member.noClassesFound")}
+              subtitle={t("member.noClassesFoundSub")}
+              illustration={<ClassesIllustration size={150} />}
+            />
+          }
+          renderItem={({ item: section, index }) => (
+            <FadeInView delay={index * 40} style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>{section.title}</Text>
+              {section.items.map((item) => {
+                const isBooked = bookedIds.has(item.id);
+                const spots = item.capacity > 0 ? `${item.bookedCount ?? 0}/${item.capacity}` : undefined;
+                return (
+                  <ClassRowCard
+                    key={item.id}
+                    name={item.name}
+                    clubName={clubName}
+                    time={format(new Date(item.startsAt), "HH:mm")}
+                    coach={item.coachName}
+                    spots={isBooked ? t("class.booked") : spots}
+                    accent={accent}
+                    onPress={() =>
+                      router.push({
+                        pathname: "/class/[id]",
+                        params: {
+                          id: item.id,
+                          mode: "member",
+                          clubName,
+                          startsAt: item.startsAt,
+                          coach: item.coachName || "",
+                          capacity: String(item.capacity),
+                          booked: String(item.bookedCount ?? 0),
+                        },
+                      })
+                    }
+                  />
+                );
+              })}
+            </FadeInView>
+          )}
+        />
+      )}
     </View>
   );
 }
@@ -155,11 +175,20 @@ export default function ClassesScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   body: { flex: 1, paddingHorizontal: spacing.md, paddingTop: spacing.md },
-  coachScroll: { marginBottom: spacing.sm, marginHorizontal: -spacing.md, paddingHorizontal: spacing.md },
-  coachChip: { width: 160, marginRight: spacing.sm, padding: spacing.sm, gap: 4 },
-  coachName: { fontSize: 14, fontWeight: "700" },
-  coachBio: { fontSize: 12, lineHeight: 16 },
-  list: { paddingBottom: 100, gap: spacing.md },
+  list: { flex: 1 },
+  listContent: { paddingHorizontal: spacing.md, paddingBottom: 100, gap: spacing.md },
+  headerBlock: { gap: spacing.sm, paddingTop: spacing.md, paddingBottom: spacing.sm },
+  coachesRow: { gap: 6 },
+  coachesLabel: { fontSize: 12, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.4 },
+  coachesList: { gap: spacing.sm, paddingVertical: 2 },
+  coachPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    maxWidth: 180,
+  },
+  coachPillText: { fontSize: 13, fontWeight: "600" },
   section: { gap: spacing.sm, marginBottom: spacing.md },
   sectionTitle: { fontSize: 15, fontWeight: "700", marginBottom: 4 },
 });

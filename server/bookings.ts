@@ -365,6 +365,43 @@ export async function cancelBooking(
   } catch { /* optional */ }
 }
 
+/** Cancel all active bookings when a class session is cancelled by staff. */
+export async function cancelBookingsForSession(tenantId: string, sessionId: string) {
+  const result = await query(
+    `SELECT id FROM bookings
+     WHERE tenant_id = $1 AND session_id = $2 AND status IN ('confirmed', 'waitlist')`,
+    [tenantId, sessionId],
+  );
+  for (const row of result.rows) {
+    await cancelBooking(tenantId, row.id as string, { force: true });
+  }
+}
+
+/** Fix bookings left active after their session was cancelled/completed/deleted (no notifications). */
+export async function reconcileOrphanedBookings(tenantId: string, memberId?: string) {
+  const values: unknown[] = [tenantId];
+  let memberClause = "";
+  if (memberId) {
+    values.push(memberId);
+    memberClause = ` AND b.member_id = $${values.length}`;
+  }
+  const result = await query(
+    `UPDATE bookings b SET status = 'cancelled', cancelled_at = COALESCE(b.cancelled_at, NOW())
+     WHERE b.tenant_id = $1
+       AND b.status IN ('confirmed', 'waitlist')${memberClause}
+       AND (
+         NOT EXISTS (SELECT 1 FROM class_sessions s WHERE s.id = b.session_id)
+         OR EXISTS (SELECT 1 FROM class_sessions s WHERE s.id = b.session_id AND s.status != 'scheduled')
+       )
+     RETURNING b.session_id`,
+    values,
+  );
+  const sessionIds = [...new Set(result.rows.map((r) => r.session_id as string))];
+  for (const sessionId of sessionIds) {
+    await syncSessionBookedCount(sessionId);
+  }
+}
+
 async function memberAllowedForSession(
   tenantId: string,
   memberId: string,
