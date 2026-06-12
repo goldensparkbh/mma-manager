@@ -177,7 +177,7 @@ export default function PortalHome() {
     (b) => (b.status === "confirmed" || b.status === "waitlist") && b.startsAt && new Date(b.startsAt) > new Date(),
   );
 
-  const accent = portalInfo?.primaryColor || "#3b82f6";
+  const accent = portalInfo?.primaryColor || "#004aad";
 
   return (
     <div className="min-h-screen bg-muted/20" style={{ "--portal-accent": accent } as React.CSSProperties}>

@@ -603,8 +603,14 @@ export async function getActivityLogs(tenantId: string, limit = 100) {
 
 // ─── Events ────────────────────────────────────────────────────────────────
 
-export async function getEvents(tenantId: string) {
-  const result = await query("SELECT * FROM events WHERE tenant_id = $1 ORDER BY start_date", [tenantId]);
+export async function getEvents(tenantId: string, options?: { internalOnly?: boolean }) {
+  let sql = "SELECT * FROM events WHERE tenant_id = $1";
+  const params: unknown[] = [tenantId];
+  if (options?.internalOnly) {
+    sql += " AND (event_type = 'note' OR event_type IS NULL)";
+  }
+  sql += " ORDER BY start_date";
+  const result = await query(sql, params);
   return rowsToCamel(result.rows).map((e) => ({
     ...e,
     startDate: formatTimestamp((e as Record<string, unknown>).startDate),
@@ -614,8 +620,8 @@ export async function getEvents(tenantId: string) {
 
 export async function createEvent(tenantId: string, data: Record<string, unknown>, createdBy?: string) {
   const result = await query(
-    `INSERT INTO events (tenant_id, title, description, start_date, end_date, is_all_day, color, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+    `INSERT INTO events (tenant_id, title, description, start_date, end_date, is_all_day, color, created_by, event_type, is_public)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'note',false) RETURNING *`,
     [tenantId, data.title, data.description || null, data.startDate, data.endDate || null,
      data.isAllDay ?? false, data.color || null, createdBy || null],
   );

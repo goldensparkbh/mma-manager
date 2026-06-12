@@ -60,8 +60,9 @@ export default function Login() {
                 <h1 className="text-4xl font-black text-primary uppercase tracking-tighter">{clubSettings.name}</h1>
               ) : (
                 <PlatformBranding
+                  showLogo
                   centered
-                  titleClassName="text-4xl font-black text-primary uppercase tracking-tighter"
+                  logoClassName="h-16 w-auto object-contain mx-auto"
                   subtitleClassName="mt-2 text-sm text-muted-foreground"
                 />
               )}

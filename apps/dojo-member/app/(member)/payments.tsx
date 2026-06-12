@@ -4,8 +4,9 @@ import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
 import { useCallback } from "react";
 import { FlatList, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/lib/auth";
-import { Badge, Card, ClubHeader, PremiumEmptyState, PrimaryButton, Skeleton } from "@/lib/components";
+import { Badge, Card, PremiumEmptyState, PrimaryButton, Skeleton } from "@/lib/components";
 import { PaymentsIllustration } from "@/lib/illustrations";
 import { FadeInView } from "@/lib/motion";
 import { useBranding } from "@/lib/branding";
@@ -20,10 +21,11 @@ const PAYMENT_RETURN = Linking.createURL("payment-result");
 
 export default function PaymentsScreen() {
   const { show } = useToast();
-  const { clubName, portalInfo, refresh } = useAuth();
+  const { refresh } = useAuth();
   const { accent } = useBranding();
   const { t, locale } = useI18n();
   const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
 
   const { data: packagesData, isLoading: loadingPackages, refetch: refetchPackages, isRefetching } = usePackages();
   const { data: paymentsData, isLoading: loadingPayments, refetch: refetchPayments } = usePayments();
@@ -61,8 +63,7 @@ export default function PaymentsScreen() {
   };
 
   return (
-    <View style={[styles.root, { backgroundColor: colors.bg }]}>
-      <ClubHeader clubName={clubName} logoUrl={portalInfo?.logoUrl} accent={accent} subtitle={t("member.renewPay")} />
+    <View style={[styles.root, { backgroundColor: colors.bg, paddingTop: insets.top + spacing.sm }]}>
       <FlatList
         data={packages}
         keyExtractor={(item) => item.id}

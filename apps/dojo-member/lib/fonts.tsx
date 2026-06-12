@@ -6,6 +6,7 @@ import {
 } from "@expo-google-fonts/cairo";
 import React, { createContext, useContext, useMemo } from "react";
 import type { TextStyle } from "react-native";
+import { BrandedSplash } from "./branded-splash";
 import { useI18n } from "./i18n";
 
 type FontWeight = "regular" | "semibold" | "bold";
@@ -45,7 +46,7 @@ export function FontProvider({ children }: { children: React.ReactNode }) {
     [loaded],
   );
 
-  if (!loaded) return null;
+  if (!loaded) return <BrandedSplash />;
 
   return <FontsContext.Provider value={value}>{children}</FontsContext.Provider>;
 }

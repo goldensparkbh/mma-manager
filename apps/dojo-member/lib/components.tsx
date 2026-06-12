@@ -539,7 +539,7 @@ export function DiscoverHero({
       <View style={heroStyle}>
         <Image source={EXPLORE_HERO_IMAGE} style={styles.discoverHeroBg} contentFit="cover" />
         <LinearGradient
-          colors={["rgba(15, 23, 42, 0.35)", "rgba(15, 23, 42, 0.72)"]}
+          colors={["rgba(0, 74, 173, 0.35)", "rgba(0, 38, 84, 0.85)"]}
           style={styles.discoverHeroOverlay}
         />
         <View style={[styles.discoverHeroContent, { paddingTop: insets.top + spacing.sm }]}>
@@ -552,7 +552,7 @@ export function DiscoverHero({
 
   return (
     <LinearGradient
-      colors={[colors.heroDark, "#1e3a5f", "#1e40af"]}
+      colors={["#004aad", "#003580", "#002654"]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={heroStyle}

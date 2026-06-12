@@ -118,15 +118,13 @@ export default function Landing() {
           <button
             type="button"
             onClick={() => scrollTo("hero")}
-            className="flex items-center gap-2 font-bold text-lg"
+            className="flex items-center gap-2"
           >
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
-              <Building2 className="h-5 w-5 text-primary" />
-            </div>
             <PlatformBranding
-              className="hidden sm:block text-start"
-              titleClassName="font-bold text-lg leading-tight"
-              subtitleClassName="text-[11px] font-normal text-muted-foreground leading-tight"
+              showLogo
+              className="text-start"
+              logoClassName="h-11 w-auto object-contain"
+              subtitleClassName="text-[11px] font-normal text-muted-foreground leading-tight hidden sm:block"
             />
           </button>
 
@@ -174,18 +172,18 @@ export default function Landing() {
         </div>
       </header>
 
-      <section id="hero" className="relative overflow-hidden border-b">
-        <div className="pointer-events-none absolute inset-0 hidden lg:block opacity-40" aria-hidden>
+      <section id="hero" className="relative overflow-hidden border-b bg-gradient-to-br from-[#004aad] via-[#003580] to-[#002654] text-white">
+        <div className="pointer-events-none absolute inset-0 hidden lg:block opacity-20" aria-hidden>
           <LoginClubShowcase />
         </div>
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-background/80 via-background/92 to-background lg:from-background/70 lg:via-background/85" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#004aad]/40 via-[#004aad]/70 to-[#002654]" />
 
         <div className="relative mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-28 lg:py-32">
           <div className="mx-auto max-w-3xl text-center">
-            <h1 className="text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">
+            <h1 className="text-4xl font-black tracking-tight text-white sm:text-5xl lg:text-6xl">
               {t("landing.hero.title")}
             </h1>
-            <p className="mt-6 text-lg text-muted-foreground sm:text-xl leading-relaxed">
+            <p className="mt-6 text-lg text-white/85 sm:text-xl leading-relaxed">
               {t("landing.hero.subtitle")}
             </p>
             <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">

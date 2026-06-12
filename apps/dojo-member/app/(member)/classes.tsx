@@ -3,8 +3,9 @@ import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { FlatList, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/lib/auth";
-import { ClassRowCard, ClubHeader, PremiumEmptyState, SearchInput, Skeleton } from "@/lib/components";
+import { ClassRowCard, PremiumEmptyState, SearchInput, Skeleton } from "@/lib/components";
 import { QueryErrorState } from "@/lib/errors";
 import { ClassesIllustration } from "@/lib/illustrations";
 import { FadeInView } from "@/lib/motion";
@@ -24,10 +25,11 @@ function dayLabel(date: Date, t: (k: "common.today" | "common.tomorrow") => stri
 export default function ClassesScreen() {
   const router = useRouter();
   const { show } = useToast();
-  const { activeSubscription, clubName, portalInfo } = useAuth();
+  const { activeSubscription } = useAuth();
   const { accent } = useBranding();
   const { t } = useI18n();
   const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
   const [query, setQuery] = useState("");
 
   const { data: sessionsData, isLoading, isError, refetch, isRefetching } = useClasses();
@@ -100,8 +102,7 @@ export default function ClassesScreen() {
   );
 
   return (
-    <View style={[styles.root, { backgroundColor: colors.bg }]}>
-      <ClubHeader clubName={clubName} logoUrl={portalInfo?.logoUrl} accent={accent} subtitle={t("member.bookClass")} />
+    <View style={[styles.root, { backgroundColor: colors.bg, paddingTop: insets.top + spacing.sm }]}>
       {isLoading ? (
         <View style={styles.body}>
           {listHeader}

@@ -1154,7 +1154,10 @@ router.delete("/api/roles/:id", async (req, res) => {
 });
 
 // Events
-router.get("/api/events", async (req, res) => res.json(await data.getEvents(tid(req))));
+router.get("/api/events", async (req, res) => {
+  const internalOnly = req.query.scope === "internal";
+  res.json(await data.getEvents(tid(req), { internalOnly }));
+});
 router.post("/api/events", async (req, res) => {
   const auth = getAuth(req);
   res.status(201).json(await data.createEvent(tid(req), req.body, auth.userId));

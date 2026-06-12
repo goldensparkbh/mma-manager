@@ -4,8 +4,8 @@
   "description": "Book classes, manage membership, and check in at your club",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#3b82f6",
+  "background_color": "#004aad",
+  "theme_color": "#004aad",
   "orientation": "portrait",
   "icons": [
     {

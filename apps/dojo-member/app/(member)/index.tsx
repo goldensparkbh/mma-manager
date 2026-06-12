@@ -3,12 +3,12 @@ import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import { useMemo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/lib/auth";
 import { useBranding } from "@/lib/branding";
 import {
   Badge,
   Card,
-  ClubHeader,
   IconRow,
   PremiumEmptyState,
   PrimaryButton,
@@ -28,10 +28,11 @@ import { spacing, useThemeColors, withAlpha } from "@/lib/theme";
 export default function HomeScreen() {
   const router = useRouter();
   const { show } = useToast();
-  const { member, activeSubscription, clubName, portalInfo } = useAuth();
+  const { member, activeSubscription } = useAuth();
   const { accent } = useBranding();
   const { t } = useI18n();
   const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
 
   const { data: bookingsData, isLoading: loadingBookings, refetch: refetchBookings, isRefetching } = useBookings();
   const { data: campsData, isLoading: loadingCamps } = useCamps();
@@ -61,14 +62,13 @@ export default function HomeScreen() {
   };
 
   return (
-    <Screen scroll refreshing={isRefetching} onRefresh={() => refetchBookings()}>
-      <ClubHeader
-        clubName={clubName}
-        logoUrl={portalInfo?.logoUrl}
-        accent={accent}
-        memberName={member?.name}
-        subtitle={portalInfo?.welcomeMessage || t("member.welcomeBack")}
-      />
+    <Screen
+      scroll
+      refreshing={isRefetching}
+      onRefresh={() => refetchBookings()}
+      padTop={false}
+      style={{ paddingTop: insets.top + spacing.sm }}
+    >
       <Pressable onPress={() => router.push("/(discover)/clubs")} style={styles.browseLink}>
         <Text style={[styles.browseText, { color: accent }]}>{t("member.browsePlatform")}</Text>
       </Pressable>

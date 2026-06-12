@@ -2,8 +2,9 @@ import { format } from "date-fns";
 import * as Haptics from "expo-haptics";
 import { useMemo } from "react";
 import { Alert, FlatList, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/lib/auth";
-import { Badge, Card, ClubHeader, PremiumEmptyState, PrimaryButton, Skeleton } from "@/lib/components";
+import { Badge, Card, PremiumEmptyState, PrimaryButton, Skeleton } from "@/lib/components";
 import { BookingsIllustration } from "@/lib/illustrations";
 import { FadeInView } from "@/lib/motion";
 import { useBranding } from "@/lib/branding";
@@ -16,10 +17,10 @@ import { spacing, useThemeColors } from "@/lib/theme";
 
 export default function BookingsScreen() {
   const { show } = useToast();
-  const { clubName, portalInfo } = useAuth();
   const { accent } = useBranding();
   const { t, locale } = useI18n();
   const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
 
   const { data: bookingsData, isLoading, refetch, isRefetching } = useBookings();
   const bookings: Booking[] = bookingsData ?? [];
@@ -66,8 +67,7 @@ export default function BookingsScreen() {
   };
 
   return (
-    <View style={[styles.root, { backgroundColor: colors.bg }]}>
-      <ClubHeader clubName={clubName} logoUrl={portalInfo?.logoUrl} accent={accent} subtitle={t("member.yourSchedule")} />
+    <View style={[styles.root, { backgroundColor: colors.bg, paddingTop: insets.top + spacing.sm }]}>
       {isLoading ? (
         <Skeleton height={120} style={styles.pad} />
       ) : (

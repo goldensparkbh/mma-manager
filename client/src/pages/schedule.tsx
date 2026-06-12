@@ -3,8 +3,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   addDays,
   addWeeks,
+  endOfMonth,
   endOfWeek,
   format,
+  startOfMonth,
   startOfWeek,
   subWeeks,
 } from "date-fns";
@@ -55,10 +57,15 @@ import { NotificationTemplatesPanel } from "@/components/notification-templates-
 import { MemberPaymentsPanel } from "@/components/member-payments-panel";
 import { FamiliesPanel } from "@/components/families-panel";
 import { BranchSelect } from "@/components/branch-select";
+import {
+  CLASS_CALENDAR_COLOR,
+  getSessionsForDay,
+  MonthlyCalendar,
+} from "@/components/schedule/monthly-calendar";
 
 const WEEK_STARTS_ON = 6 as const; // Saturday
 const ORDERED_DAYS = [6, 0, 1, 2, 3, 4, 5] as const;
-const COLORS = ["#3b82f6", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899"];
+const COLORS = ["#004aad", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899"];
 
 const emptyTemplate = (): Partial<ClassTemplate> => ({
   name: "",
@@ -67,7 +74,7 @@ const emptyTemplate = (): Partial<ClassTemplate> => ({
   location: "",
   capacity: 20,
   durationMinutes: 60,
-  color: "#3b82f6",
+  color: "#004aad",
   recurrence: [],
   isActive: true,
 });
@@ -92,6 +99,8 @@ export default function SchedulePage() {
   const [weekStart, setWeekStart] = useState(() =>
     startOfWeek(new Date(), { weekStartsOn: WEEK_STARTS_ON }),
   );
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date());
+  const [calendarSelectedDate, setCalendarSelectedDate] = useState(() => new Date());
   const [templateDialog, setTemplateDialog] = useState(false);
   const [coachDialog, setCoachDialog] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<Partial<ClassTemplate> | null>(null);
@@ -103,6 +112,8 @@ export default function SchedulePage() {
   const weekEnd = endOfWeek(weekStart, { weekStartsOn: WEEK_STARTS_ON });
   const fromIso = weekStart.toISOString();
   const toIso = weekEnd.toISOString();
+  const monthFromIso = startOfMonth(calendarMonth).toISOString();
+  const monthToIso = endOfMonth(calendarMonth).toISOString();
 
   const { data: sessions = [], isLoading: loadingSessions } = useQuery<ClassSession[]>({
     queryKey: ["/api/classes/sessions", fromIso, toIso, branchFilter],
@@ -110,6 +121,16 @@ export default function SchedulePage() {
       const branchQ = branchFilter ? `&branchId=${encodeURIComponent(branchFilter)}` : "";
       return apiJson(
         `/api/classes/sessions?from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}${branchQ}`,
+      );
+    },
+  });
+
+  const { data: monthSessions = [], isLoading: loadingMonthSessions } = useQuery<ClassSession[]>({
+    queryKey: ["/api/classes/sessions", monthFromIso, monthToIso, branchFilter, "month"],
+    queryFn: () => {
+      const branchQ = branchFilter ? `&branchId=${encodeURIComponent(branchFilter)}` : "";
+      return apiJson(
+        `/api/classes/sessions?from=${encodeURIComponent(monthFromIso)}&to=${encodeURIComponent(monthToIso)}${branchQ}`,
       );
     },
   });
@@ -246,6 +267,10 @@ export default function SchedulePage() {
   }, [sessions]);
 
   const weekLabel = `${format(weekStart, "d MMM", { locale })} – ${format(weekEnd, "d MMM yyyy", { locale })}`;
+  const selectedDaySessions = useMemo(
+    () => getSessionsForDay(monthSessions, calendarSelectedDate),
+    [monthSessions, calendarSelectedDate],
+  );
 
   const openNewTemplate = () => {
     setEditingTemplate(emptyTemplate());
@@ -327,6 +352,7 @@ export default function SchedulePage() {
       <Tabs defaultValue="week">
         <TabsList>
           <TabsTrigger value="week">{t("schedule.weekView")}</TabsTrigger>
+          <TabsTrigger value="month">{t("schedule.monthView")}</TabsTrigger>
           {!isCoach && (
             <>
               <TabsTrigger value="templates">{t("schedule.templates")}</TabsTrigger>
@@ -386,7 +412,7 @@ export default function SchedulePage() {
                               "w-full text-start rounded-lg border p-2 text-xs space-y-1 transition-colors hover:bg-muted/50 cursor-pointer",
                               session.status === "cancelled" && "opacity-50 line-through",
                             )}
-                            style={{ borderInlineStartWidth: 3, borderInlineStartColor: session.status === "scheduled" ? "#3b82f6" : undefined }}
+                            style={{ borderInlineStartWidth: 3, borderInlineStartColor: session.status === "scheduled" ? "#004aad" : undefined }}
                           >
                             <p className="font-semibold leading-tight">{session.name}</p>
                             <p className="text-muted-foreground">
@@ -431,6 +457,94 @@ export default function SchedulePage() {
           )}
         </TabsContent>
 
+        <TabsContent value="month" className="space-y-4">
+          {loadingMonthSessions ? (
+            <div className="flex justify-center py-16">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <Card className="lg:col-span-2">
+                <CardContent className="p-4">
+                  <MonthlyCalendar
+                    month={calendarMonth}
+                    onMonthChange={setCalendarMonth}
+                    selectedDate={calendarSelectedDate}
+                    onSelectDate={setCalendarSelectedDate}
+                    sessions={monthSessions}
+                    showInternalEvents={false}
+                    onClassClick={setRosterSession}
+                    language={language}
+                    dir={dir}
+                  />
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-3 border-b">
+                  <CardTitle className="text-base">
+                    {format(calendarSelectedDate, "EEEE, d MMM", { locale })}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-3 space-y-2">
+                  {selectedDaySessions.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-6 text-center">{t("schedule.noSessionsDay")}</p>
+                  ) : (
+                    selectedDaySessions.map((session) => (
+                      <div
+                        key={session.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setRosterSession(session)}
+                        onKeyDown={(e) => e.key === "Enter" && setRosterSession(session)}
+                        className={cn(
+                          "w-full text-start rounded-lg border p-3 text-sm space-y-1 transition-colors hover:bg-muted/50 cursor-pointer",
+                          session.status === "cancelled" && "opacity-50 line-through",
+                        )}
+                        style={{
+                          borderInlineStartWidth: 3,
+                          borderInlineStartColor:
+                            session.status === "scheduled" ? CLASS_CALENDAR_COLOR : "#94a3b8",
+                        }}
+                      >
+                        <p className="font-semibold">{session.name}</p>
+                        <p className="text-muted-foreground text-xs">
+                          {safeFormat(session.startsAt, "HH:mm")} – {safeFormat(session.endsAt, "HH:mm")}
+                        </p>
+                        {session.coachName && (
+                          <p className="text-muted-foreground text-xs flex items-center gap-1">
+                            <User className="h-3 w-3" /> {session.coachName}
+                          </p>
+                        )}
+                        <div className="flex items-center justify-between gap-1 pt-1">
+                          <Badge variant="secondary" className="text-[10px]">
+                            {session.bookedCount ?? 0}/{session.capacity}
+                          </Badge>
+                          <Badge variant="outline" className="text-[10px]">
+                            {t(`schedule.status.${session.status}`)}
+                          </Badge>
+                        </div>
+                        {canManage && session.status === "scheduled" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 text-xs px-2 mt-1"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              updateSession.mutate({ id: session.id, status: "cancelled" });
+                            }}
+                          >
+                            {t("schedule.cancelSession")}
+                          </Button>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </TabsContent>
+
         <TabsContent value="settings" className="space-y-4">
           <BookingSettingsPanel />
         </TabsContent>
@@ -467,7 +581,7 @@ export default function SchedulePage() {
                       <CardTitle className="text-base flex items-center gap-2">
                         <span
                           className="h-3 w-3 rounded-full shrink-0"
-                          style={{ backgroundColor: template.color || "#3b82f6" }}
+                          style={{ backgroundColor: template.color || "#004aad" }}
                         />
                         {template.name}
                       </CardTitle>

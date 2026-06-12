@@ -1,3 +1,4 @@
+import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRef, useState } from "react";
 import {
@@ -65,9 +66,9 @@ export default function OnboardingScreen() {
   };
 
   return (
-    <LinearGradient colors={["#0f172a", "#1e3a5f"]} style={styles.root}>
+    <LinearGradient colors={["#004aad", "#003580", "#002654"]} style={styles.root}>
       <View style={styles.topBar}>
-        <Text style={styles.brand}>{t("platform.brand")}</Text>
+        <Image source={require("../assets/nawady-logo-white.png")} style={styles.brandLogo} contentFit="contain" />
         <Pressable onPress={finish} hitSlop={12}>
           <Text style={styles.skip}>{t("onboarding.skip")}</Text>
         </Pressable>
@@ -118,7 +119,7 @@ const styles = StyleSheet.create({
     paddingTop: 56,
     paddingBottom: 8,
   },
-  brand: { fontSize: 13, fontWeight: "800", color: "#60a5fa", letterSpacing: 2, textTransform: "uppercase" },
+  brandLogo: { width: 120, height: 44 },
   skip: { color: "#94a3b8", fontWeight: "600", fontSize: 15 },
   slide: {
     flex: 1,
@@ -133,5 +134,5 @@ const styles = StyleSheet.create({
   footer: { paddingHorizontal: spacing.lg, paddingBottom: 40, gap: 16 },
   dots: { flexDirection: "row", justifyContent: "center", gap: 8 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.25)" },
-  dotActive: { width: 24, backgroundColor: "#3b82f6" },
+  dotActive: { width: 24, backgroundColor: "#ffffff" },
 });

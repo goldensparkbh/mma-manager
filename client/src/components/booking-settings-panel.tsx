@@ -260,7 +260,7 @@ export function BookingSettingsPanel() {
             <Label>{t("portal.primaryColor")}</Label>
             <Input
               type="color"
-              value={form.portalPrimaryColor || "#3b82f6"}
+              value={form.portalPrimaryColor || "#004aad"}
               onChange={(e) => setForm({ ...form, portalPrimaryColor: e.target.value })}
             />
           </div>

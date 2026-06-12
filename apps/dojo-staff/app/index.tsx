@@ -1,7 +1,7 @@
 import { useEffect } from "react";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/lib/auth";
+import { BrandedSplash } from "@/lib/branded-splash";
 
 export default function IndexScreen() {
   const router = useRouter();
@@ -12,13 +12,5 @@ export default function IndexScreen() {
     router.replace(user ? "/(tabs)" : "/login");
   }, [loading, user, router]);
 
-  return (
-    <View style={styles.center}>
-      <ActivityIndicator size="large" color="#3b82f6" />
-    </View>
-  );
+  return <BrandedSplash />;
 }
-
-const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#0f172a" },
-});

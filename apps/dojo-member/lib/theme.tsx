@@ -1,6 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useColorScheme, type ColorSchemeName } from "react-native";
+import { NAWADY_BRAND } from "./brand";
+import { BrandedSplash } from "./branded-splash";
 
 export type ThemeMode = "light" | "dark" | "system";
 
@@ -12,14 +14,14 @@ export const lightColors = {
   text: "#0f172a",
   textMuted: "#64748b",
   border: "#e2e8f0",
-  primary: "#3b82f6",
-  primaryDark: "#2563eb",
+  primary: NAWADY_BRAND.primary,
+  primaryDark: NAWADY_BRAND.primaryDark,
   success: "#16a34a",
   warning: "#d97706",
   danger: "#dc2626",
   dangerBg: "#fef2f2",
   tabBar: "#ffffff",
-  heroDark: "#0f172a",
+  heroDark: NAWADY_BRAND.primary,
 };
 
 export const darkColors = {
@@ -28,14 +30,14 @@ export const darkColors = {
   text: "#f1f5f9",
   textMuted: "#94a3b8",
   border: "#334155",
-  primary: "#60a5fa",
-  primaryDark: "#3b82f6",
+  primary: NAWADY_BRAND.primaryLight,
+  primaryDark: NAWADY_BRAND.primary,
   success: "#4ade80",
   warning: "#fbbf24",
   danger: "#f87171",
   dangerBg: "#450a0a",
   tabBar: "#1e293b",
-  heroDark: "#020617",
+  heroDark: NAWADY_BRAND.primaryDarker,
 };
 
 /** @deprecated use useThemeColors() */
@@ -90,7 +92,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     [mode, isDark, palette, setMode],
   );
 
-  if (!ready) return null;
+  if (!ready) return <BrandedSplash />;
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 

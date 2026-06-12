@@ -2,6 +2,10 @@ export const translations = {
     ar: {
         events: {
             addEvent: "إضافة حدث",
+            addInternal: "إضافة حدث داخلي",
+            internalEvent: "حدث داخلي",
+            internalEvents: "أحداث داخلية",
+            internalHint: "يظهر للموظفين فقط — اجتماعات، مهام، وملاحظات.",
             title: "عنوان الحدث",
             titlePlaceholder: "اجتماع، حصة تدريبية، الخ...",
             descriptionPlaceholder: "تفاصيل إضافية...",
@@ -11,6 +15,15 @@ export const translations = {
             updated: "تم تحديث الحدث بنجاح",
             noEvents: "لا توجد أحداث لهذا اليوم",
             editEvent: "تعديل الحدث",
+        },
+        calendar: {
+            title: "التقويم",
+            showClasses: "عرض الحصص",
+            showInternal: "عرض الأحداث الداخلية",
+            classesLegend: "حصص",
+            internalLegend: "أحداث داخلية",
+            classSession: "حصة",
+            noItems: "لا توجد حصص أو أحداث لهذا اليوم",
         },
         common: {
             add: "إضافة",
@@ -1044,6 +1057,8 @@ export const translations = {
             title: "جدول الحصص",
             subtitle: "إدارة القوالب والحصص الأسبوعية",
             weekView: "عرض الأسبوع",
+            monthView: "عرض الشهر",
+            noSessionsDay: "لا توجد حصص في هذا اليوم",
             templates: "قوالب الحصص",
             coaches: "المدربون",
             generateSessions: "توليد الحصص",
@@ -1449,6 +1464,10 @@ export const translations = {
     en: {
         events: {
             addEvent: "Add Event",
+            addInternal: "Add internal event",
+            internalEvent: "Internal event",
+            internalEvents: "Internal events",
+            internalHint: "Staff-only — meetings, tasks, and notes. Not visible to members.",
             title: "Event Title",
             titlePlaceholder: "Meeting, Training session, etc.",
             descriptionPlaceholder: "Additional details...",
@@ -1458,6 +1477,15 @@ export const translations = {
             updated: "Event updated successfully",
             noEvents: "No events for this day",
             editEvent: "Edit Event",
+        },
+        calendar: {
+            title: "Calendar",
+            showClasses: "Show classes",
+            showInternal: "Show internal events",
+            classesLegend: "Classes",
+            internalLegend: "Internal events",
+            classSession: "Class",
+            noItems: "No classes or events for this day",
         },
         common: {
             add: "Add",
@@ -2494,6 +2522,8 @@ export const translations = {
             title: "Class Schedule",
             subtitle: "Manage recurring templates and weekly sessions",
             weekView: "Week view",
+            monthView: "Month view",
+            noSessionsDay: "No sessions on this day",
             templates: "Class templates",
             coaches: "Coaches",
             generateSessions: "Generate sessions",

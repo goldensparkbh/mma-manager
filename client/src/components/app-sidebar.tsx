@@ -384,6 +384,9 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="p-4 border-t border-sidebar-border bg-sidebar">
+        <div className="flex flex-col items-center gap-2 mb-3">
+          <img src="/nawady-logo.png" alt="Nawady" className="h-6 w-auto object-contain opacity-80" />
+        </div>
         <div className="text-[10px] text-white/30 text-center space-y-1">
           <div>{t('footer.rights')}</div>
           <div className="text-white/40">{t("common.appName")}</div>

@@ -7,7 +7,7 @@ import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/lib/auth";
-import { Card, ClubHeader, IconRow, PrimaryButton, Screen, SectionTitle, Skeleton } from "@/lib/components";
+import { Card, IconRow, PrimaryButton, Screen, SectionTitle, Skeleton } from "@/lib/components";
 import { QrIllustration } from "@/lib/illustrations";
 import { useBranding } from "@/lib/branding";
 import { useAttendance, useFamily, useProgression, useQr } from "@/lib/hooks";
@@ -20,7 +20,7 @@ export default function ProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
-  const { member, activeSubscription, clubName, logout, leaveClub, api, portalInfo, refresh } = useAuth();
+  const { member, activeSubscription, logout, leaveClub, api, refresh } = useAuth();
   const { accent } = useBranding();
   const { t, locale, setLocale } = useI18n();
   const { mode, setMode } = useTheme();
@@ -62,12 +62,11 @@ export default function ProfileScreen() {
 
   return (
     <>
-      <Screen scroll>
-        <ClubHeader clubName={clubName} logoUrl={portalInfo?.logoUrl} accent={accent} memberName={member?.name} />
-
+      <Screen scroll padTop={false}>
         <Card style={styles.gap}>
           <Text style={[styles.label, { color: colors.textMuted }]}>{t("member.account")}</Text>
-          <Text style={[styles.value, { color: colors.text }]}>{member?.phone}</Text>
+          <Text style={[styles.value, { color: colors.text }]}>{member?.name}</Text>
+          <Text style={[styles.meta, { color: colors.textMuted }]}>{member?.phone}</Text>
           {activeSubscription ? (
             <Text style={[styles.meta, { color: colors.textMuted }]}>{activeSubscription.planName}</Text>
           ) : (

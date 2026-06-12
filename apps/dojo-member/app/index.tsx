@@ -1,14 +1,12 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/lib/auth";
 import * as storage from "@/lib/storage";
-import { useThemeColors } from "@/lib/theme";
+import { BrandedSplash } from "@/lib/branded-splash";
 
 export default function BootstrapScreen() {
   const router = useRouter();
   const { loading, member, slug } = useAuth();
-  const colors = useThemeColors();
   const [onboardingChecked, setOnboardingChecked] = useState(false);
 
   useEffect(() => {
@@ -31,13 +29,5 @@ export default function BootstrapScreen() {
     })();
   }, [loading, member, slug, router, onboardingChecked]);
 
-  return (
-    <View style={[styles.center, { backgroundColor: colors.bg }]}>
-      <ActivityIndicator size="large" color={colors.primary} />
-    </View>
-  );
+  return <BrandedSplash />;
 }
-
-const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: "center", justifyContent: "center" },
-});

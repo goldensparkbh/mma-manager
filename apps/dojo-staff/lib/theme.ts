@@ -1,10 +1,13 @@
+import { NAWADY_BRAND } from "./brand";
+
 export const colors = {
   bg: "#0f172a",
   card: "#1e293b",
   text: "#f8fafc",
   textMuted: "#94a3b8",
   border: "#334155",
-  primary: "#3b82f6",
+  primary: NAWADY_BRAND.primary,
+  primaryDark: NAWADY_BRAND.primaryDark,
   success: "#4ade80",
   warning: "#fbbf24",
   danger: "#f87171",
