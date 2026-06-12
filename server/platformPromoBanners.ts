@@ -1,6 +1,5 @@
 import { query } from "./db/index.js";
 import { deleteFile } from "./storage.js";
-import { resolvePublicAssetUrl } from "./publicUrl.js";
 
 export const PLATFORM_UPLOAD_TENANT = "_platform";
 export type PromoBannerLocale = "en" | "ar";
@@ -17,6 +16,19 @@ export type PromoBannerRecord = {
   updatedAt: string;
 };
 
+/** Keep upload paths relative so web admin and mobile can resolve against their own origin/API. */
+export function normalizeUploadPath(url: string): string {
+  const trimmed = url.trim();
+  if (trimmed.startsWith("/uploads/")) return trimmed;
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.pathname.startsWith("/uploads/")) return parsed.pathname;
+  } catch {
+    // not a URL
+  }
+  return trimmed;
+}
+
 function normalizeLocale(locale?: string | null): PromoBannerLocale {
   return locale === "ar" ? "ar" : "en";
 }
@@ -26,19 +38,12 @@ function mapRow(row: Record<string, unknown>): PromoBannerRecord {
     id: row.id as string,
     sortOrder: Number(row.sort_order),
     locale: normalizeLocale(row.locale as string),
-    imageUrl: row.image_url as string,
+    imageUrl: normalizeUploadPath(String(row.image_url)),
     clubTypeId: (row.club_type_id as string | null) ?? null,
     linkUrl: (row.link_url as string | null) ?? null,
     isActive: Boolean(row.is_active),
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
-  };
-}
-
-function withPublicImageUrl(banner: PromoBannerRecord) {
-  return {
-    ...banner,
-    imageUrl: resolvePublicAssetUrl(banner.imageUrl) || banner.imageUrl,
   };
 }
 
@@ -53,7 +58,7 @@ export async function listPublicPromoBanners(locale: PromoBannerLocale) {
      ORDER BY sort_order ASC, created_at ASC`,
     [locale],
   );
-  return result.rows.map((row) => withPublicImageUrl(mapRow(row as Record<string, unknown>)));
+  return result.rows.map((row) => mapRow(row as Record<string, unknown>));
 }
 
 export async function listAllPromoBanners() {
@@ -62,7 +67,7 @@ export async function listAllPromoBanners() {
      FROM platform_promo_banners
      ORDER BY locale ASC, sort_order ASC, created_at ASC`,
   );
-  return result.rows.map((row) => withPublicImageUrl(mapRow(row as Record<string, unknown>)));
+  return result.rows.map((row) => mapRow(row as Record<string, unknown>));
 }
 
 export async function createPromoBanner(data: {
@@ -81,9 +86,9 @@ export async function createPromoBanner(data: {
     `INSERT INTO platform_promo_banners (sort_order, locale, image_url, club_type_id, link_url)
      VALUES ($1, $2, $3, $4, $5)
      RETURNING ${SELECT_COLS}`,
-    [sortOrder, locale, data.imageUrl, data.clubTypeId || null, data.linkUrl || null],
+    [sortOrder, locale, normalizeUploadPath(data.imageUrl), data.clubTypeId || null, data.linkUrl || null],
   );
-  return withPublicImageUrl(mapRow(result.rows[0] as Record<string, unknown>));
+  return mapRow(result.rows[0] as Record<string, unknown>);
 }
 
 export async function updatePromoBanner(
@@ -101,7 +106,7 @@ export async function updatePromoBanner(
   let i = 1;
   if (data.imageUrl !== undefined) {
     fields.push(`image_url = $${i++}`);
-    values.push(data.imageUrl);
+    values.push(normalizeUploadPath(data.imageUrl));
   }
   if (data.locale !== undefined) {
     fields.push(`locale = $${i++}`);
@@ -122,7 +127,7 @@ export async function updatePromoBanner(
   if (!fields.length) {
     const existing = await query(`SELECT ${SELECT_COLS} FROM platform_promo_banners WHERE id = $1`, [id]);
     if (!existing.rows[0]) return null;
-    return withPublicImageUrl(mapRow(existing.rows[0] as Record<string, unknown>));
+    return mapRow(existing.rows[0] as Record<string, unknown>);
   }
   fields.push("updated_at = NOW()");
   values.push(id);
@@ -132,14 +137,14 @@ export async function updatePromoBanner(
     values,
   );
   if (!result.rows[0]) return null;
-  return withPublicImageUrl(mapRow(result.rows[0] as Record<string, unknown>));
+  return mapRow(result.rows[0] as Record<string, unknown>);
 }
 
 export async function deletePromoBanner(id: string) {
   const existing = await query(`SELECT image_url FROM platform_promo_banners WHERE id = $1`, [id]);
   if (!existing.rows[0]) return false;
   await query(`DELETE FROM platform_promo_banners WHERE id = $1`, [id]);
-  const imageUrl = existing.rows[0].image_url as string;
+  const imageUrl = normalizeUploadPath(String(existing.rows[0].image_url));
   if (imageUrl.startsWith("/uploads/")) await deleteFile(imageUrl);
   return true;
 }
