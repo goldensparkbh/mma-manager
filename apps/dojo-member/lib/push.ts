@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
@@ -14,25 +15,44 @@ Notifications.setNotificationHandler({
   }),
 });
 
+const PERMISSION_ASKED_KEY = "push_permission_asked";
+let registeredThisSession = false;
+let inFlight: Promise<void> | null = null;
+
 export async function registerMemberPush(api: ReturnType<typeof createApi>) {
-  if (!Device.isDevice) return;
-  const { status: existing } = await Notifications.getPermissionsAsync();
-  let finalStatus = existing;
-  if (existing !== "granted") {
-    const { status } = await Notifications.requestPermissionsAsync();
-    finalStatus = status;
-  }
-  if (finalStatus !== "granted") return;
+  if (Platform.OS === "web" || !Device.isDevice) return;
+  if (registeredThisSession) return;
+  if (inFlight) return inFlight;
 
-  const projectId = process.env.EXPO_PUBLIC_EAS_PROJECT_ID;
-  const tokenData = await Notifications.getExpoPushTokenAsync(
-    projectId ? { projectId } : undefined,
-  );
+  inFlight = (async () => {
+    const { status: existing, canAskAgain } = await Notifications.getPermissionsAsync();
+    let finalStatus = existing;
+    if (existing !== "granted") {
+      // Only ever show the OS permission dialog once; afterwards the user can
+      // change it from system settings.
+      const alreadyAsked = (await AsyncStorage.getItem(PERMISSION_ASKED_KEY)) === "1";
+      if (alreadyAsked || !canAskAgain) return;
+      await AsyncStorage.setItem(PERMISSION_ASKED_KEY, "1");
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+    if (finalStatus !== "granted") return;
 
-  await api.post("/api/portal/push-token", {
-    token: tokenData.data,
-    platform: Platform.OS,
+    const projectId = process.env.EXPO_PUBLIC_EAS_PROJECT_ID;
+    const tokenData = await Notifications.getExpoPushTokenAsync(
+      projectId ? { projectId } : undefined,
+    );
+
+    await api.post("/api/portal/push-token", {
+      token: tokenData.data,
+      platform: Platform.OS,
+    });
+    registeredThisSession = true;
+  })().finally(() => {
+    inFlight = null;
   });
+
+  return inFlight;
 }
 
 export function setupNotificationListeners(onNavigate?: (path: string) => void) {

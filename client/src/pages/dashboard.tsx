@@ -3,14 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users, CreditCard, TrendingUp, Wallet, Phone, ShoppingCart, Calendar as CalendarIcon, Filter, FileText, User, CreditCard as CardIcon } from "lucide-react";
+import { Users, CreditCard, TrendingUp, Wallet, Phone, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { Link } from "wouter";
 import { safeFormat, safeIsSameDay } from "@/lib/formatDate";
 import type { DashboardStats, Sale, Subscription } from "@shared/schema";
@@ -23,38 +17,19 @@ import { CalendarWidget } from "@/components/dashboard/calendar-widget";
 
 export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
-  const { t, language } = useLanguage();
+  const { t } = useLanguage();
   const [selectedTransaction, setSelectedTransaction] = useState<(Sale | Subscription & { type: 'sale' | 'subscription' }) | null>(null);
   const [isTransactionDocsOpen, setIsTransactionDocsOpen] = useState(false);
 
-  const [dateRange, setDateRange] = useState({
+  // Stats always cover the current month.
+  const dateRange = {
     start: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split("T")[0],
     end: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split("T")[0],
-  });
+  };
 
   const { data: stats, isLoading } = useQuery<DashboardStats>({
     queryKey: ["/api/dashboard/stats", dateRange.start, dateRange.end],
   });
-
-  const setLastMonth = () => {
-    const now = new Date();
-    const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const end = new Date(now.getFullYear(), now.getMonth(), 0);
-    setDateRange({
-      start: start.toISOString().split("T")[0],
-      end: end.toISOString().split("T")[0],
-    });
-  };
-
-  const setThisMonth = () => {
-    const now = new Date();
-    const start = new Date(now.getFullYear(), now.getMonth(), 1);
-    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    setDateRange({
-      start: start.toISOString().split("T")[0],
-      end: end.toISOString().split("T")[0],
-    });
-  };
 
   // Get settings from AuthContext
   const { clubSettings } = useAuth();
@@ -74,16 +49,6 @@ export default function Dashboard() {
     (member) =>
       member.name.includes(searchQuery) || member.memberId.includes(searchQuery)
   );
-
-  const formatDate = () => {
-    const now = new Date();
-    return new Intl.DateTimeFormat(language === 'ar' ? 'ar-BH' : 'en-US', {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    }).format(now);
-  };
 
   const getExpenseCategoryLabel = (category: string) => {
     const key = `finance.categories.${category}`;
@@ -122,7 +87,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => (
             <Card key={i}>
-              <CardContent className="p-6">
+              <CardContent className="p-4">
                 <Skeleton className="h-4 w-24 mb-2" />
                 <Skeleton className="h-8 w-16 mb-2" />
                 <Skeleton className="h-3 w-20" />
@@ -136,50 +101,17 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6" >
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold" data-testid="text-page-title">{t('dashboard.title')}</h1>
-          <p className="text-sm text-muted-foreground">{formatDate()}</p>
-        </div>
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-wrap gap-2 items-end bg-card p-3 rounded-lg border shadow-sm">
-            <div className="space-y-1">
-              <Label className="text-xs">{t("common.from")}</Label>
-              <Input
-                type="date"
-                value={dateRange.start}
-                onChange={e => setDateRange({ ...dateRange, start: e.target.value })}
-                className="h-9 w-36"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">{t("common.to")}</Label>
-              <Input
-                type="date"
-                value={dateRange.end}
-                onChange={e => setDateRange({ ...dateRange, end: e.target.value })}
-                className="h-9 w-36"
-              />
-            </div>
-            <div className="flex gap-1">
-              <Button variant="outline" size="sm" onClick={setThisMonth} className="h-9">{t("common.thisMonth")}</Button>
-              <Button variant="outline" size="sm" onClick={setLastMonth} className="h-9">{t("common.lastMonth")}</Button>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         <Link href="/members">
           <Card className="cursor-pointer hover:shadow-md transition-shadow">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-lg bg-blue-100 dark:bg-blue-900/30">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
                   <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">{t('dashboard.totalMembers')}</p>
-                  <p className="text-2xl font-bold" data-testid="text-total-members">
+                  <p className="text-xl font-bold" data-testid="text-total-members">
                     {stats?.totalMembers ?? 0}
                   </p>
                   <p className="text-xs text-green-600 dark:text-green-400">
@@ -193,14 +125,14 @@ export default function Dashboard() {
 
         <Link href="/subscriptions">
           <Card className="cursor-pointer hover:shadow-md transition-shadow">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-lg bg-green-100 dark:bg-green-900/30">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900/30">
                   <CreditCard className="h-5 w-5 text-green-600 dark:text-green-400" />
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">{t('dashboard.activeSubscriptions')}</p>
-                  <p className="text-2xl font-bold" data-testid="text-active-subs">
+                  <p className="text-xl font-bold" data-testid="text-active-subs">
                     {stats?.activeSubscriptions ?? 0}
                   </p>
                   <p className="text-xs text-green-600 dark:text-green-400">
@@ -214,14 +146,14 @@ export default function Dashboard() {
 
         <Link href="/finance">
           <Card className="cursor-pointer hover:shadow-md transition-shadow">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-lg bg-purple-100 dark:bg-purple-900/30">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/30">
                   <TrendingUp className="h-5 w-5 text-purple-600 dark:text-purple-400" />
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">{t('dashboard.monthlyIncome')}</p>
-                  <p className="text-2xl font-bold" data-testid="text-monthly-income">
+                  <p className="text-xl font-bold" data-testid="text-monthly-income">
                     {stats?.monthlyIncome?.toLocaleString() ?? 0} {t("common.currency")}
                   </p>
                   <p className="text-xs text-green-600 dark:text-green-400">{t("dashboard.inPeriod")}</p>
@@ -233,14 +165,14 @@ export default function Dashboard() {
 
         <Link href="/sales">
           <Card className="cursor-pointer hover:shadow-md transition-shadow">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-lg bg-pink-100 dark:bg-pink-900/30">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-pink-100 dark:bg-pink-900/30">
                   <ShoppingCart className="h-5 w-5 text-pink-600 dark:text-pink-400" />
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">{t('dashboard.salesIncome')}</p>
-                  <p className="text-2xl font-bold" data-testid="text-sales-income">
+                  <p className="text-xl font-bold" data-testid="text-sales-income">
                     {stats?.salesIncome?.toLocaleString() ?? 0} {t("common.currency")}
                   </p>
                   <p className="text-xs text-muted-foreground">{t("dashboard.inPeriod")}</p>
@@ -252,14 +184,14 @@ export default function Dashboard() {
 
         <Link href="/finance">
           <Card className="cursor-pointer hover:shadow-md transition-shadow">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-lg bg-orange-100 dark:bg-orange-900/30">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-orange-100 dark:bg-orange-900/30">
                   <Wallet className="h-5 w-5 text-orange-600 dark:text-orange-400" />
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">{t('dashboard.netProfit')}</p>
-                  <p className="text-2xl font-bold" data-testid="text-net-profit">
+                  <p className="text-xl font-bold" data-testid="text-net-profit">
                     {stats?.netProfit?.toLocaleString() ?? 0} {t("common.currency")}
                   </p>
                   <p className="text-xs text-muted-foreground">{t("common.estimated")}</p>
