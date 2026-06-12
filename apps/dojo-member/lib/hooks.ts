@@ -40,10 +40,11 @@ export function useBookings() {
 }
 
 export function useCamps() {
-  const { api } = useAuth();
+  const { api, member } = useAuth();
   return useQuery<CampEvent[]>({
     queryKey: ["portal", "camps"],
     queryFn: () => api.get<CampEvent[]>("/api/portal/camps"),
+    enabled: !!member,
   });
 }
 

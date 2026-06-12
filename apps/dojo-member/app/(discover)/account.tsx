@@ -35,7 +35,7 @@ function ClubGrid({
           <View key={club.slug} style={styles.gridItem}>
             <ClubGridCard
               name={club.name}
-              clubType={vis.label}
+              sportTypeIds={club.clubType ? [club.clubType] : []}
               logoUrl={club.logoUrl}
               accent={club.primaryColor || vis.color}
               typeIcon={vis.icon}

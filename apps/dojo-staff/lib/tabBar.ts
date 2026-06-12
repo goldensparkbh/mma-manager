@@ -4,7 +4,6 @@ import { useAppFonts } from "@/lib/fonts";
 import { useI18n } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
 
-/** Shared bottom tab bar styling with extra bottom breathing room */
 export function useTabBarStyle() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();

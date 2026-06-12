@@ -4,18 +4,21 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-nati
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useFocusEffect } from "expo-router";
 import { Card, PrimaryButton, StaffHeader } from "@/lib/components";
+import { useTypography } from "@/lib/fonts";
 import { useBookingSettings, useQrCheckIn } from "@/lib/hooks";
-import { useToast } from "@/lib/toast";
+import { useI18n } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth";
 import { parseQrToken } from "@/lib/qr";
-import { colors, spacing } from "@/lib/theme";
+import { spacing, useThemeColors } from "@/lib/theme";
 import { useQueryClient } from "@tanstack/react-query";
 
 type ScanState = "ready" | "loading" | "ok" | "error";
 
 export default function ScanScreen() {
   const { tenant } = useAuth();
-  const { show } = useToast();
+  const { t } = useI18n();
+  const typo = useTypography();
+  const colors = useThemeColors();
   const qc = useQueryClient();
   const [permission, requestPermission] = useCameraPermissions();
   const { data: settings } = useBookingSettings();
@@ -47,7 +50,7 @@ export default function ScanScreen() {
       const result = await checkIn.mutateAsync(parseQrToken(data));
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setMemberName(result.member?.name || "");
-      setMessage(result.action === "checkout" ? "Checked out" : "Check-in successful");
+      setMessage(result.action === "checkout" ? t("scan.checkOutOk") : t("scan.checkInOk"));
       setStatus("ok");
       qc.invalidateQueries({ queryKey: ["staff", "attendance"] });
     } catch (e) {
@@ -66,7 +69,7 @@ export default function ScanScreen() {
 
   if (!permission) {
     return (
-      <View style={styles.center}>
+      <View style={[styles.center, { backgroundColor: colors.bg }]}>
         <ActivityIndicator color={colors.primary} />
       </View>
     );
@@ -74,24 +77,24 @@ export default function ScanScreen() {
 
   if (!permission.granted) {
     return (
-      <View style={styles.center}>
-        <StaffHeader title="QR Scanner" subtitle="Camera permission required" tenantName={tenant?.name} />
-        <PrimaryButton label="Allow camera" onPress={requestPermission} />
+      <View style={[styles.center, { backgroundColor: colors.bg }]}>
+        <StaffHeader title={t("scan.permissionTitle")} subtitle={t("scan.permissionSub")} tenantName={tenant?.name} />
+        <PrimaryButton label={t("scan.allowCamera")} onPress={requestPermission} />
       </View>
     );
   }
 
   if (!slug) {
     return (
-      <View style={styles.center}>
-        <StaffHeader title="QR Scanner" subtitle="Set public slug in booking settings" tenantName={tenant?.name} />
+      <View style={[styles.center, { backgroundColor: colors.bg }]}>
+        <StaffHeader title={t("scan.permissionTitle")} subtitle={t("scan.noSlug")} tenantName={tenant?.name} />
       </View>
     );
   }
 
   return (
-    <View style={styles.root}>
-      <StaffHeader title="Scan member QR" subtitle="Point at membership code" tenantName={tenant?.name} />
+    <View style={[styles.root, { backgroundColor: colors.bg }]}>
+      <StaffHeader title={t("scan.title")} subtitle={t("scan.subtitle")} tenantName={tenant?.name} />
       <View style={styles.cameraWrap}>
         {scanning && status === "ready" ? (
           <CameraView
@@ -101,17 +104,17 @@ export default function ScanScreen() {
             onBarcodeScanned={({ data }) => handleScan(data)}
           />
         ) : (
-          <View style={[styles.camera, styles.overlay]}>
+          <View style={[styles.camera, styles.overlay, { backgroundColor: colors.card }]}>
             {status === "loading" ? <ActivityIndicator size="large" color={colors.primary} /> : null}
-            {status === "ok" ? <Text style={styles.iconOk}>✓</Text> : null}
-            {status === "error" ? <Text style={styles.iconErr}>✕</Text> : null}
+            {status === "ok" ? <Text style={[styles.iconOk, { color: colors.success }]}>✓</Text> : null}
+            {status === "error" ? <Text style={[styles.iconErr, { color: colors.danger }]}>✕</Text> : null}
           </View>
         )}
       </View>
       <Card style={styles.footer}>
-        {memberName ? <Text style={styles.name}>{memberName}</Text> : null}
-        <Text style={[styles.msg, status === "error" && { color: colors.danger }]}>
-          {message || "Ready to scan"}
+        {memberName ? <Text style={[styles.name, { color: colors.text }, typo.style("bold")]}>{memberName}</Text> : null}
+        <Text style={[styles.msg, { color: status === "error" ? colors.danger : colors.success }, typo.style("semibold")]}>
+          {message || t("scan.ready")}
         </Text>
       </Card>
     </View>
@@ -119,14 +122,14 @@ export default function ScanScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bg, padding: spacing.md },
-  center: { flex: 1, backgroundColor: colors.bg, padding: spacing.md, justifyContent: "center" },
+  root: { flex: 1, padding: spacing.md },
+  center: { flex: 1, padding: spacing.md, justifyContent: "center" },
   cameraWrap: { flex: 1, borderRadius: 16, overflow: "hidden", marginBottom: spacing.md },
   camera: { flex: 1 },
-  overlay: { alignItems: "center", justifyContent: "center", backgroundColor: colors.card },
+  overlay: { alignItems: "center", justifyContent: "center" },
   footer: { alignItems: "center" },
-  name: { fontSize: 20, fontWeight: "800", color: colors.text, marginBottom: 4 },
-  msg: { fontSize: 15, color: colors.success, fontWeight: "600" },
-  iconOk: { fontSize: 72, color: colors.success },
-  iconErr: { fontSize: 72, color: colors.danger },
+  name: { fontSize: 20, fontWeight: "800", marginBottom: 4 },
+  msg: { fontSize: 15, fontWeight: "600" },
+  iconOk: { fontSize: 72 },
+  iconErr: { fontSize: 72 },
 });

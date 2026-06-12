@@ -14,7 +14,9 @@
     "db:migrate": "tsx script/migrate.ts",
     "db:seed": "tsx script/seed-demo.ts",
     "mobile:member": "npm --prefix apps/dojo-member start",
-    "mobile:staff": "npm --prefix apps/dojo-staff start"
+    "mobile:member:clear": "npm --prefix apps/dojo-member run start:clear",
+    "mobile:staff": "npm --prefix apps/dojo-staff start",
+    "mobile:staff:clear": "npm --prefix apps/dojo-staff run start:clear"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1067.0",

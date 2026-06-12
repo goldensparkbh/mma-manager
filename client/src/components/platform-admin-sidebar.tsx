@@ -11,6 +11,7 @@ import {
   MessageSquare,
   Coins,
   Image,
+  LayoutGrid,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,7 +42,8 @@ export type PlatformAdminSection =
   | "push"
   | "sms"
   | "billing"
-  | "ads";
+  | "ads"
+  | "clubTypes";
 
 type Props = {
   active: PlatformAdminSection;
@@ -57,6 +59,7 @@ const NAV: Array<{
   { id: "overview", labelKey: "platformAdmin.nav.overview", icon: LayoutDashboard, group: "main" },
   { id: "leads", labelKey: "platformAdmin.nav.leads", icon: Megaphone, group: "main" },
   { id: "ads", labelKey: "platformAdmin.nav.ads", icon: Image, group: "main" },
+  { id: "clubTypes", labelKey: "platformAdmin.nav.clubTypes", icon: LayoutGrid, group: "main" },
   { id: "tenants", labelKey: "platformAdmin.nav.tenants", icon: Building2, group: "main" },
   { id: "plans", labelKey: "platformAdmin.nav.plans", icon: CreditCard, group: "billing" },
   { id: "payments", labelKey: "platformAdmin.nav.payments", icon: CreditCard, group: "billing" },
@@ -138,8 +141,8 @@ export function PlatformAdminSidebar({ active, onNavigate }: Props) {
       <SidebarFooter className="p-4 border-t border-sidebar-border">
         <PlatformBranding
           titleClassName="text-xs font-semibold text-white/80 text-center"
-          subtitleClassName="text-[10px] text-white/40 text-center"
           centered
+          hideSubtitle
         />
         <p className="text-[10px] text-white/25 text-center mt-2">
           {t("footer.version").replace("{version}", APP_VERSION.number)}
@@ -156,6 +159,7 @@ export const SECTION_META: Record<
   overview: { titleKey: "platformAdmin.overview.title", descriptionKey: "platformAdmin.overview.description" },
   leads: { titleKey: "platformAdmin.leads.title", descriptionKey: "platformAdmin.leads.description" },
   ads: { titleKey: "platformAdmin.ads.title", descriptionKey: "platformAdmin.ads.description" },
+  clubTypes: { titleKey: "platformAdmin.clubTypes.title", descriptionKey: "platformAdmin.clubTypes.description" },
   tenants: { titleKey: "platformAdmin.tenants.title", descriptionKey: "platformAdmin.tenants.description" },
   plans: { titleKey: "platformAdmin.plans.title", descriptionKey: "platformAdmin.plans.description" },
   payments: { titleKey: "platformAdmin.payments.title", descriptionKey: "platformAdmin.payments.description" },

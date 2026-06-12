@@ -47,7 +47,6 @@ export function FontProvider({ children }: { children: React.ReactNode }) {
   );
 
   if (!loaded) return <BrandedSplash />;
-
   return <FontsContext.Provider value={value}>{children}</FontsContext.Provider>;
 }
 
@@ -57,7 +56,6 @@ export function useAppFonts() {
   return ctx;
 }
 
-/** RTL-aware text styles with Cairo when locale is Arabic */
 export function useTypography() {
   const { isRtl } = useI18n();
   const { family, text } = useAppFonts();

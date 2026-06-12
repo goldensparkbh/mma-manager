@@ -22,6 +22,7 @@ type ClubTypeOption = {
   descriptionEn: string;
   descriptionAr: string;
   category: string;
+  imageUrl?: string | null;
   progressionEnabled: boolean;
 };
 
@@ -93,6 +94,7 @@ export function ClubTypeSettings() {
               <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl ring-1 ring-black/5">
                 <ClubTypeImage
                   clubTypeId={current.id}
+                  imageUrl={current.imageUrl}
                   alt={language === "ar" ? current.nameAr : current.nameEn}
                 />
               </div>
@@ -200,6 +202,7 @@ export function ClubTypeSettings() {
                 <div className="h-20 w-full">
                   <ClubTypeImage
                     clubTypeId={type.id}
+                    imageUrl={type.imageUrl}
                     alt={language === "ar" ? type.nameAr : type.nameEn}
                   />
                 </div>

@@ -6,7 +6,7 @@ import { useBranding } from "@/lib/branding";
 import { useI18n } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
 
-import { useTabBarStyle } from "@/lib/tabBar";
+import { useTabBarStyle, useLocalizedTabBarLabelStyle } from "@/lib/tabBar";
 
 export default function TabsLayout() {
   const { loading, member, slug } = useAuth();
@@ -14,6 +14,7 @@ export default function TabsLayout() {
   const { t } = useI18n();
   const { colors } = useTheme();
   const tabBarStyle = useTabBarStyle();
+  const tabBarLabelStyle = useLocalizedTabBarLabelStyle();
 
   if (loading) {
     return (
@@ -31,7 +32,7 @@ export default function TabsLayout() {
         tabBarActiveTintColor: accent,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle,
-        tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
+        tabBarLabelStyle,
       }}
     >
       <Tabs.Screen

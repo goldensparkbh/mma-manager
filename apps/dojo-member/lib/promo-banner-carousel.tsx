@@ -53,7 +53,7 @@ function PromoBannerPlaceholder() {
             <Ionicons name="football" size={24} color={withAlpha("#fff", 0.1)} style={styles.patternIconB} />
             <Ionicons name="water" size={22} color={withAlpha("#fff", 0.1)} style={styles.patternIconC} />
           </View>
-          <View style={[styles.placeholderContent, typo.isRtl && styles.placeholderContentRtl]}>
+          <View style={styles.placeholderContent}>
             <View style={styles.placeholderIconCircle}>
               <Ionicons name="megaphone" size={22} color="#fff" />
             </View>
@@ -224,7 +224,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     gap: 8,
   },
-  placeholderContentRtl: {},
   placeholderIconCircle: {
     width: 48,
     height: 48,

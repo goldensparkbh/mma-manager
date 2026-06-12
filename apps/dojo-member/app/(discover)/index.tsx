@@ -1,7 +1,8 @@
 import { format } from "date-fns";
 import { useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
-import { Dimensions, FlatList, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Dimensions, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import {
   ClassRowCard,
   ClubGridCard,
@@ -17,7 +18,7 @@ import { getClubTypeVisual } from "@/lib/clubVisuals";
 import { useClubTypes, useDiscoverBanners, useDiscoverClubs, useDiscoverSchedule, type ClubTypeOption, type DiscoverClub, type DiscoverClass, type DiscoverPromoBanner } from "@/lib/discover";
 import { useI18n } from "@/lib/i18n";
 import { openPromoBannerLink, PromoBannerCarousel } from "@/lib/promo-banner-carousel";
-import { spacing, useThemeColors } from "@/lib/theme";
+import { spacing, useThemeColors, withAlpha } from "@/lib/theme";
 
 const PAGE_COLS = 4;
 const PAGE_ROWS = 2;
@@ -38,10 +39,11 @@ export default function ExploreScreen() {
   const { t, clubTypeName, locale } = useI18n();
   const colors = useThemeColors();
   const [query, setQuery] = useState("");
+  const [clubView, setClubView] = useState<"grid" | "list">("grid");
 
   const pageWidth = Dimensions.get("window").width;
   const tileWidth = (pageWidth - H_PAD * 2 - GRID_GAP * (PAGE_COLS - 1)) / PAGE_COLS;
-  const sportGridHeight = tileWidth * PAGE_ROWS + 96;
+  const sportGridHeight = tileWidth * PAGE_ROWS + 82;
 
   const { data: clubsData, isLoading: loadingClubs, isError: clubsError, refetch: refetchClubs, isRefetching } = useDiscoverClubs(query || undefined);
   const { data: scheduleData, isLoading: loadingSchedule, isError: scheduleError, refetch: refetchSchedule } = useDiscoverSchedule();
@@ -59,6 +61,7 @@ export default function ExploreScreen() {
         id: type.id,
         label: clubTypeName(type.nameEn, type.nameAr),
         count: counts.get(type.id) || 0,
+        imageUrl: type.imageUrl,
       }))
       .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
   }, [clubs, clubTypes, clubTypeName]);
@@ -93,7 +96,7 @@ export default function ExploreScreen() {
 
         {categories.length > 0 ? (
           <>
-            <SectionTitle title={t("explore.browseSport")} />
+            <SectionTitle title={t("explore.browseSport")} centered />
             <FlatList
               horizontal
               pagingEnabled
@@ -108,10 +111,10 @@ export default function ExploreScreen() {
                       <SportCategoryImageCard
                         key={cat.id}
                         clubTypeId={cat.id}
+                        imageUrl={cat.imageUrl}
                         label={cat.label}
                         count={cat.count}
                         width={tileWidth}
-                        countLabel={t("explore.clubCount", { count: cat.count })}
                         onPress={() => router.push({ pathname: "/(discover)/clubs", params: { type: cat.id } })}
                       />
                     ))}
@@ -122,32 +125,64 @@ export default function ExploreScreen() {
           </>
         ) : null}
 
-        <SectionTitle title={t("explore.featured")} />
+        <View style={styles.featuredHead}>
+          <SectionTitle title={t("explore.featured")} />
+          <View style={styles.viewToggle}>
+            <Pressable
+              onPress={() => setClubView("list")}
+              style={[
+                styles.viewToggleBtn,
+                clubView === "list" && { backgroundColor: withAlpha(colors.primary, 0.12) },
+              ]}
+              accessibilityLabel={t("explore.viewList")}
+            >
+              <Ionicons
+                name="list"
+                size={18}
+                color={clubView === "list" ? colors.primary : colors.textMuted}
+              />
+            </Pressable>
+            <Pressable
+              onPress={() => setClubView("grid")}
+              style={[
+                styles.viewToggleBtn,
+                clubView === "grid" && { backgroundColor: withAlpha(colors.primary, 0.12) },
+              ]}
+              accessibilityLabel={t("explore.viewGrid")}
+            >
+              <Ionicons
+                name="grid"
+                size={18}
+                color={clubView === "grid" ? colors.primary : colors.textMuted}
+              />
+            </Pressable>
+          </View>
+        </View>
         {loadingClubs ? (
-          <View style={styles.gridSkeleton}>
-            <Skeleton height={200} style={styles.gridItem} />
-            <Skeleton height={200} style={styles.gridItem} />
+          <View style={clubView === "grid" ? styles.gridSkeleton : styles.listSkeleton}>
+            <Skeleton height={88} style={clubView === "grid" ? styles.gridItem : styles.listItem} />
+            <Skeleton height={88} style={clubView === "grid" ? styles.gridItem : styles.listItem} />
           </View>
         ) : clubsError ? (
           <QueryErrorState onRetry={() => refetchClubs()} />
         ) : clubs.length === 0 ? (
           <PremiumEmptyState title={t("explore.noClubs")} subtitle={t("explore.noClubsSub")} />
         ) : (
-          <View style={styles.grid}>
+          <View style={clubView === "grid" ? styles.grid : styles.list}>
             {clubs.map((club: DiscoverClub) => {
               const vis = getClubTypeVisual(club.clubType);
               return (
-                <View key={club.id} style={styles.gridItem}>
+                <View key={club.id} style={clubView === "grid" ? styles.gridItem : styles.listItem}>
                   <ClubGridCard
                     name={club.name}
-                    clubType={vis.label}
+                    sportTypeIds={[club.clubType]}
                     location={club.location}
                     logoUrl={club.logoUrl}
                     accent={club.primaryColor || vis.color}
                     typeIcon={vis.icon}
                     typeColor={vis.color}
                     typeColorSoft={vis.colorSoft}
-                    upcomingCount={club.upcomingClassCount}
+                    variant={clubView}
                     onPress={() => router.push(`/club/${club.portalSlug}`)}
                   />
                 </View>
@@ -211,7 +246,24 @@ const styles = StyleSheet.create({
   },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, paddingBottom: spacing.sm },
   gridItem: { width: "48%" },
-  gridSkeleton: { flexDirection: "row", gap: spacing.sm },
+  list: { gap: spacing.sm, paddingBottom: spacing.sm },
+  listItem: { width: "100%" },
+  gridSkeleton: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  listSkeleton: { gap: spacing.sm },
+  featuredHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.sm,
+  },
+  viewToggle: { flexDirection: "row", gap: 4 },
+  viewToggleBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   classScroll: { marginHorizontal: -spacing.md, paddingHorizontal: spacing.md, marginBottom: spacing.md },
   classCardWrap: { width: 300, marginRight: spacing.sm },
 });

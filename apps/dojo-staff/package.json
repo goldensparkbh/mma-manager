@@ -5,6 +5,7 @@
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
+    "start:clear": "expo start -c",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "lint": "tsc --noEmit",
@@ -12,6 +13,7 @@
     "build:preview:android": "eas build --profile preview --platform android"
   },
   "dependencies": {
+    "@expo-google-fonts/cairo": "^0.4.2",
     "@expo/vector-icons": "^15.0.3",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@tanstack/react-query": "^5.101.0",

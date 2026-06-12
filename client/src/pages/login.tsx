@@ -63,7 +63,6 @@ export default function Login() {
                   showLogo
                   centered
                   logoClassName="h-16 w-auto object-contain mx-auto"
-                  subtitleClassName="mt-2 text-sm text-muted-foreground"
                 />
               )}
             </div>

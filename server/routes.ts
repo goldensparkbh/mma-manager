@@ -9,7 +9,7 @@ import { query } from "./db/index.js";
 import { toCamelCase, rowsToCamel } from "./utils.js";
 import { saveFile } from "./storage.js";
 import * as data from "./data.js";
-import { resolvePublicAssetUrl } from "./publicUrl.js";
+import { resolvePublicAssetPath } from "./publicUrl.js";
 import { getAllClubTypes } from "../shared/clubTypes.js";
 import { API_FEATURE_GATES, hasPlanFeature } from "../shared/planFeatures.js";
 
@@ -77,17 +77,13 @@ router.get("/api/discover/banners", async (req, res) => {
   }
 });
 
-router.get("/api/club-types", (_req, res) => {
-  res.json(getAllClubTypes().map((t) => ({
-    id: t.id,
-    nameEn: t.nameEn,
-    nameAr: t.nameAr,
-    descriptionEn: t.descriptionEn,
-    descriptionAr: t.descriptionAr,
-    category: t.category,
-    progressionEnabled: t.progressionConfig.enabled,
-    hasSessionPackages: t.defaultPackages.some((p) => p.packageType === "sessions"),
-  })));
+router.get("/api/club-types", async (_req, res) => {
+  try {
+    const { listPublicClubTypes } = await import("./platformClubTypes.js");
+    res.json(await listPublicClubTypes());
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
 });
 
 router.get("/api/portal/payments/confirm", async (req, res) => {
@@ -236,7 +232,7 @@ router.get("/api/portal/:slug/info", async (req, res) => {
       name: tenant.name,
       slug: tenant.slug,
       portalEnabled: settings.portalEnabled,
-      logoUrl: resolvePublicAssetUrl(
+      logoUrl: resolvePublicAssetPath(
         (clubSettings as { logoUrlLight?: string })?.logoUrlLight ||
           (clubSettings as { logoUrlDark?: string })?.logoUrlDark,
         (clubSettings as { clubType?: string })?.clubType,
@@ -244,6 +240,10 @@ router.get("/api/portal/:slug/info", async (req, res) => {
       primaryColor: settings.portalPrimaryColor || "#3b82f6",
       welcomeMessage: settings.portalWelcomeMessage,
       allowSelfRegistration: settings.allowSelfRegistration !== false,
+      location: (clubSettings as { location?: string })?.location || null,
+      phone: (clubSettings as { phone?: string })?.phone || null,
+      operatingHours: (clubSettings as { operatingHours?: Record<string, unknown> })?.operatingHours || null,
+      socials: (clubSettings as { socials?: Record<string, string> })?.socials || {},
     });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
@@ -1652,6 +1652,37 @@ router.patch("/api/platform/push/config", requirePlatformAdmin, requirePlatformP
   try {
     const { updatePushConfig } = await import("./platformPush.js");
     res.json(await updatePushConfig(req.body));
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+router.get("/api/platform/club-types", requirePlatformAdmin, requirePlatformPermission(PLATFORM_PERMISSIONS.ADS_VIEW), async (_req, res) => {
+  try {
+    const { listPlatformClubTypes } = await import("./platformClubTypes.js");
+    res.json(await listPlatformClubTypes());
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+router.post("/api/platform/club-types/upload", requirePlatformAdmin, requirePlatformPermission(PLATFORM_PERMISSIONS.ADS_EDIT), upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: "No file" });
+    const { PLATFORM_CLUB_TYPE_UPLOAD_TENANT } = await import("./platformClubTypes.js");
+    const url = await saveFile(PLATFORM_CLUB_TYPE_UPLOAD_TENANT, "club-types", req.file);
+    res.json({ url });
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+router.patch("/api/platform/club-types/:id", requirePlatformAdmin, requirePlatformPermission(PLATFORM_PERMISSIONS.ADS_EDIT), async (req, res) => {
+  try {
+    const { updatePlatformClubType } = await import("./platformClubTypes.js");
+    const row = await updatePlatformClubType(req.params.id, req.body);
+    if (!row) return res.status(404).json({ error: "Club type not found" });
+    res.json(row);
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
   }

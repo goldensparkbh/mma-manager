@@ -38,6 +38,10 @@ export type PortalInfo = {
   welcomeMessage?: string;
   portalEnabled?: boolean;
   allowSelfRegistration?: boolean;
+  location?: string | null;
+  phone?: string | null;
+  operatingHours?: Record<string, unknown> | null;
+  socials?: Record<string, string>;
 };
 export type Package = {
   id: string;

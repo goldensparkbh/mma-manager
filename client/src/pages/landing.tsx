@@ -122,6 +122,7 @@ export default function Landing() {
           >
             <PlatformBranding
               showLogo
+              hideSubtitle
               className="text-start"
               logoClassName="h-11 w-auto object-contain"
               subtitleClassName="text-[11px] font-normal text-muted-foreground leading-tight hidden sm:block"
@@ -256,7 +257,7 @@ export default function Landing() {
                     className="group overflow-hidden rounded-xl border bg-card transition-all hover:shadow-md hover:-translate-y-0.5"
                   >
                     <div className="aspect-[4/3] overflow-hidden bg-muted">
-                      <ClubTypeImage clubTypeId={type.id} alt={name} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
+                      <ClubTypeImage clubTypeId={type.id} imageUrl={type.imageUrl} alt={name} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
                     </div>
                     <div className="p-3 text-center">
                       <p className="text-sm font-semibold leading-tight">{name}</p>
@@ -499,6 +500,7 @@ export default function Landing() {
               <div className="flex items-start gap-2">
                 <Building2 className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                 <PlatformBranding
+                  hideSubtitle
                   titleClassName="font-bold"
                   subtitleClassName="mt-1 text-sm text-muted-foreground leading-relaxed"
                 />

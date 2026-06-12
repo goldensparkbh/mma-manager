@@ -1,6 +1,6 @@
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
-import React from "react";
+import React, { useMemo } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -18,7 +18,10 @@ import type { ComponentProps } from "react";
 import { useBranding } from "./branding";
 import { NAWADY_BRAND } from "./brand";
 import { getClubTypeImageSource } from "./clubTypeImages";
+import { resolveImageUrl } from "./resolveUrl";
+import { ClubLogo } from "./clubLogo";
 import { getClubTypeVisual } from "./clubVisuals";
+import { formatCurrency } from "./format";
 import { useTypography } from "./fonts";
 import { HeroWave } from "./hero-wave";
 import { useI18n } from "./i18n";
@@ -85,13 +88,7 @@ export function ClubHeader({
   return (
     <LinearGradient colors={[accent, withAlpha(accent, 0.85)]} style={styles.header}>
       <View style={styles.headerRow}>
-        {resolveImageUrl(logoUrl) ? (
-          <Image source={{ uri: resolveImageUrl(logoUrl)! }} style={styles.logo} contentFit="contain" />
-        ) : (
-          <View style={[styles.logo, styles.logoFallback]}>
-            <Text style={styles.logoLetter}>{clubName.charAt(0)}</Text>
-          </View>
-        )}
+        <ClubLogo logoUrl={logoUrl} size={56} style={styles.logo} />
         <View style={styles.headerText}>
           <Text style={styles.clubName}>{clubName}</Text>
           {memberName ? <Text style={styles.memberName}>{memberName}</Text> : null}
@@ -107,12 +104,21 @@ export function Card({ children, style }: { children: React.ReactNode; style?: V
   return <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }, style]}>{children}</View>;
 }
 
-export function SectionTitle({ title, action }: { title: string; action?: React.ReactNode }) {
+export function SectionTitle({ title, action, centered }: { title: string; action?: React.ReactNode; centered?: boolean }) {
   const colors = useThemeColors();
   const typo = useTypography();
   return (
-    <View style={[styles.sectionRow, typo.isRtl && styles.sectionRowRtl]}>
-      <Text style={[styles.sectionTitle, { color: colors.text }, typo.style("bold")]}>{title}</Text>
+    <View style={[styles.sectionRow, centered && styles.sectionRowCentered]}>
+      <Text
+        style={[
+          styles.sectionTitle,
+          centered && styles.sectionTitleCentered,
+          { color: colors.text },
+          typo.style("bold", centered ? { textAlign: "center" } : undefined),
+        ]}
+      >
+        {title}
+      </Text>
       {action}
     </View>
   );
@@ -254,103 +260,194 @@ export function EmptyState({ title, subtitle }: { title: string; subtitle?: stri
 
 export function ClubGridCard({
   name,
-  clubType,
+  sportTypeIds = [],
   location,
   logoUrl,
   accent,
   typeIcon,
   typeColor,
   typeColorSoft,
-  upcomingCount,
   onPress,
+  variant = "grid",
   isFavorite,
   onToggleFavorite,
 }: {
   name: string;
-  clubType: string;
+  sportTypeIds?: string[];
   location?: string | null;
   logoUrl?: string | null;
   accent: string;
   typeIcon: IonName;
   typeColor: string;
   typeColorSoft: string;
-  upcomingCount?: number;
   onPress: () => void;
+  variant?: "grid" | "list";
   isFavorite?: boolean;
   onToggleFavorite?: () => void;
 }) {
   const colors = useThemeColors();
   const typo = useTypography();
-  const resolvedLogo = resolveImageUrl(logoUrl);
+  const { t } = useI18n();
+  const logoWidth = variant === "list" ? 88 : 76;
+
+  const uniqueIds = useMemo(() => [...new Set(sportTypeIds.filter(Boolean))], [sportTypeIds]);
+  const sportIds = uniqueIds.filter((id) => id !== "hybrid");
+
+  const showMultipleSports =
+    (uniqueIds.length === 1 && uniqueIds[0] === "hybrid") || sportIds.length > 2;
+
+  const typeLabels = showMultipleSports
+    ? []
+    : sportIds.slice(0, 2).map((id) => getClubTypeVisual(id).label);
+
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [
-        styles.gridCard,
+        styles.browseCard,
+        variant === "list" && styles.browseCardList,
         { backgroundColor: colors.card, borderColor: colors.border },
-        pressed && { opacity: 0.94, transform: [{ scale: 0.98 }] },
+        pressed && { opacity: 0.94 },
       ]}
     >
-      <LinearGradient
-        colors={[accent, withAlpha(accent, 0.65)]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.gridCardHeader}
-      />
-      {onToggleFavorite ? (
-        <Pressable
-          onPress={(e) => {
-            e.stopPropagation?.();
-            onToggleFavorite();
-          }}
-          hitSlop={8}
-          style={styles.gridCardFav}
-        >
-          <Ionicons name={isFavorite ? "heart" : "heart-outline"} size={18} color={isFavorite ? "#ef4444" : "#fff"} />
-        </Pressable>
-      ) : null}
-      <View style={styles.gridCardLogoWrap}>
-        {resolvedLogo ? (
-          <Image source={{ uri: resolvedLogo }} style={styles.gridCardLogo} contentFit="contain" />
-        ) : (
-          <View style={[styles.gridCardLogoFallback, { backgroundColor: typeColorSoft }]}>
-            <Ionicons name={typeIcon} size={28} color={typeColor} />
-          </View>
-        )}
+      <View style={[styles.browseCardLogoWrap, { width: logoWidth, minHeight: logoWidth }]}>
+        <ClubLogo logoUrl={logoUrl} size={logoWidth} fill style={styles.browseCardLogo} />
+        {onToggleFavorite ? (
+          <Pressable
+            onPress={(e) => {
+              e.stopPropagation?.();
+              onToggleFavorite();
+            }}
+            hitSlop={8}
+            style={styles.browseCardFav}
+          >
+            <Ionicons name={isFavorite ? "heart" : "heart-outline"} size={14} color={isFavorite ? "#ef4444" : colors.textMuted} />
+          </Pressable>
+        ) : null}
       </View>
-      <View style={styles.gridCardBody}>
+
+      <View style={[styles.browseCardBody, typo.isRtl && styles.browseCardBodyRtl]}>
         <Text
-          style={[styles.gridCardName, { color: colors.text }, typo.style("bold", { textAlign: "center" })]}
-          numberOfLines={2}
+          style={[styles.browseCardName, { color: colors.text }, typo.style("bold"), styles.browseCardNameFill]}
+          numberOfLines={variant === "list" ? 2 : 2}
         >
           {name}
         </Text>
-        <View style={[styles.gridCardTypePill, { backgroundColor: withAlpha(accent, 0.12) }]}>
-          <Text
-            style={[styles.gridCardTypeText, { color: accent }, typo.style("semibold", { textAlign: "center" })]}
-            numberOfLines={1}
-          >
-            {clubType.replace(/_/g, " ")}
-          </Text>
-        </View>
+
+        {showMultipleSports ? (
+          <View style={[styles.browseCardTypePill, { backgroundColor: withAlpha(accent, 0.12) }]}>
+            <Text style={[styles.browseCardTypeText, { color: accent }, typo.style("semibold")]} numberOfLines={1}>
+              {t("explore.multipleSports")}
+            </Text>
+          </View>
+        ) : typeLabels.length > 0 ? (
+          <View style={styles.browseCardTypeRow}>
+            {typeLabels.map((label) => (
+              <View key={label} style={[styles.browseCardTypePill, { backgroundColor: withAlpha(accent, 0.12) }]}>
+                <Text style={[styles.browseCardTypeText, { color: accent }, typo.style("semibold")]} numberOfLines={1}>
+                  {label}
+                </Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
+
         {location ? (
-          <View style={styles.gridCardLocRow}>
+          <View style={[styles.browseCardLocRow, typo.isRtl && styles.browseCardLocRowRtl]}>
             <Ionicons name="location-outline" size={12} color={colors.textMuted} />
-            <Text style={[styles.gridCardLoc, { color: colors.textMuted }]} numberOfLines={1}>
+            <Text
+              style={[styles.browseCardLoc, { color: colors.textMuted }, typo.style("regular"), styles.browseCardNameFill]}
+              numberOfLines={1}
+            >
               {location.split(",")[0]}
             </Text>
           </View>
         ) : null}
-        <View style={styles.gridCardFooter}>
-          <Text style={[styles.gridCardStat, { color: colors.textMuted }]}>
-            {upcomingCount != null && upcomingCount > 0
-              ? `${upcomingCount} class${upcomingCount === 1 ? "" : "es"}`
-              : "View club"}
-          </Text>
-          <Ionicons name="arrow-forward-circle" size={20} color={accent} />
-        </View>
       </View>
     </Pressable>
+  );
+}
+
+export function PackageGridCard({
+  name,
+  price,
+  packageType,
+  sessionCount,
+  duration,
+  accent,
+  actionLabel,
+  onAction,
+  actionLoading,
+  actionPrimary,
+}: {
+  name: string;
+  price: number;
+  packageType?: string;
+  sessionCount?: number | null;
+  duration?: number;
+  accent: string;
+  actionLabel?: string;
+  onAction?: () => void;
+  actionLoading?: boolean;
+  actionPrimary?: boolean;
+}) {
+  const colors = useThemeColors();
+  const typo = useTypography();
+  const { t, locale } = useI18n();
+  const meta =
+    packageType === "sessions"
+      ? t("member.sessionsPkg", { count: sessionCount ?? 0 })
+      : t("member.daysValidity", { days: duration ?? 0 });
+
+  return (
+    <View style={[styles.pkgGridCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <LinearGradient
+        colors={[accent, withAlpha(accent, 0.7)]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.pkgGridHeader}
+      />
+      <View style={styles.pkgGridBody}>
+        <Text style={[styles.pkgGridName, { color: colors.text }, typo.style("bold", { textAlign: "center" })]} numberOfLines={2}>
+          {name}
+        </Text>
+        <View style={[styles.pkgGridMetaPill, { backgroundColor: withAlpha(accent, 0.12) }]}>
+          <Text style={[styles.pkgGridMeta, { color: accent }, typo.style("semibold", { textAlign: "center" })]} numberOfLines={1}>
+            {meta}
+          </Text>
+        </View>
+        <Text style={[styles.pkgGridPrice, { color: colors.text }, typo.style("bold", { textAlign: "center" })]}>
+          {formatCurrency(price, "BHD", locale)}
+        </Text>
+        {actionLabel && onAction ? (
+          <Pressable
+            onPress={onAction}
+            disabled={actionLoading}
+            style={[
+              styles.pkgGridAction,
+              actionPrimary
+                ? { backgroundColor: accent, borderColor: accent }
+                : { borderColor: withAlpha(accent, 0.35) },
+              actionLoading && styles.pkgGridActionDisabled,
+            ]}
+          >
+            {actionLoading ? (
+              <ActivityIndicator color={actionPrimary ? "#fff" : accent} size="small" />
+            ) : (
+              <Text
+                style={[
+                  styles.pkgGridActionText,
+                  { color: actionPrimary ? "#fff" : accent },
+                  typo.style("semibold", { textAlign: "center" }),
+                ]}
+              >
+                {actionLabel}
+              </Text>
+            )}
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
   );
 }
 
@@ -386,6 +483,7 @@ export function ClubCard({
   onToggleFavorite?: () => void;
 }) {
   const colors = useThemeColors();
+  const typo = useTypography();
   return (
     <Pressable
       onPress={onPress}
@@ -398,18 +496,15 @@ export function ClubCard({
     >
       <View style={[styles.clubCardAccent, { backgroundColor: accent }]} />
       <View style={styles.clubCardBody}>
-        {resolveImageUrl(logoUrl) ? (
-          <Image source={{ uri: resolveImageUrl(logoUrl)! }} style={styles.clubCardLogo} contentFit="contain" />
-        ) : (
-          <View style={[styles.clubCardTypeIcon, { backgroundColor: typeColorSoft }]}>
-            <Ionicons name={typeIcon} size={compact ? 20 : 24} color={typeColor} />
-          </View>
-        )}
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.clubCardName, { color: colors.text }, compact && { fontSize: 15 }]} numberOfLines={1}>
+        <ClubLogo logoUrl={logoUrl} size={56} style={styles.clubCardLogo} />
+        <View style={{ flex: 1, alignSelf: "stretch" }}>
+          <Text
+            style={[styles.clubCardName, { color: colors.text }, compact && { fontSize: 15 }, typo.style("bold"), styles.browseCardNameFill]}
+            numberOfLines={1}
+          >
             {name}
           </Text>
-          <Text style={[styles.clubCardMeta, { color: colors.textMuted }]} numberOfLines={1}>
+          <Text style={[styles.clubCardMeta, { color: colors.textMuted }, typo.style("regular"), styles.browseCardNameFill]} numberOfLines={1}>
             {clubType.replace(/_/g, " ")}
             {location ? ` · ${location}` : ""}
           </Text>
@@ -511,7 +606,7 @@ export function ExploreTopBar({
         style={StyleSheet.absoluteFillObject}
       />
       <View style={[styles.exploreTopBarContent, { paddingTop: insets.top + 14 }]}>
-        <View style={[styles.exploreTopRow, typo.isRtl && styles.exploreTopRowRtl]}>
+        <View style={styles.exploreTopRow}>
           <NawadyMark size={46} />
           <View style={styles.exploreSearchWrap}>
             <SearchInput value={value} onChangeText={onChangeText} placeholder={placeholder} onDark rounded compact />
@@ -527,20 +622,21 @@ export function SportCategoryImageCard({
   label,
   count,
   clubTypeId,
+  imageUrl,
   width,
-  countLabel,
   onPress,
 }: {
   label: string;
   count: number;
   clubTypeId: string;
+  imageUrl?: string | null;
   width: number;
-  countLabel: string;
   onPress: () => void;
 }) {
   const colors = useThemeColors();
   const typo = useTypography();
-  const image = getClubTypeImageSource(clubTypeId);
+  const remote = resolveImageUrl(imageUrl);
+  const bundled = getClubTypeImageSource(clubTypeId);
   const vis = getClubTypeVisual(clubTypeId);
 
   return (
@@ -549,8 +645,10 @@ export function SportCategoryImageCard({
       style={({ pressed }) => [{ width, marginBottom: 10 }, pressed && { opacity: 0.92 }]}
     >
       <View style={[styles.sportImageWrap, { backgroundColor: vis.colorSoft }]}>
-        {image ? (
-          <Image source={image} style={styles.sportImage} contentFit="cover" />
+        {remote ? (
+          <Image source={{ uri: remote }} style={styles.sportImage} contentFit="cover" />
+        ) : bundled ? (
+          <Image source={bundled} style={styles.sportImage} contentFit="cover" />
         ) : (
           <View style={styles.sportImageFallback}>
             <Ionicons name={vis.icon} size={26} color={vis.color} />
@@ -558,13 +656,10 @@ export function SportCategoryImageCard({
         )}
       </View>
       <Text
-        style={[styles.sportImageLabel, { color: colors.text }, typo.style("semibold")]}
+        style={[styles.sportImageLabel, { color: colors.text }, typo.style("semibold", { textAlign: "center" })]}
         numberOfLines={2}
       >
-        {label}
-      </Text>
-      <Text style={[styles.sportImageCount, { color: colors.textMuted }, typo.style("regular")]} numberOfLines={1}>
-        {countLabel}
+        {`${label} (${count})`}
       </Text>
     </Pressable>
   );
@@ -591,7 +686,7 @@ export function DiscoverHero({
   const heroStyle = [styles.discoverHero, photoHero && styles.discoverHeroPhoto];
 
   const content = (
-    <View style={[styles.discoverHeroInner, typo.isRtl && styles.discoverHeroInnerRtl]}>
+    <View style={styles.discoverHeroInner}>
       <View style={styles.discoverLogoWrap}>
         <NawadyLogo locale={locale} width={photoHero ? 240 : 180} height={photoHero ? 58 : 44} />
       </View>
@@ -813,7 +908,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   sectionRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.sm },
-  sectionRowRtl: { flexDirection: "row-reverse" },
+  sectionRowCentered: { justifyContent: "center" },
+  sectionTitleCentered: { flex: 1, textAlign: "center" },
   sectionTitle: { fontSize: 17, fontWeight: "700" },
   btn: {
     backgroundColor: staticColors.primary,
@@ -889,9 +985,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
   },
-  exploreTopRowRtl: {
-    flexDirection: "row-reverse",
-  },
   exploreSearchWrap: {
     flex: 1,
     minWidth: 0,
@@ -917,11 +1010,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
     lineHeight: 14,
     minHeight: 28,
-  },
-  sportImageCount: {
-    fontSize: 10,
-    fontWeight: "600",
-    marginTop: 2,
+    textAlign: "center",
   },
   btnInner: { flexDirection: "row", alignItems: "center", gap: 8 },
   quickAction: { flex: 1, alignItems: "center", gap: 8 },
@@ -942,47 +1031,112 @@ const styles = StyleSheet.create({
   clubCardCompact: { marginBottom: 0 },
   clubCardAccent: { height: 4 },
   clubCardBody: { flexDirection: "row", alignItems: "center", gap: 12, padding: spacing.md },
-  clubCardLogo: { width: 48, height: 48, borderRadius: 14, backgroundColor: "#fff" },
+  clubCardLogo: { width: 56, height: 56, borderRadius: 14, backgroundColor: "#fff" },
   clubCardTypeIcon: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   clubCardName: { fontSize: 17, fontWeight: "800" },
   clubCardMeta: { fontSize: 13, marginTop: 2, textTransform: "capitalize" },
   clubCardStat: { fontSize: 12, fontWeight: "600", marginTop: 6 },
   chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, marginRight: 8 },
   chipText: { fontSize: 13, fontWeight: "700" },
-  gridCard: {
+  browseCard: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: 10,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    padding: 10,
+  },
+  browseCardList: {
+    padding: 12,
+    gap: 12,
+  },
+  browseCardLogoWrap: {
+    flexShrink: 0,
+    alignSelf: "stretch",
+    position: "relative",
+    borderRadius: 14,
+    overflow: "hidden",
+    backgroundColor: "#fff",
+  },
+  browseCardLogo: {},
+  browseCardFav: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    padding: 2,
+  },
+  browseCardBody: {
+    flex: 1,
+    gap: 4,
+    minWidth: 0,
+    justifyContent: "center",
+  },
+  browseCardBodyRtl: {
+    alignItems: "flex-end",
+  },
+  browseCardName: {
+    fontSize: 14,
+    fontWeight: "800",
+    lineHeight: 18,
+  },
+  browseCardNameFill: {
+    alignSelf: "stretch",
+  },
+  browseCardTypeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 4,
+  },
+  browseCardTypePill: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+  },
+  browseCardTypeText: {
+    fontSize: 10,
+    fontWeight: "700",
+    textTransform: "capitalize",
+  },
+  browseCardLocRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
+  browseCardLocRowRtl: {
+    flexDirection: "row-reverse",
+  },
+  browseCardLoc: {
+    fontSize: 11,
+    flexShrink: 1,
+  },
+  pkgGridCard: {
     flex: 1,
     borderRadius: radius.lg,
     borderWidth: 1,
     overflow: "hidden",
   },
-  gridCardHeader: { height: 56 },
-  gridCardFav: { position: "absolute", top: 8, right: 8, zIndex: 2, padding: 4 },
-  gridCardLogoWrap: { alignItems: "center", marginTop: -28 },
-  gridCardLogo: {
-    width: 56,
-    height: 56,
-    borderRadius: 18,
-    backgroundColor: "#fff",
-    borderWidth: 3,
-    borderColor: "#fff",
-  },
-  gridCardLogoFallback: {
-    width: 56,
-    height: 56,
-    borderRadius: 18,
+  pkgGridHeader: { height: 8 },
+  pkgGridBody: { paddingHorizontal: 10, paddingTop: 10, paddingBottom: 12, gap: 6, alignItems: "center" },
+  pkgGridName: { fontSize: 14, fontWeight: "800", textAlign: "center", lineHeight: 18, minHeight: 36, width: "100%" },
+  pkgGridMetaPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, maxWidth: "100%" },
+  pkgGridMeta: { fontSize: 10, fontWeight: "700" },
+  pkgGridPrice: { fontSize: 18, fontWeight: "800", marginTop: 2 },
+  pkgGridAction: {
+    marginTop: 4,
+    width: "100%",
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    borderRadius: radius.md,
+    borderWidth: 1,
     alignItems: "center",
+    minHeight: 34,
     justifyContent: "center",
-    borderWidth: 3,
-    borderColor: "#fff",
   },
-  gridCardBody: { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 12, gap: 6 },
-  gridCardName: { fontSize: 15, fontWeight: "800", textAlign: "center", lineHeight: 20, minHeight: 40 },
-  gridCardTypePill: { alignSelf: "center", paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999 },
-  gridCardTypeText: { fontSize: 11, fontWeight: "700", textTransform: "capitalize" },
-  gridCardLocRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3 },
-  gridCardLoc: { fontSize: 11, flexShrink: 1 },
-  gridCardFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 },
-  gridCardStat: { fontSize: 11, fontWeight: "600" },
+  pkgGridActionDisabled: { opacity: 0.7 },
+  pkgGridActionText: { fontSize: 11, fontWeight: "700" },
   discoverHero: {
     paddingTop: 56,
     paddingBottom: 24,
@@ -1005,7 +1159,6 @@ const styles = StyleSheet.create({
   },
   discoverLogoWrap: { alignItems: "center", marginBottom: spacing.md },
   discoverHeroInner: { width: "100%" },
-  discoverHeroInnerRtl: { width: "100%" },
   discoverHeroTopRtl: { width: "100%" },
   discoverHeroBg: { ...StyleSheet.absoluteFillObject, width: "100%", height: "100%" },
   discoverHeroOverlay: { ...StyleSheet.absoluteFillObject },

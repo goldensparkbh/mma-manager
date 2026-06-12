@@ -6,12 +6,14 @@ import { getClubTypeImageUrl } from "@/lib/clubTypeImages";
 type Props = {
   clubTypeId: string;
   alt: string;
+  /** Shared image from platform catalog (same for EN/AR). Falls back to bundled asset. */
+  imageUrl?: string | null;
   className?: string;
   iconClassName?: string;
 };
 
-export function ClubTypeImage({ clubTypeId, alt, className, iconClassName }: Props) {
-  const src = getClubTypeImageUrl(clubTypeId);
+export function ClubTypeImage({ clubTypeId, alt, imageUrl, className, iconClassName }: Props) {
+  const src = imageUrl?.trim() || getClubTypeImageUrl(clubTypeId);
   const [failed, setFailed] = useState(!src);
   const visual = getClubTypeVisual(clubTypeId);
   const Icon = visual.icon;

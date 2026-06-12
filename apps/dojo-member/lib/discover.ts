@@ -23,6 +23,7 @@ export type ClubProfile = DiscoverClub & {
   memberCount: number;
   portalEnabled: boolean;
   socials?: Record<string, string>;
+  operatingHours?: Record<string, unknown> | null;
 };
 
 export type DiscoverClass = {
@@ -45,7 +46,10 @@ export type ClubTypeOption = {
   id: string;
   nameEn: string;
   nameAr: string;
+  descriptionEn?: string;
+  descriptionAr?: string;
   category: string;
+  imageUrl?: string | null;
 };
 
 export type DiscoverPromoBanner = {

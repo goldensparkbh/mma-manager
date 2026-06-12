@@ -151,11 +151,15 @@ export function useInviteStaff() {
 }
 
 export function useClubTypes() {
-  return useQuery<{ id: string; label: string }[]>({
+  return useQuery<{ id: string; nameEn: string; nameAr?: string | null }[]>({
     queryKey: ["staff", "club-types"],
     queryFn: async () => {
-      const rows = await fetch(`${getApiUrl()}/api/club-types`).then((r) => r.json()) as { id: string; nameEn: string }[];
-      return rows.map((t) => ({ id: t.id, label: t.nameEn }));
+      const rows = await fetch(`${getApiUrl()}/api/club-types`).then((r) => r.json()) as {
+        id: string;
+        nameEn: string;
+        nameAr?: string | null;
+      }[];
+      return rows.map((row) => ({ id: row.id, nameEn: row.nameEn, nameAr: row.nameAr }));
     },
     staleTime: 300_000,
   });

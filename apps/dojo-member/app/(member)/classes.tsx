@@ -25,7 +25,7 @@ function dayLabel(date: Date, t: (k: "common.today" | "common.tomorrow") => stri
 export default function ClassesScreen() {
   const router = useRouter();
   const { show } = useToast();
-  const { activeSubscription } = useAuth();
+  const { clubName } = useAuth();
   const { accent } = useBranding();
   const { t } = useI18n();
   const colors = useThemeColors();

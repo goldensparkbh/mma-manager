@@ -683,7 +683,7 @@ ALTER TABLE tenant_booking_settings ADD COLUMN IF NOT EXISTS portal_welcome_mess
 ALTER TABLE tenant_booking_settings ADD COLUMN IF NOT EXISTS app_directory_enabled BOOLEAN DEFAULT true;
 UPDATE tenant_booking_settings SET app_directory_enabled = true WHERE app_directory_enabled IS NULL;
 
-ALTER TABLE tenant_booking_settings ADD COLUMN IF NOT EXISTS allow_self_registration BOOLEAN DEFAULT true;
+ALTER TABLE tenant_settings ADD COLUMN IF NOT EXISTS operating_hours JSONB DEFAULT '{}';
 UPDATE tenant_booking_settings SET allow_self_registration = true WHERE allow_self_registration IS NULL;
 
 ALTER TABLE member_payments ADD COLUMN IF NOT EXISTS package_amount DECIMAL(10,3);
@@ -814,3 +814,19 @@ CREATE TABLE IF NOT EXISTS platform_promo_banners (
 ALTER TABLE platform_promo_banners ADD COLUMN IF NOT EXISTS locale VARCHAR(5) NOT NULL DEFAULT 'en';
 DROP INDEX IF EXISTS idx_platform_promo_banners_sort;
 CREATE INDEX IF NOT EXISTS idx_platform_promo_banners_sort ON platform_promo_banners(locale, sort_order ASC);
+
+-- Sport / club type catalog (bilingual labels, single shared image per type)
+CREATE TABLE IF NOT EXISTS platform_club_types (
+  id VARCHAR(50) PRIMARY KEY,
+  name_en VARCHAR(255) NOT NULL,
+  name_ar VARCHAR(255) NOT NULL,
+  description_en TEXT,
+  description_ar TEXT,
+  image_url TEXT,
+  category VARCHAR(50) NOT NULL DEFAULT 'hybrid',
+  sort_order INT NOT NULL DEFAULT 0,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_platform_club_types_sort ON platform_club_types(sort_order ASC);

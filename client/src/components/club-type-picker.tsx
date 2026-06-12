@@ -13,6 +13,7 @@ export type ClubTypeOption = {
   descriptionEn: string;
   descriptionAr: string;
   category: string;
+  imageUrl?: string | null;
   progressionEnabled?: boolean;
   hasSessionPackages?: boolean;
 };
@@ -79,7 +80,7 @@ export function ClubTypePicker({ clubTypes, value, onChange, className }: Props)
 
                   {/* Full-bleed image */}
                   <div className="relative aspect-[4/3] w-full bg-muted">
-                    <ClubTypeImage clubTypeId={type.id} alt={name} />
+                    <ClubTypeImage clubTypeId={type.id} imageUrl={type.imageUrl} alt={name} />
                     <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/50 to-transparent pointer-events-none" />
                   </div>
 

@@ -136,6 +136,7 @@ export default function Register() {
               <div className="relative sm:w-48 md:w-56 shrink-0 aspect-[4/3] sm:aspect-auto sm:min-h-[140px] bg-muted">
                 <ClubTypeImage
                   clubTypeId={form.clubType}
+                  imageUrl={selectedType.imageUrl}
                   alt={language === "ar" ? selectedType.nameAr : selectedType.nameEn}
                 />
               </div>

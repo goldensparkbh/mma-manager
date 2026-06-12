@@ -35,6 +35,8 @@ export async function runMigrations() {
 export async function seedDefaults() {
   await syncSubscriptionPlans();
   await syncPlatformAdminFromEnv();
+  const { syncPlatformClubTypes } = await import("../platformClubTypes.js");
+  await syncPlatformClubTypes();
 }
 
 /** Ensure platform plans exist / stay up to date (incl. free tier for staff app). */

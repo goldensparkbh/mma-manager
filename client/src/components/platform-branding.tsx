@@ -9,6 +9,7 @@ type Props = {
   /** Show colored Nawady wordmark image instead of text */
   showLogo?: boolean;
   logoClassName?: string;
+  hideSubtitle?: boolean;
 };
 
 export function PlatformBranding({
@@ -18,6 +19,7 @@ export function PlatformBranding({
   centered = false,
   showLogo = false,
   logoClassName = "h-10 w-auto object-contain",
+  hideSubtitle = true,
 }: Props) {
   const { t } = useLanguage();
 
@@ -25,7 +27,9 @@ export function PlatformBranding({
     return (
       <div className={cn(centered && "text-center flex flex-col items-center", className)}>
         <img src="/nawady-logo.png" alt={t("common.appName")} className={logoClassName} />
-        <div className={cn(subtitleClassName, "mt-1")}>{t("common.appSubtitle")}</div>
+        {!hideSubtitle ? (
+          <div className={cn(subtitleClassName, "mt-1")}>{t("common.appSubtitle")}</div>
+        ) : null}
       </div>
     );
   }
@@ -33,7 +37,7 @@ export function PlatformBranding({
   return (
     <div className={cn(centered && "text-center", className)}>
       <div className={titleClassName}>{t("common.appName")}</div>
-      <div className={subtitleClassName}>{t("common.appSubtitle")}</div>
+      {!hideSubtitle ? <div className={subtitleClassName}>{t("common.appSubtitle")}</div> : null}
     </div>
   );
 }

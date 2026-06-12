@@ -6,7 +6,7 @@ import { BrandedSplash } from "./branded-splash";
 
 export type ThemeMode = "light" | "dark" | "system";
 
-const THEME_KEY = "app_theme";
+const THEME_KEY = "staff_theme";
 
 export const lightColors = {
   bg: "#f1f5f9",
@@ -22,6 +22,9 @@ export const lightColors = {
   dangerBg: "#fef2f2",
   tabBar: "#ffffff",
   heroDark: NAWADY_BRAND.primary,
+  webBannerBg: "#eff6ff",
+  webBannerBorder: "#bfdbfe",
+  webBannerText: "#1e40af",
 };
 
 export const darkColors = {
@@ -38,10 +41,13 @@ export const darkColors = {
   dangerBg: "#450a0a",
   tabBar: "#1e293b",
   heroDark: NAWADY_BRAND.primaryDarker,
+  webBannerBg: "rgba(59,130,246,0.12)",
+  webBannerBorder: "rgba(59,130,246,0.35)",
+  webBannerText: "#93c5fd",
 };
 
 /** @deprecated use useThemeColors() */
-export const colors = lightColors;
+export const colors = darkColors;
 
 export const spacing = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 };
 export const radius = { sm: 8, md: 12, lg: 16, xl: 24 };
@@ -81,9 +87,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setModeState(next);
   }, []);
 
-  const resolved: ColorSchemeName =
-    mode === "system" ? systemScheme ?? "light" : mode;
-
+  const resolved: ColorSchemeName = mode === "system" ? systemScheme ?? "light" : mode;
   const isDark = resolved === "dark";
   const palette = isDark ? darkColors : lightColors;
 

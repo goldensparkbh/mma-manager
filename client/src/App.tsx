@@ -136,16 +136,18 @@ function Router() {
 }
 
 function PublicRoutes() {
+  const { dir } = useLanguage();
   const [location] = useLocation();
-  if (location === "/") return <Landing />;
-  if (location === "/register") return <Register />;
-  if (location === "/login") return <Login />;
-  return <Landing />;
+  const content =
+    location === "/register" ? <Register /> :
+    location === "/login" ? <Login /> :
+    <Landing />;
+  return <div dir={dir}>{content}</div>;
 }
 
 function AppShell() {
   const { user, loading, clubSettings, tenant } = useAuth();
-  const { t, language } = useLanguage();
+  const { t, language, dir } = useLanguage();
   const [location] = useLocation();
   const style = { "--sidebar-width": "17rem", "--sidebar-width-icon": "4rem" };
 
@@ -158,12 +160,12 @@ function AppShell() {
   }
 
   if (location.startsWith("/checkin/")) {
-    return <CheckInPage />;
+    return <div dir={dir}><CheckInPage /></div>;
   }
 
   if (loading) {
     return (
-      <div className="flex flex-col gap-4 h-screen items-center justify-center text-muted-foreground">
+      <div dir={dir} className="flex flex-col gap-4 h-screen items-center justify-center text-muted-foreground">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
         <p>{t("common.loading")}</p>
       </div>
@@ -176,7 +178,7 @@ function AppShell() {
     return <PublicRoutes />;
   }
 
-  if (user.isPlatformAdmin) return <PlatformAdmin />;
+  if (user.isPlatformAdmin) return <div dir={dir}><PlatformAdmin /></div>;
 
   return (
     <SubscriptionGate>
@@ -186,7 +188,7 @@ function AppShell() {
       <ScreenSaver />
       <TooltipProvider>
         <SidebarProvider style={style as React.CSSProperties}>
-          <div className="flex h-screen w-full">
+          <div dir={dir} className="flex h-screen w-full">
             <AppSidebar />
             <div className="flex flex-col flex-1 overflow-hidden">
               <ImpersonationBanner />

@@ -50,7 +50,7 @@ export default function OnboardingScreen() {
 
   const finish = async () => {
     await storage.setOnboardingComplete();
-    router.replace("/login");
+    router.replace("/(discover)");
   };
 
   const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {

@@ -1,4 +1,3 @@
-import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
@@ -13,9 +12,9 @@ import {
   View,
 } from "react-native";
 import { useAuth } from "@/lib/auth";
+import { ClubLogo } from "@/lib/clubLogo";
 import { PrimaryButton } from "@/lib/components";
 import { useI18n } from "@/lib/i18n";
-import { resolveImageUrl } from "@/lib/resolveUrl";
 import { radius, spacing, useThemeColors, withAlpha } from "@/lib/theme";
 
 type Step = "phone" | "code" | "name";
@@ -94,9 +93,7 @@ export default function LoginScreen() {
     <KeyboardAvoidingView style={[styles.root, { backgroundColor: colors.bg }]} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <LinearGradient colors={[accent, withAlpha(accent, 0.9)]} style={styles.hero}>
-          {resolveImageUrl(portalInfo?.logoUrl) ? (
-            <Image source={{ uri: resolveImageUrl(portalInfo?.logoUrl)! }} style={styles.logo} contentFit="contain" />
-          ) : null}
+          {slug ? <ClubLogo logoUrl={portalInfo?.logoUrl} size={88} style={styles.logo} /> : null}
           <Text style={styles.heroTitle}>{clubName || t("login.title")}</Text>
           <Text style={styles.heroSub}>{t("login.subtitle")}</Text>
         </LinearGradient>
@@ -178,7 +175,7 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   scroll: { flexGrow: 1 },
   hero: { paddingTop: 72, paddingBottom: 36, paddingHorizontal: spacing.lg, alignItems: "center" },
-  logo: { width: 72, height: 72, borderRadius: 18, backgroundColor: "#fff", marginBottom: 12 },
+  logo: { width: 88, height: 88, borderRadius: 22, backgroundColor: "#fff", marginBottom: 12 },
   heroTitle: { fontSize: 28, fontWeight: "800", color: "#fff", textAlign: "center" },
   heroSub: { fontSize: 15, color: "rgba(255,255,255,0.85)", marginTop: 8, textAlign: "center" },
   card: {

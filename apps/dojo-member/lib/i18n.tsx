@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { I18nManager } from "react-native";
+import { BrandedSplash } from "./branded-splash";
+import { applyNativeLayoutDirection, reloadAppForLayoutDirection } from "./locale-layout";
 
 export type Locale = "en" | "ar";
 
@@ -28,6 +29,9 @@ const messages = {
     "explore.clubCount": "{count} clubs",
     "explore.seeAll": "See all",
     "explore.featured": "Featured clubs",
+    "explore.multipleSports": "Multiple sports",
+    "explore.viewGrid": "Grid",
+    "explore.viewList": "List",
     "explore.allClubs": "All clubs",
     "explore.upcoming": "Upcoming classes",
     "explore.fullSchedule": "Full schedule",
@@ -177,6 +181,19 @@ const messages = {
     "club.notFoundSub": "This club may not be listed or the link is incorrect.",
     "club.publicEvent": "Public event",
     "club.signInPurchase": "Sign in to purchase",
+    "club.openInMaps": "Open in Maps",
+    "club.contactDetails": "Contact & hours",
+    "club.hours": "Operating hours",
+    "club.hoursClosed": "Closed",
+    "club.hoursFromSchedule": "Based on scheduled classes",
+    "club.noHours": "Hours not listed",
+    "days.sunday": "Sunday",
+    "days.monday": "Monday",
+    "days.tuesday": "Tuesday",
+    "days.wednesday": "Wednesday",
+    "days.thursday": "Thursday",
+    "days.friday": "Friday",
+    "days.saturday": "Saturday",
     "error.title": "Something went wrong",
     "error.retry": "Try again",
     "error.offline": "Check your connection and try again",
@@ -252,6 +269,9 @@ const messages = {
     "explore.clubCount": "{count} نادي",
     "explore.seeAll": "عرض الكل",
     "explore.featured": "أندية مميزة",
+    "explore.multipleSports": "رياضات متعددة",
+    "explore.viewGrid": "شبكة",
+    "explore.viewList": "قائمة",
     "explore.allClubs": "كل الأندية",
     "explore.upcoming": "الحصص القادمة",
     "explore.fullSchedule": "الجدول الكامل",
@@ -401,6 +421,19 @@ const messages = {
     "club.notFoundSub": "قد لا يكون النادي مدرجاً أو الرابط غير صحيح.",
     "club.publicEvent": "فعالية عامة",
     "club.signInPurchase": "سجّل الدخول للشراء",
+    "club.openInMaps": "فتح في الخريطة",
+    "club.contactDetails": "التواصل وساعات العمل",
+    "club.hours": "ساعات العمل",
+    "club.hoursClosed": "مغلق",
+    "club.hoursFromSchedule": "حسب الحصص المجدولة",
+    "club.noHours": "لم تُحدد ساعات العمل",
+    "days.sunday": "الأحد",
+    "days.monday": "الإثنين",
+    "days.tuesday": "الثلاثاء",
+    "days.wednesday": "الأربعاء",
+    "days.thursday": "الخميس",
+    "days.friday": "الجمعة",
+    "days.saturday": "السبت",
     "error.title": "حدث خطأ",
     "error.retry": "إعادة المحاولة",
     "error.offline": "تحقق من الاتصال وحاول مرة أخرى",
@@ -469,14 +502,6 @@ type I18nContextValue = {
 
 const I18nContext = createContext<I18nContextValue | null>(null);
 
-async function applyRtl(locale: Locale) {
-  const rtl = locale === "ar";
-  if (I18nManager.isRTL !== rtl) {
-    I18nManager.allowRTL(rtl);
-    I18nManager.forceRTL(rtl);
-  }
-}
-
 export function I18nProvider({ children }: { children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>("en");
   const [ready, setReady] = useState(false);
@@ -485,7 +510,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       const saved = await AsyncStorage.getItem(LOCALE_KEY);
       const initial = saved === "ar" ? "ar" : "en";
-      await applyRtl(initial);
+      applyNativeLayoutDirection(initial);
       setLocaleState(initial);
       setReady(true);
     })();
@@ -493,7 +518,10 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
 
   const setLocale = useCallback(async (next: Locale) => {
     await AsyncStorage.setItem(LOCALE_KEY, next);
-    await applyRtl(next);
+    if (applyNativeLayoutDirection(next)) {
+      await reloadAppForLayoutDirection();
+      return;
+    }
     setLocaleState(next);
   }, []);
 
@@ -520,7 +548,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     [locale, setLocale, t, clubTypeName],
   );
 
-  if (!ready) return null;
+  if (!ready) return <BrandedSplash />;
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }
 
