@@ -222,6 +222,7 @@ router.get("/api/portal/:slug/info", async (req, res) => {
       ),
       primaryColor: settings.portalPrimaryColor || "#3b82f6",
       welcomeMessage: settings.portalWelcomeMessage,
+      allowSelfRegistration: settings.allowSelfRegistration !== false,
     });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
@@ -241,10 +242,13 @@ router.post("/api/portal/:slug/otp/request", async (req, res) => {
 
 router.post("/api/portal/:slug/otp/verify", async (req, res) => {
   try {
-    const { phone, code } = req.body;
+    const { phone, code, name } = req.body;
     if (!phone || !code) return res.status(400).json({ error: "Phone and code required" });
     const { verifyPortalOtp } = await import("./portalOtp.js");
-    const result = await verifyPortalOtp(req.params.slug, phone, code);
+    const result = await verifyPortalOtp(req.params.slug, phone, code, name);
+    if (result.kind === "needs_name") {
+      return res.json({ needsName: true });
+    }
     const token = signToken({
       userId: result.accountId,
       tenantId: result.tenantId,
@@ -256,6 +260,8 @@ router.post("/api/portal/:slug/otp/verify", async (req, res) => {
     });
     res.json({
       token,
+      needsName: false,
+      isNewUser: result.isNewUser,
       member: { id: result.memberId, name: result.memberName, phone: result.phone },
       tenant: { id: result.tenantId, name: result.tenantName, slug: result.tenantSlug },
     });
@@ -508,7 +514,9 @@ router.delete("/api/portal/bookings/:id", requireMemberAccount, async (req, res)
 
 router.get("/api/portal/packages", requireMemberAccount, async (req, res) => {
   const auth = getAuth(req);
-  res.json(await data.getPackages(auth.tenantId!));
+  const packages = await data.getPackages(auth.tenantId!);
+  const { enrichPackagePricing } = await import("./transactionFees.js");
+  res.json(await Promise.all(packages.map((p) => enrichPackagePricing(p as { price: number }))));
 });
 
 router.get("/api/portal/camps", requireMemberAccount, async (req, res) => {
@@ -827,6 +835,37 @@ router.delete("/api/platform/plans/:id", requirePlatformAdmin, requirePlatformPe
   try {
     await data.deleteSubscriptionPlan(req.params.id);
     res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+router.get("/api/platform/sms/config", requirePlatformAdmin, requirePlatformPermission(PLATFORM_PERMISSIONS.SMS_VIEW), async (_req, res) => {
+  const { getSmsConfig } = await import("./platformSms.js");
+  res.json(await getSmsConfig());
+});
+
+router.patch("/api/platform/sms/config", requirePlatformAdmin, requirePlatformPermission(PLATFORM_PERMISSIONS.SMS_EDIT), async (req, res) => {
+  try {
+    const { updateSmsConfig } = await import("./platformSms.js");
+    res.json(await updateSmsConfig(req.body));
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+router.get("/api/platform/transaction-billing", requirePlatformAdmin, requirePlatformPermission(PLATFORM_PERMISSIONS.BILLING_VIEW), async (_req, res) => {
+  const { getTransactionBillingConfig, getTransactionFeeStats } = await import("./transactionFees.js");
+  const [config, stats] = await Promise.all([getTransactionBillingConfig(), getTransactionFeeStats()]);
+  res.json({ config, stats });
+});
+
+router.patch("/api/platform/transaction-billing", requirePlatformAdmin, requirePlatformPermission(PLATFORM_PERMISSIONS.BILLING_EDIT), async (req, res) => {
+  try {
+    const { updateTransactionBillingConfig, getTransactionFeeStats } = await import("./transactionFees.js");
+    const config = await updateTransactionBillingConfig(req.body);
+    const stats = await getTransactionFeeStats();
+    res.json({ config, stats });
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
   }

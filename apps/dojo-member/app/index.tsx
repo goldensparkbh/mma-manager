@@ -27,7 +27,7 @@ export default function BootstrapScreen() {
         router.replace("/(member)");
         return;
       }
-      router.replace("/(discover)");
+      router.replace("/login");
     })();
   }, [loading, member, slug, router, onboardingChecked]);
 

@@ -94,7 +94,16 @@ export default function PaymentsScreen() {
                 : t("member.daysValidity", { days: item.duration })}
             </Text>
             <View style={styles.row}>
-              <Text style={[styles.price, { color: colors.text }]}>{formatCurrency(item.price, "BHD", locale)}</Text>
+              <View>
+                <Text style={[styles.price, { color: colors.text }]}>
+                  {formatCurrency(item.totalAmount ?? item.price, "BHD", locale)}
+                </Text>
+                {item.platformFee ? (
+                  <Text style={[styles.feeNote, { color: colors.textMuted }]}>
+                    {t("member.platformFeeNote", { fee: formatCurrency(item.platformFee, "BHD", locale) })}
+                  </Text>
+                ) : null}
+              </View>
               <PrimaryButton
                 label={t("member.payNow")}
                 loading={checkout.isPending}
@@ -143,6 +152,7 @@ const styles = StyleSheet.create({
   meta: { fontSize: 13 },
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8, gap: 12 },
   price: { fontSize: 17, fontWeight: "800" },
+  feeNote: { fontSize: 11, marginTop: 2 },
   history: { marginTop: spacing.lg },
   historyRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.sm },
   historyEnd: { alignItems: "flex-end", gap: 6 },

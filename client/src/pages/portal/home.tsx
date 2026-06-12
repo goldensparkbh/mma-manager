@@ -375,13 +375,20 @@ export default function PortalHome() {
                             : `${pkg.duration} ${t("portal.days")}`}
                         </p>
                       </div>
-                      <Button
-                        size="sm"
-                        disabled={checkout.isPending}
-                        onClick={() => checkout.mutate(pkg.id)}
-                      >
-                        {pkg.price} {t("embed.currency")}
-                      </Button>
+                      <div className="text-right shrink-0">
+                        {(pkg as { platformFee?: number }).platformFee ? (
+                          <p className="text-[10px] text-muted-foreground mb-1">
+                            +{(pkg as { platformFee?: number }).platformFee} {t("embed.currency")} {t("portal.feeNote")}
+                          </p>
+                        ) : null}
+                        <Button
+                          size="sm"
+                          disabled={checkout.isPending}
+                          onClick={() => checkout.mutate(pkg.id)}
+                        >
+                          {(pkg as { totalAmount?: number }).totalAmount ?? pkg.price} {t("embed.currency")}
+                        </Button>
+                      </div>
                     </div>
                   ))
                 )}

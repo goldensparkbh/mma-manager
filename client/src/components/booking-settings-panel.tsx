@@ -126,6 +126,17 @@ export function BookingSettingsPanel() {
             />
             <Label>{t("bookings.portalEnabled")}</Label>
           </div>
+          <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
+            <div>
+              <Label>{t("bookings.allowSelfRegistration")}</Label>
+              <p className="text-xs text-muted-foreground mt-1">{t("bookings.allowSelfRegistrationHint")}</p>
+            </div>
+            <Switch
+              checked={form.allowSelfRegistration !== false}
+              disabled={form.portalEnabled === false}
+              onCheckedChange={(v) => setForm({ ...form, allowSelfRegistration: v })}
+            />
+          </div>
           <div className="flex items-center gap-2">
             <Switch
               checked={form.tapEnabled !== false}

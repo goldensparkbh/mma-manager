@@ -34,14 +34,19 @@ export async function createMemberCheckout(params: {
   const member = await getMember(params.tenantId, params.memberId);
   if (!member) throw new Error("Member not found");
 
-  const amount = Number(pkg.price);
-  if (!amount) throw new Error("Invalid package price");
+  const packageAmount = Number(pkg.price);
+  if (!packageAmount) throw new Error("Invalid package price");
+
+  const { getTransactionBillingConfig, calculateTransactionFee } = await import("./transactionFees.js");
+  const billing = await getTransactionBillingConfig();
+  const { packageAmount: pkgAmt, platformFee, totalAmount } = calculateTransactionFee(packageAmount, billing);
+  const amount = totalAmount;
 
   const currency = process.env.TAP_CURRENCY || "BHD";
   const paymentResult = await query(
-    `INSERT INTO member_payments (tenant_id, member_id, package_id, amount, currency, status, package_name, payment_type)
-     VALUES ($1,$2,$3,$4,$5,'pending',$6,'one_time') RETURNING *`,
-    [params.tenantId, params.memberId, params.packageId, amount, currency, pkg.name],
+    `INSERT INTO member_payments (tenant_id, member_id, package_id, amount, package_amount, platform_fee, currency, status, package_name, payment_type)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,'pending',$8,'one_time') RETURNING *`,
+    [params.tenantId, params.memberId, params.packageId, amount, pkgAmt, platformFee, currency, pkg.name],
   );
   const payment = toCamelCase(paymentResult.rows[0]) as { id: string };
 
@@ -121,7 +126,7 @@ async function activateMemberPayment(payment: Record<string, unknown>, charge: {
     memberId,
     memberName: (member as { name: string }).name,
     planName: pkg.name,
-    amount: Number(pkg.price),
+    amount: Number(payment.package_amount ?? pkg.price),
     startDate: formatDate(today),
     endDate: formatDate(end),
     status: "active",
@@ -155,8 +160,8 @@ async function activateMemberPayment(payment: Record<string, unknown>, charge: {
     productId: "subscription",
     productName: pkg.name as string,
     quantity: 1,
-    unitPrice: Number(pkg.price),
-    totalPrice: Number(pkg.price),
+    unitPrice: Number(payment.package_amount ?? pkg.price),
+    totalPrice: Number(payment.package_amount ?? pkg.price),
     memberId,
     buyerName: m.name,
     buyerPhone: m.phone,
@@ -175,7 +180,7 @@ async function activateMemberPayment(payment: Record<string, unknown>, charge: {
     vars: {
       name: m.name,
       planName: pkg.name as string,
-      amount: String(pkg.price),
+      amount: String(payment.package_amount ?? pkg.price),
       currency: (payment.currency as string) || "BHD",
     },
   });
@@ -187,7 +192,8 @@ async function activateMemberPayment(payment: Record<string, unknown>, charge: {
     await dispatchWebhooks(tenantId, "payment.received", {
       paymentId: payment.id,
       memberId,
-      amount: pkg.price,
+      amount: payment.package_amount ?? pkg.price,
+      platformFee: payment.platform_fee ?? 0,
       packageName: pkg.name,
     });
   } catch { /* optional */ }
@@ -329,12 +335,16 @@ async function createRecurringCharge(params: {
   const member = await getMember(params.tenantId, params.memberId);
   if (!member) throw new Error("Member not found");
 
-  const amount = Number(pkg.price);
+  const packageAmount = Number(pkg.price);
+  const { getTransactionBillingConfig, calculateTransactionFee } = await import("./transactionFees.js");
+  const billing = await getTransactionBillingConfig();
+  const { packageAmount: pkgAmt, platformFee, totalAmount } = calculateTransactionFee(packageAmount, billing);
+  const amount = totalAmount;
   const currency = process.env.TAP_CURRENCY || "BHD";
   const paymentResult = await query(
-    `INSERT INTO member_payments (tenant_id, member_id, package_id, amount, currency, status, package_name, payment_type, subscription_id)
-     VALUES ($1,$2,$3,$4,$5,'pending',$6,'recurring',$7) RETURNING *`,
-    [params.tenantId, params.memberId, params.packageId, amount, currency, pkg.name, params.subscriptionId],
+    `INSERT INTO member_payments (tenant_id, member_id, package_id, amount, package_amount, platform_fee, currency, status, package_name, payment_type, subscription_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,'pending',$8,'recurring',$9) RETURNING *`,
+    [params.tenantId, params.memberId, params.packageId, amount, pkgAmt, platformFee, currency, pkg.name, params.subscriptionId],
   );
   const payment = toCamelCase(paymentResult.rows[0]) as { id: string };
 

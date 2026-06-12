@@ -50,6 +50,13 @@
       "eas": {
         "projectId": "ac417661-6282-4015-8195-437da92cb09b"
       }
+    },
+    "owner": "goldenspark",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/ac417661-6282-4015-8195-437da92cb09b"
     }
   }
 }

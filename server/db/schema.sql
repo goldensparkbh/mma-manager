@@ -683,6 +683,13 @@ ALTER TABLE tenant_booking_settings ADD COLUMN IF NOT EXISTS portal_welcome_mess
 ALTER TABLE tenant_booking_settings ADD COLUMN IF NOT EXISTS app_directory_enabled BOOLEAN DEFAULT true;
 UPDATE tenant_booking_settings SET app_directory_enabled = true WHERE app_directory_enabled IS NULL;
 
+ALTER TABLE tenant_booking_settings ADD COLUMN IF NOT EXISTS allow_self_registration BOOLEAN DEFAULT true;
+UPDATE tenant_booking_settings SET allow_self_registration = true WHERE allow_self_registration IS NULL;
+
+ALTER TABLE member_payments ADD COLUMN IF NOT EXISTS package_amount DECIMAL(10,3);
+ALTER TABLE member_payments ADD COLUMN IF NOT EXISTS platform_fee DECIMAL(10,3) DEFAULT 0;
+UPDATE member_payments SET package_amount = amount WHERE package_amount IS NULL;
+
 -- Phase 2: QR check-in
 ALTER TABLE members ADD COLUMN IF NOT EXISTS qr_token VARCHAR(64);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_members_qr_token ON members(qr_token) WHERE qr_token IS NOT NULL;

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { StyleSheet, Text, TextInput } from "react-native";
 import { Card, PrimaryButton, Screen, StaffHeader, UpgradeBanner } from "@/lib/components";
+import { openWebDashboard } from "@/lib/plan";
 import { useClubSettings, useUpdateClubSettings } from "@/lib/hooks";
 import { useAuth } from "@/lib/auth";
 import { colors, radius, spacing } from "@/lib/theme";
@@ -42,7 +43,8 @@ export default function SettingsScreen() {
           <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholderTextColor={colors.textMuted} />
           <Text style={styles.label}>Welcome message</Text>
           <TextInput style={[styles.input, styles.multiline]} value={welcome} onChangeText={setWelcome} multiline placeholderTextColor={colors.textMuted} />
-          <Text style={styles.hint}>Upload logo from the web dashboard → Settings → Branding</Text>
+          <Text style={styles.hint}>Logo and brand colors are managed on the web dashboard.</Text>
+          <PrimaryButton label="Upload logo on web" variant="outline" onPress={() => openWebDashboard("/system-settings")} />
           <PrimaryButton label={update.isPending ? "Saving…" : "Save changes"} onPress={save} loading={update.isPending} disabled={isLoading} />
         </Card>
       </Screen>

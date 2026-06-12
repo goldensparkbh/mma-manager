@@ -17,6 +17,7 @@ export type BookingSettings = {
   portalWelcomeMessage: string | null;
   publicSlug: string | null;
   appDirectoryEnabled: boolean;
+  allowSelfRegistration: boolean;
 };
 
 const DEFAULT_SETTINGS: Omit<BookingSettings, "tenantId" | "publicSlug"> = {
@@ -33,6 +34,7 @@ const DEFAULT_SETTINGS: Omit<BookingSettings, "tenantId" | "publicSlug"> = {
   portalPrimaryColor: "#3b82f6",
   portalWelcomeMessage: null,
   appDirectoryEnabled: true,
+  allowSelfRegistration: true,
 };
 
 export async function getBookingSettings(tenantId: string): Promise<BookingSettings> {
@@ -82,6 +84,7 @@ export async function updateBookingSettings(tenantId: string, updates: Record<st
     portalWelcomeMessage: "portal_welcome_message",
     publicSlug: "public_slug",
     appDirectoryEnabled: "app_directory_enabled",
+    allowSelfRegistration: "allow_self_registration",
   };
   await getBookingSettings(tenantId);
   const fields: string[] = ["updated_at = NOW()"];

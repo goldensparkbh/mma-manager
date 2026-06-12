@@ -329,6 +329,7 @@ export interface BookingSettings {
   portalWelcomeMessage?: string | null;
   publicSlug?: string | null;
   appDirectoryEnabled?: boolean;
+  allowSelfRegistration?: boolean;
 }
 
 export interface MemberPayment {

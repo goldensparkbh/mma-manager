@@ -8,6 +8,8 @@ import {
   Shield,
   ShieldCheck,
   Bell,
+  MessageSquare,
+  Coins,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,7 +37,9 @@ export type PlatformAdminSection =
   | "payments"
   | "support"
   | "admins"
-  | "push";
+  | "push"
+  | "sms"
+  | "billing";
 
 type Props = {
   active: PlatformAdminSection;
@@ -53,8 +57,10 @@ const NAV: Array<{
   { id: "tenants", labelKey: "platformAdmin.nav.tenants", icon: Building2, group: "main" },
   { id: "plans", labelKey: "platformAdmin.nav.plans", icon: CreditCard, group: "billing" },
   { id: "payments", labelKey: "platformAdmin.nav.payments", icon: CreditCard, group: "billing" },
+  { id: "billing", labelKey: "platformAdmin.nav.transactionBilling", icon: Coins, group: "billing" },
   { id: "support", labelKey: "platformAdmin.nav.support", icon: Headphones, group: "system" },
   { id: "push", labelKey: "platformAdmin.nav.push", icon: Bell, group: "system" },
+  { id: "sms", labelKey: "platformAdmin.nav.sms", icon: MessageSquare, group: "system" },
   { id: "admins", labelKey: "platformAdmin.nav.admins", icon: ShieldCheck, group: "system" },
 ];
 
@@ -152,4 +158,6 @@ export const SECTION_META: Record<
   support: { titleKey: "platformAdmin.support.title", descriptionKey: "platformAdmin.support.description" },
   admins: { titleKey: "platformAdmin.admins.title", descriptionKey: "platformAdmin.admins.description" },
   push: { titleKey: "platformAdmin.push.title", descriptionKey: "platformAdmin.push.description" },
+  sms: { titleKey: "platformAdmin.sms.title", descriptionKey: "platformAdmin.sms.description" },
+  billing: { titleKey: "platformAdmin.billing.title", descriptionKey: "platformAdmin.billing.description" },
 };

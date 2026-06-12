@@ -32,16 +32,21 @@ export type CampEvent = {
 };
 export type PortalInfo = {
   name: string;
+  slug?: string;
   logoUrl?: string;
   primaryColor?: string;
   welcomeMessage?: string;
   portalEnabled?: boolean;
+  allowSelfRegistration?: boolean;
 };
 export type Package = {
   id: string;
   name: string;
   duration: number;
   price: number;
+  packageAmount?: number;
+  platformFee?: number;
+  totalAmount?: number;
   packageType?: "duration" | "sessions";
   sessionCount?: number | null;
 };

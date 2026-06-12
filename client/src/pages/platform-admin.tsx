@@ -31,6 +31,8 @@ import {
 } from "lucide-react";
 import { PlatformPaymentsPanel, PlatformSupportPanel, PlatformAdminsPanel, ImpersonateTenantButton } from "@/components/platform-admin-panels";
 import { PlatformPushPanel } from "@/components/platform-push-panel";
+import { PlatformSmsPanel } from "@/components/platform-sms-panel";
+import { PlatformTransactionBillingPanel } from "@/components/platform-transaction-billing-panel";
 import { PlatformLeadsPanel } from "@/components/platform-leads-panel";
 
 type PlatformStats = {
@@ -565,6 +567,10 @@ export default function PlatformAdmin() {
                 {section === "support" && <PlatformSupportPanel />}
 
                 {section === "push" && <PlatformPushPanel />}
+
+                {section === "sms" && <PlatformSmsPanel />}
+
+                {section === "billing" && <PlatformTransactionBillingPanel />}
 
                 {section === "admins" && <PlatformAdminsPanel />}
               </main>

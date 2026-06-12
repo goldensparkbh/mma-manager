@@ -49,7 +49,7 @@ function RootStack() {
         <Stack.Screen name="(member)" />
         <Stack.Screen name="club/[slug]" options={{ presentation: "card" }} />
         <Stack.Screen name="class/[id]" options={{ presentation: "card" }} />
-        <Stack.Screen name="login" options={{ presentation: "modal" }} />
+        <Stack.Screen name="login" />
         <Stack.Screen name="payment-result" options={{ presentation: "modal" }} />
         <Stack.Screen name="notifications" options={{ presentation: "card" }} />
       </Stack>

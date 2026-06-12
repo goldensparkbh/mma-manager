@@ -1912,6 +1912,56 @@ export async function getMemberAccount(tenantId: string, memberId: string) {
   return result.rows[0] ? toCamelCase(result.rows[0]) : null;
 }
 
+export async function registerMemberViaPortal(tenantId: string, phone: string, name: string) {
+  const normalized = phone.replace(/\s+/g, "");
+
+  const existingAccount = await query(
+    `SELECT id FROM member_accounts WHERE tenant_id = $1 AND REPLACE(phone, ' ', '') = $2`,
+    [tenantId, normalized],
+  );
+  if (existingAccount.rows[0]) throw new Error("Account already exists");
+
+  const existingMember = await query(
+    `SELECT id, name FROM members WHERE tenant_id = $1 AND REPLACE(phone, ' ', '') = $2 LIMIT 1`,
+    [tenantId, normalized],
+  );
+
+  let memberId: string;
+  let memberName: string;
+  if (existingMember.rows[0]) {
+    memberId = existingMember.rows[0].id as string;
+    memberName = (existingMember.rows[0].name as string) || name;
+  } else {
+    const member = await createMember(tenantId, {
+      name: name.trim(),
+      phone: normalized,
+      status: "inactive",
+    });
+    memberId = member.id as string;
+    memberName = name.trim();
+  }
+
+  const accountResult = await query(
+    `INSERT INTO member_accounts (tenant_id, member_id, phone, is_active)
+     VALUES ($1, $2, $3, true) RETURNING id`,
+    [tenantId, memberId, normalized],
+  );
+
+  await logActivity(tenantId, {
+    action: "member.portal_register",
+    entityType: "member",
+    entityId: memberId,
+    description: `Member self-registered via app: ${memberName}`,
+  });
+
+  return {
+    accountId: accountResult.rows[0].id as string,
+    memberId,
+    memberName,
+    phone: normalized,
+  };
+}
+
 export async function enableMemberPortalAccess(
   tenantId: string,
   memberId: string,
