@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/context/language-context";
 import { apiFetch, apiJson } from "@/lib/api";
@@ -19,9 +20,12 @@ import {
   Trash2,
 } from "lucide-react";
 
+type PromoBannerLocale = "en" | "ar";
+
 type PromoBanner = {
   id: string;
   sortOrder: number;
+  locale: PromoBannerLocale;
   imageUrl: string;
   clubTypeId: string | null;
   linkUrl: string | null;
@@ -30,36 +34,39 @@ type PromoBanner = {
 
 const CLUB_TYPES = getAllClubTypes();
 
-export function PlatformPromoBannersPanel() {
+function BannerLocalePanel({
+  locale,
+  banners,
+  onInvalidate,
+}: {
+  locale: PromoBannerLocale;
+  banners: PromoBanner[];
+  onInvalidate: () => void;
+}) {
   const { t, language } = useLanguage();
   const { toast } = useToast();
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [clubTypeId, setClubTypeId] = useState<string>("");
+  const [clubTypeId, setClubTypeId] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
   const [uploading, setUploading] = useState(false);
 
-  const { data: banners = [], isLoading } = useQuery<PromoBanner[]>({
-    queryKey: ["/api/platform/promo-banners"],
-    queryFn: () => apiJson("/api/platform/promo-banners"),
-  });
-
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["/api/platform/promo-banners"] });
+  const localeBanners = banners.filter((b) => b.locale === locale);
 
   const reorder = useMutation({
     mutationFn: (orderedIds: string[]) =>
       apiJson("/api/platform/promo-banners/reorder", {
         method: "PUT",
-        body: JSON.stringify({ orderedIds }),
+        body: JSON.stringify({ orderedIds, locale }),
       }),
-    onSuccess: invalidate,
+    onSuccess: onInvalidate,
     onError: (e: Error) => toast({ variant: "destructive", title: t("common.error"), description: e.message }),
   });
 
   const remove = useMutation({
     mutationFn: (id: string) => apiJson(`/api/platform/promo-banners/${id}`, { method: "DELETE" }),
     onSuccess: () => {
-      invalidate();
+      onInvalidate();
       toast({ title: t("common.success"), description: t("platformAdmin.ads.removed") });
     },
     onError: (e: Error) => toast({ variant: "destructive", title: t("common.error"), description: e.message }),
@@ -71,12 +78,12 @@ export function PlatformPromoBannersPanel() {
         method: "PATCH",
         body: JSON.stringify({ isActive }),
       }),
-    onSuccess: invalidate,
+    onSuccess: onInvalidate,
     onError: (e: Error) => toast({ variant: "destructive", title: t("common.error"), description: e.message }),
   });
 
   const move = (index: number, direction: -1 | 1) => {
-    const next = [...banners];
+    const next = [...localeBanners];
     const target = index + direction;
     if (target < 0 || target >= next.length) return;
     [next[index], next[target]] = [next[target], next[index]];
@@ -98,13 +105,14 @@ export function PlatformPromoBannersPanel() {
         method: "POST",
         body: JSON.stringify({
           imageUrl: url,
+          locale,
           clubTypeId: clubTypeId || null,
           linkUrl: linkUrl.trim() || null,
         }),
       });
       setClubTypeId("");
       setLinkUrl("");
-      invalidate();
+      onInvalidate();
       toast({ title: t("common.success"), description: t("platformAdmin.ads.added") });
     } catch (e) {
       toast({ variant: "destructive", title: t("common.error"), description: (e as Error).message });
@@ -114,23 +122,17 @@ export function PlatformPromoBannersPanel() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex justify-center py-16">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6">
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <ImagePlus className="h-5 w-5" />
-            {t("platformAdmin.ads.addTitle")}
+            {locale === "en" ? t("platformAdmin.ads.addTitleEn") : t("platformAdmin.ads.addTitleAr")}
           </CardTitle>
-          <CardDescription>{t("platformAdmin.ads.addDesc")}</CardDescription>
+          <CardDescription>
+            {locale === "en" ? t("platformAdmin.ads.addDescEn") : t("platformAdmin.ads.addDescAr")}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -153,11 +155,7 @@ export function PlatformPromoBannersPanel() {
             </div>
             <div className="space-y-2">
               <Label>{t("platformAdmin.ads.linkUrl")}</Label>
-              <Input
-                value={linkUrl}
-                onChange={(e) => setLinkUrl(e.target.value)}
-                placeholder="https://…"
-              />
+              <Input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://…" />
               <p className="text-xs text-muted-foreground">{t("platformAdmin.ads.linkUrlHint")}</p>
             </div>
           </div>
@@ -171,11 +169,7 @@ export function PlatformPromoBannersPanel() {
               if (file) onPickFile(file);
             }}
           />
-          <Button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            disabled={uploading}
-          >
+          <Button type="button" onClick={() => fileRef.current?.click()} disabled={uploading}>
             {uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ImagePlus className="h-4 w-4 mr-2" />}
             {uploading ? t("platformAdmin.ads.uploading") : t("platformAdmin.ads.uploadButton")}
           </Button>
@@ -185,22 +179,23 @@ export function PlatformPromoBannersPanel() {
 
       <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle>{t("platformAdmin.ads.listTitle")}</CardTitle>
+          <CardTitle>
+            {locale === "en" ? t("platformAdmin.ads.listTitleEn") : t("platformAdmin.ads.listTitleAr")}
+          </CardTitle>
           <CardDescription>{t("platformAdmin.ads.listDesc")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {banners.length === 0 ? (
+          {localeBanners.length === 0 ? (
             <div className="rounded-xl border border-dashed p-8 text-center space-y-2 bg-muted/30">
               <Megaphone className="h-8 w-8 mx-auto text-muted-foreground" />
               <p className="font-medium">{t("platformAdmin.ads.empty")}</p>
-              <p className="text-sm text-muted-foreground">{t("platformAdmin.ads.emptySub")}</p>
+              <p className="text-sm text-muted-foreground">
+                {locale === "en" ? t("platformAdmin.ads.emptySubEn") : t("platformAdmin.ads.emptySubAr")}
+              </p>
             </div>
           ) : (
-            banners.map((banner, index) => (
-              <div
-                key={banner.id}
-                className="flex flex-col sm:flex-row gap-4 rounded-xl border p-3 bg-card"
-              >
+            localeBanners.map((banner, index) => (
+              <div key={banner.id} className="flex flex-col sm:flex-row gap-4 rounded-xl border p-3 bg-card">
                 <div className="relative w-full sm:w-48 aspect-video rounded-lg overflow-hidden bg-muted shrink-0">
                   <img src={banner.imageUrl} alt="" className="h-full w-full object-cover" />
                 </div>
@@ -209,12 +204,11 @@ export function PlatformPromoBannersPanel() {
                     <span>#{index + 1}</span>
                     {banner.clubTypeId ? (
                       <span className="rounded-full bg-primary/10 text-primary px-2 py-0.5 text-xs font-medium">
-                        {CLUB_TYPES.find((c) => c.id === banner.clubTypeId)?.[language === "ar" ? "nameAr" : "nameEn"] || banner.clubTypeId}
+                        {CLUB_TYPES.find((c) => c.id === banner.clubTypeId)?.[language === "ar" ? "nameAr" : "nameEn"] ||
+                          banner.clubTypeId}
                       </span>
                     ) : null}
-                    {banner.linkUrl ? (
-                      <span className="truncate text-xs">{banner.linkUrl}</span>
-                    ) : null}
+                    {banner.linkUrl ? <span className="truncate text-xs">{banner.linkUrl}</span> : null}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="flex items-center gap-1">
@@ -231,7 +225,7 @@ export function PlatformPromoBannersPanel() {
                         type="button"
                         variant="outline"
                         size="icon"
-                        disabled={index === banners.length - 1 || reorder.isPending}
+                        disabled={index === localeBanners.length - 1 || reorder.isPending}
                         onClick={() => move(index, 1)}
                       >
                         <ArrowDown className="h-4 w-4" />
@@ -262,6 +256,50 @@ export function PlatformPromoBannersPanel() {
           )}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+export function PlatformPromoBannersPanel() {
+  const { t } = useLanguage();
+  const qc = useQueryClient();
+
+  const { data: banners = [], isLoading } = useQuery<PromoBanner[]>({
+    queryKey: ["/api/platform/promo-banners"],
+    queryFn: () => apiJson("/api/platform/promo-banners"),
+  });
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["/api/platform/promo-banners"] });
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-16">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const enCount = banners.filter((b) => b.locale === "en").length;
+  const arCount = banners.filter((b) => b.locale === "ar").length;
+
+  return (
+    <div className="space-y-6 max-w-4xl">
+      <Tabs defaultValue="en">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="en">
+            {t("platformAdmin.ads.tabEn")} ({enCount})
+          </TabsTrigger>
+          <TabsTrigger value="ar">
+            {t("platformAdmin.ads.tabAr")} ({arCount})
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="en" className="mt-6">
+          <BannerLocalePanel locale="en" banners={banners} onInvalidate={invalidate} />
+        </TabsContent>
+        <TabsContent value="ar" className="mt-6">
+          <BannerLocalePanel locale="ar" banners={banners} onInvalidate={invalidate} />
+        </TabsContent>
+      </Tabs>
 
       <Card className="shadow-sm border-primary/20 bg-primary/5">
         <CardContent className="pt-6">

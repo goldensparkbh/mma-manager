@@ -67,10 +67,11 @@ router.get("/api/discover/schedule", async (req, res) => {
   }
 });
 
-router.get("/api/discover/banners", async (_req, res) => {
+router.get("/api/discover/banners", async (req, res) => {
   try {
     const { listPublicPromoBanners } = await import("./platformPromoBanners.js");
-    res.json(await listPublicPromoBanners());
+    const locale = (req.query.locale as string) === "ar" ? "ar" : "en";
+    res.json(await listPublicPromoBanners(locale));
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
@@ -1674,11 +1675,12 @@ router.post("/api/platform/promo-banners/upload", requirePlatformAdmin, requireP
 
 router.post("/api/platform/promo-banners", requirePlatformAdmin, requirePlatformPermission(PLATFORM_PERMISSIONS.ADS_EDIT), async (req, res) => {
   try {
-    const { imageUrl, clubTypeId, linkUrl } = req.body;
+    const { imageUrl, clubTypeId, linkUrl, locale } = req.body;
     if (!imageUrl?.trim()) return res.status(400).json({ error: "imageUrl required" });
     const { createPromoBanner } = await import("./platformPromoBanners.js");
     const banner = await createPromoBanner({
       imageUrl: String(imageUrl).trim(),
+      locale: locale === "ar" ? "ar" : "en",
       clubTypeId: clubTypeId ? String(clubTypeId) : null,
       linkUrl: linkUrl ? String(linkUrl).trim() : null,
     });
@@ -1701,12 +1703,12 @@ router.patch("/api/platform/promo-banners/:id", requirePlatformAdmin, requirePla
 
 router.put("/api/platform/promo-banners/reorder", requirePlatformAdmin, requirePlatformPermission(PLATFORM_PERMISSIONS.ADS_EDIT), async (req, res) => {
   try {
-    const { orderedIds } = req.body;
+    const { orderedIds, locale } = req.body;
     if (!Array.isArray(orderedIds) || !orderedIds.length) {
       return res.status(400).json({ error: "orderedIds array required" });
     }
     const { reorderPromoBanners } = await import("./platformPromoBanners.js");
-    await reorderPromoBanners(orderedIds.map(String));
+    await reorderPromoBanners(locale === "ar" ? "ar" : "en", orderedIds.map(String));
     res.json({ ok: true });
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });

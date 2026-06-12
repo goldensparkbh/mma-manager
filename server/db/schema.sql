@@ -803,6 +803,7 @@ CREATE INDEX IF NOT EXISTS idx_web_notification_receipts_user ON web_notificatio
 CREATE TABLE IF NOT EXISTS platform_promo_banners (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   sort_order INT NOT NULL DEFAULT 0,
+  locale VARCHAR(5) NOT NULL DEFAULT 'en',
   image_url TEXT NOT NULL,
   club_type_id VARCHAR(50),
   link_url VARCHAR(500),
@@ -810,4 +811,5 @@ CREATE TABLE IF NOT EXISTS platform_promo_banners (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS idx_platform_promo_banners_sort ON platform_promo_banners(sort_order ASC);
+CREATE INDEX IF NOT EXISTS idx_platform_promo_banners_sort ON platform_promo_banners(locale, sort_order ASC);
+ALTER TABLE platform_promo_banners ADD COLUMN IF NOT EXISTS locale VARCHAR(5) NOT NULL DEFAULT 'en';

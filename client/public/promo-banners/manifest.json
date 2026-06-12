@@ -1,0 +1,22 @@
+[
+  { "file": "promo-mma-en.png", "sport": "mma", "locale": "en", "clubTypeId": "mma" },
+  { "file": "promo-mma-ar.png", "sport": "mma", "locale": "ar", "clubTypeId": "mma" },
+  { "file": "promo-boxing-en.png", "sport": "boxing", "locale": "en", "clubTypeId": "boxing" },
+  { "file": "promo-boxing-ar.png", "sport": "boxing", "locale": "ar", "clubTypeId": "boxing" },
+  { "file": "promo-bjj-en.png", "sport": "bjj", "locale": "en", "clubTypeId": "bjj" },
+  { "file": "promo-bjj-ar.png", "sport": "bjj", "locale": "ar", "clubTypeId": "bjj" },
+  { "file": "promo-muaythai-en.png", "sport": "muay_thai", "locale": "en", "clubTypeId": "muay_thai" },
+  { "file": "promo-muaythai-ar.png", "sport": "muay_thai", "locale": "ar", "clubTypeId": "muay_thai" },
+  { "file": "promo-karate-en.png", "sport": "karate", "locale": "en", "clubTypeId": "karate" },
+  { "file": "promo-karate-ar.png", "sport": "karate", "locale": "ar", "clubTypeId": "karate" },
+  { "file": "promo-football-en.png", "sport": "football", "locale": "en", "clubTypeId": "football" },
+  { "file": "promo-football-ar.png", "sport": "football", "locale": "ar", "clubTypeId": "football" },
+  { "file": "promo-basketball-en.png", "sport": "basketball", "locale": "en", "clubTypeId": "basketball" },
+  { "file": "promo-basketball-ar.png", "sport": "basketball", "locale": "ar", "clubTypeId": "basketball" },
+  { "file": "promo-swimming-en.png", "sport": "swimming", "locale": "en", "clubTypeId": "swimming" },
+  { "file": "promo-swimming-ar.png", "sport": "swimming", "locale": "ar", "clubTypeId": "swimming" },
+  { "file": "promo-crossfit-en.png", "sport": "crossfit", "locale": "en", "clubTypeId": "crossfit" },
+  { "file": "promo-crossfit-ar.png", "sport": "crossfit", "locale": "ar", "clubTypeId": "crossfit" },
+  { "file": "promo-judo-en.png", "sport": "judo", "locale": "en", "clubTypeId": "judo" },
+  { "file": "promo-judo-ar.png", "sport": "judo", "locale": "ar", "clubTypeId": "judo" }
+]

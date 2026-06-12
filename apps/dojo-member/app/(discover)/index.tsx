@@ -35,7 +35,7 @@ function chunk<T>(items: T[], size: number): T[][] {
 
 export default function ExploreScreen() {
   const router = useRouter();
-  const { t, clubTypeName } = useI18n();
+  const { t, clubTypeName, locale } = useI18n();
   const colors = useThemeColors();
   const [query, setQuery] = useState("");
 
@@ -46,7 +46,7 @@ export default function ExploreScreen() {
   const { data: clubsData, isLoading: loadingClubs, isError: clubsError, refetch: refetchClubs, isRefetching } = useDiscoverClubs(query || undefined);
   const { data: scheduleData, isLoading: loadingSchedule, isError: scheduleError, refetch: refetchSchedule } = useDiscoverSchedule();
   const { data: clubTypes } = useClubTypes();
-  const { data: promoBanners, isLoading: loadingBanners, refetch: refetchBanners } = useDiscoverBanners();
+  const { data: promoBanners, isLoading: loadingBanners, refetch: refetchBanners } = useDiscoverBanners(locale);
 
   const clubs = clubsData?.clubs ?? [];
   const schedule = scheduleData ?? [];

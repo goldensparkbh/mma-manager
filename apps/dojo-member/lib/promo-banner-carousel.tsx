@@ -40,7 +40,8 @@ function PromoBannerPlaceholder() {
 
   return (
     <View style={[styles.wrap, styles.placeholderWrap]}>
-      <View style={[styles.bannerOuter, { width: bannerWidth, height: bannerHeight }]}>
+      <View style={[styles.slide, { width: pageWidth }]}>
+        <View style={[styles.bannerOuter, { width: bannerWidth, height: bannerHeight }]}>
         <LinearGradient
           colors={[NAWADY_BRAND.primary, NAWADY_BRAND.primaryDark, NAWADY_BRAND.primaryDarker]}
           start={{ x: 0, y: 0 }}
@@ -63,6 +64,7 @@ function PromoBannerPlaceholder() {
             <Text style={styles.brandText}>{t("app.name")}</Text>
           </View>
         </LinearGradient>
+        </View>
       </View>
     </View>
   );
@@ -103,8 +105,10 @@ export function PromoBannerCarousel({ banners, loading, onBannerPress }: Props) 
 
   if (loading) {
     return (
-      <View style={styles.wrap}>
-        <Skeleton height={bannerHeight} style={{ width: bannerWidth, alignSelf: "center", borderRadius: radius.lg }} />
+      <View style={[styles.wrap, styles.placeholderWrap]}>
+        <View style={[styles.slide, { width: pageWidth }]}>
+          <Skeleton height={bannerHeight} style={{ width: bannerWidth, borderRadius: radius.lg }} />
+        </View>
       </View>
     );
   }

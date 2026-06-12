@@ -51,15 +51,16 @@ export type ClubTypeOption = {
 export type DiscoverPromoBanner = {
   id: string;
   sortOrder: number;
+  locale?: "en" | "ar";
   imageUrl: string;
   clubTypeId: string | null;
   linkUrl: string | null;
 };
 
-export function useDiscoverBanners() {
+export function useDiscoverBanners(locale: "en" | "ar") {
   return useQuery<DiscoverPromoBanner[]>({
-    queryKey: ["discover", "banners"],
-    queryFn: () => publicApi.get("/api/discover/banners"),
+    queryKey: ["discover", "banners", locale],
+    queryFn: () => publicApi.get(`/api/discover/banners?locale=${locale}`),
     staleTime: 60_000,
   });
 }
