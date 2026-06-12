@@ -811,5 +811,6 @@ CREATE TABLE IF NOT EXISTS platform_promo_banners (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS idx_platform_promo_banners_sort ON platform_promo_banners(locale, sort_order ASC);
 ALTER TABLE platform_promo_banners ADD COLUMN IF NOT EXISTS locale VARCHAR(5) NOT NULL DEFAULT 'en';
+DROP INDEX IF EXISTS idx_platform_promo_banners_sort;
+CREATE INDEX IF NOT EXISTS idx_platform_promo_banners_sort ON platform_promo_banners(locale, sort_order ASC);
