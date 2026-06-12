@@ -169,6 +169,17 @@ router.get("/api/public/:slug/camps", async (req, res) => {
   }
 });
 
+router.get("/api/public/:slug/coaches", async (req, res) => {
+  try {
+    const tenant = await bookings.getTenantByPortalSlug(req.params.slug);
+    if (!tenant) return res.status(404).json({ error: "Club not found" });
+    const { getDiscoverCoaches } = await import("./discover.js");
+    res.json(await getDiscoverCoaches(tenant.id as string));
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 router.post("/api/public/:slug/camps/:id/register", async (req, res) => {
   try {
     const tenant = await bookings.getTenantByPortalSlug(req.params.slug);
@@ -474,6 +485,12 @@ router.get("/api/portal/classes", requireMemberAccount, async (req, res) => {
   const sessions = await data.getClassSessions(auth.tenantId!, from, to);
   const active = sessions.filter((s) => (s as { status?: string }).status === "scheduled");
   res.json(active);
+});
+
+router.get("/api/portal/coaches", requireMemberAccount, async (req, res) => {
+  const auth = getAuth(req);
+  const { getDiscoverCoaches } = await import("./discover.js");
+  res.json(await getDiscoverCoaches(auth.tenantId!));
 });
 
 router.get("/api/portal/bookings", requireMemberAccount, async (req, res) => {

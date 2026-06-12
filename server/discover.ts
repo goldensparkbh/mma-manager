@@ -1,6 +1,6 @@
 import { query } from "./db/index.js";
 import { resolvePublicAssetUrl } from "./publicUrl.js";
-import { toCamelCase } from "./utils.js";
+import { toCamelCase, rowsToCamel } from "./utils.js";
 import * as bookings from "./bookings.js";
 import * as data from "./data.js";
 
@@ -154,6 +154,17 @@ export async function getDiscoverClubProfile(slug: string) {
   };
 }
 
+export async function getDiscoverCoaches(tenantId: string) {
+  const result = await query(
+    `SELECT id, name, phone, email, bio
+     FROM coaches
+     WHERE tenant_id = $1 AND is_active = true
+     ORDER BY name`,
+    [tenantId],
+  );
+  return rowsToCamel(result.rows);
+}
+
 export type DiscoverClassSession = {
   id: string;
   name: string;
@@ -204,7 +215,7 @@ export async function getDiscoverSchedule(params: {
   }
   if (params.q?.trim()) {
     conditions.push(
-      `(cs.name ILIKE $${idx} OR COALESCE(cs.coach_name, '') ILIKE $${idx} OR t.name ILIKE $${idx})`,
+      `(cs.name ILIKE $${idx} OR COALESCE(c.name, '') ILIKE $${idx} OR t.name ILIKE $${idx})`,
     );
     values.push(`%${params.q.trim()}%`);
     idx++;
@@ -214,7 +225,7 @@ export async function getDiscoverSchedule(params: {
   const result = await query(
     `SELECT
        cs.id, cs.name, cs.starts_at, cs.ends_at, cs.capacity, cs.booked_count,
-       cs.coach_name, cs.location,
+       c.name AS coach_name, cs.location,
        t.name AS club_name,
        COALESCE(bs.public_slug, t.slug) AS club_slug,
        COALESCE(ts.club_type, 'hybrid') AS club_type,
@@ -224,6 +235,7 @@ export async function getDiscoverSchedule(params: {
      INNER JOIN tenants t ON t.id = cs.tenant_id
      INNER JOIN tenant_booking_settings bs ON bs.tenant_id = t.id
      LEFT JOIN tenant_settings ts ON ts.tenant_id = t.id
+     LEFT JOIN coaches c ON c.id = cs.coach_id
      WHERE ${conditions.join(" AND ")}
      ORDER BY cs.starts_at ASC
      LIMIT $${idx}`,

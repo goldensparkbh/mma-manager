@@ -9,6 +9,7 @@ import {
   SearchInput,
   Skeleton,
 } from "@/lib/components";
+import { QueryErrorState } from "@/lib/errors";
 import { useDiscoverSchedule } from "@/lib/discover";
 import { useI18n } from "@/lib/i18n";
 import { spacing, useThemeColors } from "@/lib/theme";
@@ -18,7 +19,7 @@ export default function ScheduleScreen() {
   const { t } = useI18n();
   const colors = useThemeColors();
   const [query, setQuery] = useState("");
-  const { data, isLoading, refetch, isRefetching } = useDiscoverSchedule({ q: query });
+  const { data, isLoading, isError, refetch, isRefetching } = useDiscoverSchedule({ q: query });
 
   const dayLabel = (date: Date) => {
     if (isToday(date)) return t("common.today");
@@ -48,6 +49,8 @@ export default function ScheduleScreen() {
         <SearchInput value={query} onChangeText={setQuery} placeholder={t("schedule.search")} />
         {isLoading ? (
           <Skeleton height={300} />
+        ) : isError ? (
+          <QueryErrorState onRetry={() => refetch()} />
         ) : sections.length === 0 ? (
           <PremiumEmptyState title={t("schedule.noClasses")} subtitle={t("schedule.noClassesSub")} />
         ) : (

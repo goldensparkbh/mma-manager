@@ -157,3 +157,13 @@ export function usePublicCamps(slug: string) {
     enabled: !!slug,
   });
 }
+
+export function usePublicCoaches(slug: string) {
+  return useQuery({
+    queryKey: ["public", "club", slug, "coaches"],
+    queryFn: () =>
+      publicApi.get<Array<{ id: string; name: string; bio?: string | null }>>(`/api/public/${slug}/coaches`),
+    enabled: !!slug,
+    staleTime: 60_000,
+  });
+}

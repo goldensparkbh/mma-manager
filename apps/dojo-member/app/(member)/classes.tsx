@@ -2,14 +2,14 @@ import { format, isToday, isTomorrow } from "date-fns";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { FlatList, StyleSheet, Text, View } from "react-native";
+import { FlatList, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "@/lib/auth";
-import { ClassRowCard, ClubHeader, PremiumEmptyState, SearchInput, Skeleton } from "@/lib/components";
+import { ClassRowCard, ClubHeader, PremiumEmptyState, SearchInput, Skeleton, Card } from "@/lib/components";
 import { QueryErrorState } from "@/lib/errors";
 import { ClassesIllustration } from "@/lib/illustrations";
 import { FadeInView } from "@/lib/motion";
 import { useBranding } from "@/lib/branding";
-import { useBookClass, useBookings, useClasses } from "@/lib/hooks";
+import { useBookClass, useBookings, useClasses, useCoaches } from "@/lib/hooks";
 import { useI18n } from "@/lib/i18n";
 import { useToast } from "@/lib/toast";
 import { spacing, useThemeColors } from "@/lib/theme";
@@ -31,6 +31,7 @@ export default function ClassesScreen() {
   const [query, setQuery] = useState("");
 
   const { data: sessionsData, isLoading, isError, refetch, isRefetching } = useClasses();
+  const { data: coachesData } = useCoaches();
   const { data: bookingsData } = useBookings();
   const sessions: ClassSession[] = sessionsData ?? [];
   const bookings: Booking[] = bookingsData ?? [];
@@ -78,6 +79,20 @@ export default function ClassesScreen() {
       <ClubHeader clubName={clubName} logoUrl={portalInfo?.logoUrl} accent={accent} subtitle={t("member.bookClass")} />
       <View style={styles.body}>
         <SearchInput value={query} onChangeText={setQuery} placeholder={t("member.searchClasses")} />
+        {coachesData && coachesData.length > 0 ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.coachScroll}>
+            {coachesData.map((coach) => (
+              <Card key={coach.id} style={styles.coachChip}>
+                <Text style={[styles.coachName, { color: colors.text }]}>{coach.name}</Text>
+                {coach.bio ? (
+                  <Text style={[styles.coachBio, { color: colors.textMuted }]} numberOfLines={2}>
+                    {coach.bio}
+                  </Text>
+                ) : null}
+              </Card>
+            ))}
+          </ScrollView>
+        ) : null}
         {isLoading ? (
           <Skeleton height={120} />
         ) : isError ? (
@@ -140,6 +155,10 @@ export default function ClassesScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   body: { flex: 1, paddingHorizontal: spacing.md, paddingTop: spacing.md },
+  coachScroll: { marginBottom: spacing.sm, marginHorizontal: -spacing.md, paddingHorizontal: spacing.md },
+  coachChip: { width: 160, marginRight: spacing.sm, padding: spacing.sm, gap: 4 },
+  coachName: { fontSize: 14, fontWeight: "700" },
+  coachBio: { fontSize: 12, lineHeight: 16 },
   list: { paddingBottom: 100, gap: spacing.md },
   section: { gap: spacing.sm, marginBottom: spacing.md },
   sectionTitle: { fontSize: 15, fontWeight: "700", marginBottom: 4 },

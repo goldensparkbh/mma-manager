@@ -13,7 +13,7 @@ export function usePortalRange() {
 }
 
 export function useClasses() {
-  const { api } = useAuth();
+  const { api, member } = useAuth();
   const { from, to } = usePortalRange();
   return useQuery<ClassSession[]>({
     queryKey: ["portal", "classes", from, to],
@@ -21,6 +21,17 @@ export function useClasses() {
       api.get<ClassSession[]>(
         `/api/portal/classes?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
       ),
+    enabled: !!member,
+  });
+}
+
+export function useCoaches() {
+  const { api, member } = useAuth();
+  return useQuery<Array<{ id: string; name: string; bio?: string | null }>>({
+    queryKey: ["portal", "coaches"],
+    queryFn: () => api.get("/api/portal/coaches"),
+    enabled: !!member,
+    staleTime: 60_000,
   });
 }
 

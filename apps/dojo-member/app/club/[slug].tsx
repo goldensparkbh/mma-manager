@@ -24,6 +24,7 @@ import { getClubTypeVisual } from "@/lib/clubVisuals";
 import {
   useClubProfile,
   usePublicCamps,
+  usePublicCoaches,
   usePublicPackages,
   usePublicSchedule,
 } from "@/lib/discover";
@@ -56,6 +57,7 @@ export default function ClubDetailScreen() {
   const { data: schedule, isLoading: loadingSchedule } = usePublicSchedule(clubSlug);
   const { data: packages, isLoading: loadingPackages } = usePublicPackages(clubSlug);
   const { data: camps, isLoading: loadingCamps } = usePublicCamps(clubSlug);
+  const { data: coaches, isLoading: loadingCoaches } = usePublicCoaches(clubSlug);
   const [favorite, setFavorite] = useState(false);
 
   const vis = getClubTypeVisual(profile?.clubType);
@@ -224,6 +226,19 @@ export default function ClubDetailScreen() {
             />
           );
         })
+      )}
+
+      <SectionTitle title={t("club.coaches")} />
+      {loadingCoaches ? (
+        <Skeleton height={80} />
+      ) : !coaches?.length ? (
+        <Card><Text style={[styles.muted, { color: colors.textMuted }]}>{t("club.noCoaches")}</Text></Card>
+      ) : (
+        coaches.map((coach: { id: string; name: string; bio?: string | null }) => (
+          <Card key={coach.id} style={styles.gap}>
+            <IconRow icon="person" label={coach.name} value={coach.bio || ""} accent={accent} />
+          </Card>
+        ))
       )}
 
       <SectionTitle title={t("club.membership")} />
