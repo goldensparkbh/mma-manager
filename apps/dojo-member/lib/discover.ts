@@ -48,6 +48,22 @@ export type ClubTypeOption = {
   category: string;
 };
 
+export type DiscoverPromoBanner = {
+  id: string;
+  sortOrder: number;
+  imageUrl: string;
+  clubTypeId: string | null;
+  linkUrl: string | null;
+};
+
+export function useDiscoverBanners() {
+  return useQuery<DiscoverPromoBanner[]>({
+    queryKey: ["discover", "banners"],
+    queryFn: () => publicApi.get("/api/discover/banners"),
+    staleTime: 60_000,
+  });
+}
+
 export function useClubTypes() {
   return useQuery<ClubTypeOption[]>({
     queryKey: ["club-types"],

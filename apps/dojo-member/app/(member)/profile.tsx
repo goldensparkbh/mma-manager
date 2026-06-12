@@ -62,7 +62,8 @@ export default function ProfileScreen() {
 
   return (
     <>
-      <Screen scroll padTop={false}>
+      <View style={[styles.root, { backgroundColor: colors.bg, paddingTop: insets.top + spacing.sm }]}>
+      <Screen scroll padTop={false} style={{ flex: 1 }}>
         <Card style={styles.gap}>
           <Text style={[styles.label, { color: colors.textMuted }]}>{t("member.account")}</Text>
           <Text style={[styles.value, { color: colors.text }]}>{member?.name}</Text>
@@ -169,6 +170,7 @@ export default function ProfileScreen() {
         <PrimaryButton label={t("account.signOut")} variant="danger" onPress={onLogout} />
         <Text style={[styles.version, { color: colors.textMuted }]}>{t("app.name")}</Text>
       </Screen>
+      </View>
 
       <Modal visible={qrOpen} animationType="slide" presentationStyle="fullScreen" onRequestClose={() => setQrOpen(false)}>
         <View style={[styles.qrModal, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }]}>
@@ -190,6 +192,7 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1 },
   gap: { gap: 6 },
   label: { fontSize: 12, fontWeight: "600", textTransform: "uppercase" },
   value: { fontSize: 18, fontWeight: "700" },

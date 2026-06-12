@@ -16,6 +16,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import type { ComponentProps } from "react";
 import { useBranding } from "./branding";
+import { NAWADY_BRAND } from "./brand";
+import { getClubTypeImageSource } from "./clubTypeImages";
+import { getClubTypeVisual } from "./clubVisuals";
 import { useTypography } from "./fonts";
 import { HeroWave } from "./hero-wave";
 import { useI18n } from "./i18n";
@@ -459,6 +462,114 @@ export function CategoryChip({
 
 const EXPLORE_HERO_IMAGE = require("../assets/illustrations/explore-hero.png");
 
+/** Circular Nawady mark — brand gradient with stylized N */
+export function NawadyMark({ size = 44 }: { size?: number }) {
+  return (
+    <LinearGradient
+      colors={[NAWADY_BRAND.primaryLight, NAWADY_BRAND.primary, NAWADY_BRAND.primaryDark]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={[
+        styles.nawadyMark,
+        {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+        },
+      ]}
+    >
+      <Text
+        style={[
+          styles.nawadyMarkLetter,
+          { fontSize: Math.round(size * 0.48), lineHeight: Math.round(size * 0.52) },
+        ]}
+      >
+        N
+      </Text>
+    </LinearGradient>
+  );
+}
+
+export function ExploreTopBar({
+  value,
+  onChangeText,
+  placeholder,
+}: {
+  value: string;
+  onChangeText: (v: string) => void;
+  placeholder: string;
+}) {
+  const colors = useThemeColors();
+  const typo = useTypography();
+  const insets = useSafeAreaInsets();
+
+  return (
+    <View style={[styles.exploreTopBarHero, { marginHorizontal: -spacing.md, marginBottom: spacing.sm }]}>
+      <Image source={EXPLORE_HERO_IMAGE} style={styles.exploreTopBarBg} contentFit="cover" />
+      <LinearGradient
+        colors={["rgba(0, 74, 173, 0.45)", "rgba(0, 53, 128, 0.88)"]}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <View style={[styles.exploreTopBarContent, { paddingTop: insets.top + 14 }]}>
+        <View style={[styles.exploreTopRow, typo.isRtl && styles.exploreTopRowRtl]}>
+          <NawadyMark size={46} />
+          <View style={styles.exploreSearchWrap}>
+            <SearchInput value={value} onChangeText={onChangeText} placeholder={placeholder} onDark rounded compact />
+          </View>
+        </View>
+      </View>
+      <HeroWave color={colors.bg} height={36} />
+    </View>
+  );
+}
+
+export function SportCategoryImageCard({
+  label,
+  count,
+  clubTypeId,
+  width,
+  countLabel,
+  onPress,
+}: {
+  label: string;
+  count: number;
+  clubTypeId: string;
+  width: number;
+  countLabel: string;
+  onPress: () => void;
+}) {
+  const colors = useThemeColors();
+  const typo = useTypography();
+  const image = getClubTypeImageSource(clubTypeId);
+  const vis = getClubTypeVisual(clubTypeId);
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [{ width, marginBottom: 10 }, pressed && { opacity: 0.92 }]}
+    >
+      <View style={[styles.sportImageWrap, { backgroundColor: vis.colorSoft }]}>
+        {image ? (
+          <Image source={image} style={styles.sportImage} contentFit="cover" />
+        ) : (
+          <View style={styles.sportImageFallback}>
+            <Ionicons name={vis.icon} size={26} color={vis.color} />
+          </View>
+        )}
+      </View>
+      <Text
+        style={[styles.sportImageLabel, { color: colors.text }, typo.style("semibold")]}
+        numberOfLines={2}
+      >
+        {label}
+      </Text>
+      <Text style={[styles.sportImageCount, { color: colors.textMuted }, typo.style("regular")]} numberOfLines={1}>
+        {countLabel}
+      </Text>
+    </Pressable>
+  );
+}
+
 export function DiscoverHero({
   title,
   subtitle,
@@ -648,11 +759,17 @@ export function SearchInput({
   onChangeText,
   placeholder,
   onDark,
+  rounded,
+  compact,
 }: {
   value: string;
   onChangeText: (v: string) => void;
   placeholder: string;
   onDark?: boolean;
+  /** Pill-shaped search field */
+  rounded?: boolean;
+  /** No bottom margin (for inline toolbars) */
+  compact?: boolean;
 }) {
   const colors = useThemeColors();
   const typo = useTypography();
@@ -660,6 +777,8 @@ export function SearchInput({
     <TextInput
       style={[
         styles.search,
+        rounded && styles.searchRounded,
+        compact && styles.searchCompact,
         onDark
           ? { backgroundColor: "rgba(255,255,255,0.92)", borderColor: "rgba(255,255,255,0.25)", color: "#0f172a" }
           : { backgroundColor: colors.card, borderColor: colors.border, color: colors.text },
@@ -725,6 +844,84 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     marginBottom: spacing.sm,
+  },
+  searchRounded: {
+    borderRadius: 999,
+    paddingVertical: 11,
+  },
+  searchCompact: {
+    marginBottom: 0,
+  },
+  exploreTopBarHero: {
+    minHeight: 140,
+    overflow: "hidden",
+    position: "relative",
+  },
+  exploreTopBarBg: {
+    ...StyleSheet.absoluteFillObject,
+    width: "100%",
+    height: "100%",
+  },
+  exploreTopBarContent: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: 52,
+    zIndex: 1,
+  },
+  nawadyMark: {
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#002654",
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.35)",
+  },
+  nawadyMarkLetter: {
+    color: "#ffffff",
+    fontWeight: "800",
+    letterSpacing: -0.5,
+    marginTop: 1,
+  },
+  exploreTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  exploreTopRowRtl: {
+    flexDirection: "row-reverse",
+  },
+  exploreSearchWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  sportImageWrap: {
+    width: "100%",
+    aspectRatio: 1,
+    borderRadius: 14,
+    overflow: "hidden",
+  },
+  sportImage: {
+    width: "100%",
+    height: "100%",
+  },
+  sportImageFallback: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sportImageLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    marginTop: 6,
+    lineHeight: 14,
+    minHeight: 28,
+  },
+  sportImageCount: {
+    fontSize: 10,
+    fontWeight: "600",
+    marginTop: 2,
   },
   btnInner: { flexDirection: "row", alignItems: "center", gap: 8 },
   quickAction: { flex: 1, alignItems: "center", gap: 8 },

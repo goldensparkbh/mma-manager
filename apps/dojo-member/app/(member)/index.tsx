@@ -69,10 +69,6 @@ export default function HomeScreen() {
       padTop={false}
       style={{ paddingTop: insets.top + spacing.sm }}
     >
-      <Pressable onPress={() => router.push("/(discover)/clubs")} style={styles.browseLink}>
-        <Text style={[styles.browseText, { color: accent }]}>{t("member.browsePlatform")}</Text>
-      </Pressable>
-
       <FadeInView delay={0}>
         <View style={styles.quickRow}>
           <QuickAction icon="calendar" label={t("tabs.classes")} onPress={() => router.push("/(member)/classes")} accent={accent} />
@@ -154,8 +150,6 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  browseLink: { marginBottom: spacing.sm },
-  browseText: { fontSize: 13, fontWeight: "700", textAlign: "center" },
   quickRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm },
   membershipCard: { borderWidth: 1.5, gap: spacing.sm },
   gap: { gap: spacing.sm },

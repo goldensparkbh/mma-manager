@@ -17,6 +17,8 @@ export const PLATFORM_PERMISSIONS = {
   SMS_EDIT: "platform.sms.edit",
   BILLING_VIEW: "platform.billing.view",
   BILLING_EDIT: "platform.billing.edit",
+  ADS_VIEW: "platform.ads.view",
+  ADS_EDIT: "platform.ads.edit",
 } as const;
 
 export type PlatformPermission = (typeof PLATFORM_PERMISSIONS)[keyof typeof PLATFORM_PERMISSIONS];
@@ -54,6 +56,8 @@ export const PLATFORM_ROLE_PRESETS: Record<string, { name: string; permissions: 
       PLATFORM_PERMISSIONS.PLANS_VIEW,
       PLATFORM_PERMISSIONS.PLANS_EDIT,
       PLATFORM_PERMISSIONS.PAYMENTS_VIEW,
+      PLATFORM_PERMISSIONS.ADS_VIEW,
+      PLATFORM_PERMISSIONS.ADS_EDIT,
     ],
   },
 };

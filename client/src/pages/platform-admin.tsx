@@ -34,6 +34,7 @@ import { PlatformPushPanel } from "@/components/platform-push-panel";
 import { PlatformSmsPanel } from "@/components/platform-sms-panel";
 import { PlatformTransactionBillingPanel } from "@/components/platform-transaction-billing-panel";
 import { PlatformLeadsPanel } from "@/components/platform-leads-panel";
+import { PlatformPromoBannersPanel } from "@/components/platform-promo-banners-panel";
 
 type PlatformStats = {
   totalTenants: number;
@@ -413,6 +414,8 @@ export default function PlatformAdmin() {
                     </CardContent>
                   </Card>
                 )}
+
+                {section === "ads" && <PlatformPromoBannersPanel />}
 
                 {section === "tenants" && (
             <Card className="shadow-sm">

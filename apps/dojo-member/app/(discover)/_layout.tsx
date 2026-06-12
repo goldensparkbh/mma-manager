@@ -2,10 +2,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import { useI18n } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
+import { useTabBarStyle } from "@/lib/tabBar";
 
 export default function DiscoverLayout() {
   const { t } = useI18n();
   const { colors } = useTheme();
+  const tabBarStyle = useTabBarStyle();
 
   return (
     <Tabs
@@ -13,13 +15,7 @@ export default function DiscoverLayout() {
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
-        tabBarStyle: {
-          backgroundColor: colors.tabBar,
-          borderTopColor: colors.border,
-          height: 60,
-          paddingBottom: 8,
-          paddingTop: 6,
-        },
+        tabBarStyle,
         tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
       }}
     >

@@ -6,11 +6,14 @@ import { useBranding } from "@/lib/branding";
 import { useI18n } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
 
+import { useTabBarStyle } from "@/lib/tabBar";
+
 export default function TabsLayout() {
   const { loading, member, slug } = useAuth();
   const { accent } = useBranding();
   const { t } = useI18n();
   const { colors } = useTheme();
+  const tabBarStyle = useTabBarStyle();
 
   if (loading) {
     return (
@@ -27,13 +30,7 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarActiveTintColor: accent,
         tabBarInactiveTintColor: colors.textMuted,
-        tabBarStyle: {
-          backgroundColor: colors.tabBar,
-          borderTopColor: colors.border,
-          height: 60,
-          paddingBottom: 8,
-          paddingTop: 6,
-        },
+        tabBarStyle,
         tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
       }}
     >

@@ -67,6 +67,15 @@ router.get("/api/discover/schedule", async (req, res) => {
   }
 });
 
+router.get("/api/discover/banners", async (_req, res) => {
+  try {
+    const { listPublicPromoBanners } = await import("./platformPromoBanners.js");
+    res.json(await listPublicPromoBanners());
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 router.get("/api/club-types", (_req, res) => {
   res.json(getAllClubTypes().map((t) => ({
     id: t.id,
@@ -1642,6 +1651,74 @@ router.patch("/api/platform/push/config", requirePlatformAdmin, requirePlatformP
   try {
     const { updatePushConfig } = await import("./platformPush.js");
     res.json(await updatePushConfig(req.body));
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+router.get("/api/platform/promo-banners", requirePlatformAdmin, requirePlatformPermission(PLATFORM_PERMISSIONS.ADS_VIEW), async (_req, res) => {
+  const { listAllPromoBanners } = await import("./platformPromoBanners.js");
+  res.json(await listAllPromoBanners());
+});
+
+router.post("/api/platform/promo-banners/upload", requirePlatformAdmin, requirePlatformPermission(PLATFORM_PERMISSIONS.ADS_EDIT), upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: "No file" });
+    const { PLATFORM_UPLOAD_TENANT } = await import("./platformPromoBanners.js");
+    const url = await saveFile(PLATFORM_UPLOAD_TENANT, "promo-banners", req.file);
+    res.json({ url });
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+router.post("/api/platform/promo-banners", requirePlatformAdmin, requirePlatformPermission(PLATFORM_PERMISSIONS.ADS_EDIT), async (req, res) => {
+  try {
+    const { imageUrl, clubTypeId, linkUrl } = req.body;
+    if (!imageUrl?.trim()) return res.status(400).json({ error: "imageUrl required" });
+    const { createPromoBanner } = await import("./platformPromoBanners.js");
+    const banner = await createPromoBanner({
+      imageUrl: String(imageUrl).trim(),
+      clubTypeId: clubTypeId ? String(clubTypeId) : null,
+      linkUrl: linkUrl ? String(linkUrl).trim() : null,
+    });
+    res.status(201).json(banner);
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+router.patch("/api/platform/promo-banners/:id", requirePlatformAdmin, requirePlatformPermission(PLATFORM_PERMISSIONS.ADS_EDIT), async (req, res) => {
+  try {
+    const { updatePromoBanner } = await import("./platformPromoBanners.js");
+    const banner = await updatePromoBanner(req.params.id, req.body);
+    if (!banner) return res.status(404).json({ error: "Banner not found" });
+    res.json(banner);
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+router.put("/api/platform/promo-banners/reorder", requirePlatformAdmin, requirePlatformPermission(PLATFORM_PERMISSIONS.ADS_EDIT), async (req, res) => {
+  try {
+    const { orderedIds } = req.body;
+    if (!Array.isArray(orderedIds) || !orderedIds.length) {
+      return res.status(400).json({ error: "orderedIds array required" });
+    }
+    const { reorderPromoBanners } = await import("./platformPromoBanners.js");
+    await reorderPromoBanners(orderedIds.map(String));
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+router.delete("/api/platform/promo-banners/:id", requirePlatformAdmin, requirePlatformPermission(PLATFORM_PERMISSIONS.ADS_EDIT), async (req, res) => {
+  try {
+    const { deletePromoBanner } = await import("./platformPromoBanners.js");
+    const ok = await deletePromoBanner(req.params.id);
+    if (!ok) return res.status(404).json({ error: "Banner not found" });
+    res.json({ ok: true });
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
   }
