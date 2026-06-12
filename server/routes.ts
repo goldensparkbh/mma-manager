@@ -956,6 +956,17 @@ router.get("/api/attendance/all", async (req, res) => res.json(await data.getAll
 router.post("/api/attendance", async (req, res) => {
   res.status(201).json(await data.createAttendance(tid(req), req.body));
 });
+router.post("/api/attendance/bulk", async (req, res) => {
+  const { members, date, checkIn } = req.body as {
+    members?: { memberId: string; memberName: string }[];
+    date?: string;
+    checkIn?: string;
+  };
+  if (!Array.isArray(members) || members.length === 0 || !date) {
+    return res.status(400).json({ error: "members and date are required" });
+  }
+  res.status(201).json(await data.createAttendanceBulk(tid(req), members, date, checkIn || null));
+});
 router.delete("/api/attendance/:id", async (req, res) => {
   await data.deleteAttendance(tid(req), req.params.id);
   res.status(204).send();

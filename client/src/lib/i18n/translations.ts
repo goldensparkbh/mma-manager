@@ -660,6 +660,10 @@ export const translations = {
             addAttendance: "إضافة حضور",
             addAttendanceSuccess: "تم تسجيل الحضور بنجاح",
             addAttendanceError: "حدث خطأ أثناء تسجيل الحضور",
+            bulkMode: "تسجيل جماعي",
+            selectAllAbsent: "تحديد كل الغائبين",
+            checkInSelected: "تسجيل حضور ({count})",
+            bulkSuccess: "تم تسجيل حضور {count} عضو",
             alreadyRecorded: "تم تسجيل الحضور لهذا التاريخ مسبقا",
             deleteSuccess: "تم حذف الحضور بنجاح",
             deleteError: "فشل حذف الحضور"
@@ -2101,6 +2105,10 @@ export const translations = {
             addAttendance: "Add Attendance",
             addAttendanceSuccess: "Attendance recorded successfully",
             addAttendanceError: "Failed to record attendance",
+            bulkMode: "Bulk check-in",
+            selectAllAbsent: "Select all absent",
+            checkInSelected: "Check in ({count})",
+            bulkSuccess: "Checked in {count} members",
             alreadyRecorded: "Attendance already recorded for this date",
             deleteSuccess: "Attendance deleted successfully",
             deleteError: "Failed to delete attendance"

@@ -8,9 +8,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { endOfDay, isWithinInterval, parseISO, startOfDay } from "date-fns";
-import { Calendar, LogIn, QrCode, Search } from "lucide-react";
+import { Calendar, LogIn, QrCode, Search, UserCheck, Users } from "lucide-react";
 import { Link } from "wouter";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { safeFormat } from "@/lib/formatDate";
 import { cn } from "@/lib/utils";
 import type { Attendance, Member, InsertAttendance } from "@shared/schema";
 import { useLanguage } from "@/context/language-context";
@@ -25,7 +26,10 @@ export default function AttendancePage() {
   const { toast } = useToast();
   const { t, language } = useLanguage();
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "present" | "absent">("all");
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const { data: attendanceRecords, isLoading: loadingAttendance } = useQuery<Attendance[]>({
     queryKey: ["/api/attendance", selectedDate],
@@ -35,24 +39,78 @@ export default function AttendancePage() {
     queryKey: ["/api/members"],
   });
 
+  const attendanceKey = ["/api/attendance", selectedDate];
+
   const recordAttendance = useMutation({
     mutationFn: async (data: InsertAttendance) => {
       const response = await apiRequest("POST", "/api/attendance", data);
       return response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/attendance"] });
-      toast({
-        title: t("common.success"),
-        description: t("attendance.addAttendanceSuccess"),
-      });
+    onMutate: async (newRecord) => {
+      await queryClient.cancelQueries({ queryKey: attendanceKey });
+      const previous = queryClient.getQueryData<Attendance[]>(attendanceKey);
+      queryClient.setQueryData<Attendance[]>(attendanceKey, (old) => [
+        ...(old ?? []),
+        { ...(newRecord as Attendance), id: `optimistic-${newRecord.memberId}` },
+      ]);
+      return { previous };
     },
-    onError: () => {
+    onError: (_err, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(attendanceKey, context.previous);
       toast({
         title: t("common.error"),
         description: t("attendance.addAttendanceError"),
         variant: "destructive",
       });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/attendance"] });
+    },
+  });
+
+  const bulkRecordAttendance = useMutation({
+    mutationFn: async (entries: { memberId: string; memberName: string }[]) => {
+      const response = await apiRequest("POST", "/api/attendance/bulk", {
+        members: entries,
+        date: selectedDate,
+        checkIn: new Date().toISOString(),
+      });
+      return response.json();
+    },
+    onMutate: async (entries) => {
+      await queryClient.cancelQueries({ queryKey: attendanceKey });
+      const previous = queryClient.getQueryData<Attendance[]>(attendanceKey);
+      const checkIn = new Date().toISOString();
+      queryClient.setQueryData<Attendance[]>(attendanceKey, (old) => [
+        ...(old ?? []),
+        ...entries.map((entry) => ({
+          id: `optimistic-${entry.memberId}`,
+          memberId: entry.memberId,
+          memberName: entry.memberName,
+          date: selectedDate,
+          checkIn,
+        }) as Attendance),
+      ]);
+      return { previous };
+    },
+    onSuccess: (_data, entries) => {
+      toast({
+        title: t("common.success"),
+        description: t("attendance.bulkSuccess").replace("{count}", String(entries.length)),
+      });
+      setSelectedIds(new Set());
+      setSelectMode(false);
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(attendanceKey, context.previous);
+      toast({
+        title: t("common.error"),
+        description: t("attendance.addAttendanceError"),
+        variant: "destructive",
+      });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/attendance"] });
     },
   });
 
@@ -61,23 +119,27 @@ export default function AttendancePage() {
       await apiRequest("DELETE", `/api/attendance/${attendanceId}`);
       return true;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/attendance"] });
-      toast({
-        title: t("common.success"),
-        description: t("attendance.deleteSuccess"),
-      });
+    onMutate: async (attendanceId) => {
+      await queryClient.cancelQueries({ queryKey: attendanceKey });
+      const previous = queryClient.getQueryData<Attendance[]>(attendanceKey);
+      queryClient.setQueryData<Attendance[]>(attendanceKey, (old) =>
+        (old ?? []).filter((record) => record.id !== attendanceId),
+      );
+      return { previous };
     },
-    onError: () => {
+    onError: (_err, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(attendanceKey, context.previous);
       toast({
         title: t("common.error"),
         description: t("attendance.deleteError"),
         variant: "destructive",
       });
     },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/attendance"] });
+    },
   });
 
-  const isUpdating = recordAttendance.isPending || removeAttendance.isPending;
   const attendanceByMember = new Map<string, Attendance>();
   attendanceRecords?.forEach((record) => attendanceByMember.set(record.memberId, record));
 
@@ -96,14 +158,6 @@ export default function AttendancePage() {
     }
   };
 
-  const getCurrentTime = () => {
-    const now = new Date();
-    return `${now.getHours().toString().padStart(2, "0")}:${now
-      .getMinutes()
-      .toString()
-      .padStart(2, "0")}`;
-  };
-
   const getInitials = (name: string) => {
     const parts = name.trim().split(/\s+/);
     if (parts.length === 0) return "?";
@@ -114,9 +168,10 @@ export default function AttendancePage() {
   };
 
   const handleToggleAttendance = (member: Member) => {
-    if (isUpdating) return;
     const existingRecord = getAttendanceRecord(member);
     if (existingRecord) {
+      // Wait until the optimistic insert is confirmed before allowing un-check.
+      if (existingRecord.id.startsWith("optimistic-")) return;
       if (!canDelete) {
         toast({
           title: t("common.error"),
@@ -139,11 +194,42 @@ export default function AttendancePage() {
     }
 
     recordAttendance.mutate({
-      memberId: member.memberId,
+      memberId: member.id,
       memberName: member.name,
       date: selectedDate,
-      checkIn: getCurrentTime(),
+      checkIn: new Date().toISOString(),
     });
+  };
+
+  const toggleSelect = (member: Member) => {
+    if (getAttendanceRecord(member)) return; // already present, nothing to bulk-record
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(member.id)) next.delete(member.id);
+      else next.add(member.id);
+      return next;
+    });
+  };
+
+  const handleCardClick = (member: Member) => {
+    if (selectMode) {
+      toggleSelect(member);
+      return;
+    }
+    if (canAdd || canDelete) handleToggleAttendance(member);
+  };
+
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  };
+
+  const submitBulk = () => {
+    const entries = activeMembers
+      .filter((member) => selectedIds.has(member.id))
+      .map((member) => ({ memberId: member.id, memberName: member.name }));
+    if (entries.length === 0) return;
+    bulkRecordAttendance.mutate(entries);
   };
 
   const formatDate = (dateString: string) => {
@@ -160,7 +246,12 @@ export default function AttendancePage() {
     isMemberActive(member, selectedDate)
   );
 
+  const presentCount = activeMembers.filter((member) => getAttendanceRecord(member)).length;
+
   const filteredMembers = activeMembers.filter((member) => {
+    const isPresent = Boolean(getAttendanceRecord(member));
+    if (statusFilter === "present" && !isPresent) return false;
+    if (statusFilter === "absent" && isPresent) return false;
     const query = searchQuery.trim().toLowerCase();
     if (!query) return true;
     return (
@@ -186,9 +277,14 @@ export default function AttendancePage() {
     <div className="space-y-6">
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold" data-testid="text-page-title">
-            {t('attendance.title')}
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold" data-testid="text-page-title">
+              {t('attendance.title')}
+            </h1>
+            <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
+              {presentCount} / {activeMembers.length} {t('common.present')}
+            </Badge>
+          </div>
           <p className="text-sm text-muted-foreground">{formatDate(selectedDate)}</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
@@ -223,11 +319,74 @@ export default function AttendancePage() {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex gap-2">
+          <Button
+            variant={statusFilter === "all" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStatusFilter("all")}
+          >
+            {t('common.all')} ({activeMembers.length})
+          </Button>
+          <Button
+            variant={statusFilter === "present" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStatusFilter("present")}
+          >
+            {t('common.present')} ({presentCount})
+          </Button>
+          <Button
+            variant={statusFilter === "absent" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStatusFilter("absent")}
+          >
+            {t('common.absent')} ({activeMembers.length - presentCount})
+          </Button>
+        </div>
+        {canAdd && (
+          <div className="flex flex-wrap gap-2">
+            {selectMode ? (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const absentIds = filteredMembers
+                      .filter((member) => !getAttendanceRecord(member))
+                      .map((member) => member.id);
+                    setSelectedIds(new Set(absentIds));
+                  }}
+                >
+                  {t('attendance.selectAllAbsent')}
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={selectedIds.size === 0 || bulkRecordAttendance.isPending}
+                  onClick={submitBulk}
+                >
+                  <UserCheck className="h-4 w-4 me-2" />
+                  {t('attendance.checkInSelected').replace("{count}", String(selectedIds.size))}
+                </Button>
+                <Button variant="ghost" size="sm" onClick={exitSelectMode}>
+                  {t('common.cancel')}
+                </Button>
+              </>
+            ) : (
+              <Button variant="outline" size="sm" onClick={() => setSelectMode(true)}>
+                <Users className="h-4 w-4 me-2" />
+                {t('attendance.bulkMode')}
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {filteredMembers.length > 0 ? (
           filteredMembers.map((member) => {
             const record = getAttendanceRecord(member);
             const isPresent = Boolean(record);
+            const isSelected = selectMode && selectedIds.has(member.id);
             const cardLabel = isPresent ? t('attendance.checkOut') : t('attendance.checkIn');
 
             return (
@@ -238,18 +397,20 @@ export default function AttendancePage() {
                   (canAdd || canDelete) ? "cursor-pointer" : "cursor-default opacity-80",
                   isPresent
                     ? "border-green-500/70 bg-green-50/60 dark:bg-green-900/10"
-                    : "hover:border-primary/40"
+                    : "hover:border-primary/40",
+                  selectMode && isPresent && "opacity-50",
+                  isSelected && "ring-2 ring-primary border-primary"
                 )}
-                onClick={() => (canAdd || canDelete) && handleToggleAttendance(member)}
+                onClick={() => handleCardClick(member)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    handleToggleAttendance(member);
+                    handleCardClick(member);
                   }
                 }}
                 role="button"
                 tabIndex={0}
-                aria-pressed={isPresent}
+                aria-pressed={selectMode ? isSelected : isPresent}
                 data-testid={`card-attendance-${member.id}`}
               >
                 <CardContent className="p-4">
@@ -276,7 +437,9 @@ export default function AttendancePage() {
                         {record?.checkIn ? (
                           <div className="flex items-center gap-1 text-xs text-muted-foreground">
                             <LogIn className="h-3 w-3" />
-                            <span>{t('common.time')}: {record.checkIn}</span>
+                            <span>
+                              {t('common.time')}: {safeFormat(record.checkIn, "HH:mm", { fallback: String(record.checkIn) })}
+                            </span>
                           </div>
                         ) : null}
                         <p className="text-xs text-muted-foreground">{cardLabel}</p>

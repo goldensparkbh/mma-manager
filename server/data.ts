@@ -142,6 +142,31 @@ export async function createAttendance(tenantId: string, data: Record<string, un
   return toCamelCase(result.rows[0]);
 }
 
+export async function createAttendanceBulk(
+  tenantId: string,
+  members: { memberId: string; memberName: string }[],
+  date: string,
+  checkIn: string | null,
+) {
+  const created: unknown[] = [];
+  for (const member of members) {
+    const existing = await query(
+      "SELECT id FROM attendance WHERE tenant_id = $1 AND member_id = $2 AND date = $3",
+      [tenantId, member.memberId, date],
+    );
+    if (existing.rows[0]) continue;
+    created.push(
+      await createAttendance(tenantId, {
+        memberId: member.memberId,
+        memberName: member.memberName,
+        date,
+        checkIn,
+      }),
+    );
+  }
+  return created;
+}
+
 async function decrementSessionOnAttendance(tenantId: string, memberId: string) {
   const today = new Date().toISOString().split("T")[0];
   const subs = await query(
