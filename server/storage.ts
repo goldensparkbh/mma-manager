@@ -1,6 +1,7 @@
 import { mkdir, writeFile, unlink, readFile } from "fs/promises";
 import path from "path";
 import { randomUUID } from "crypto";
+import { deleteObject, isObjectStorageEnabled, putObject } from "./objectStorage.js";
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), "uploads");
 
@@ -17,16 +18,34 @@ export async function saveFile(
   filename?: string,
 ): Promise<string> {
   const safeName = filename || `${randomUUID()}_${file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-  const subdir = path.join(tenantId, category);
-  const dir = await ensureUploadDir(subdir);
+  const key = `${tenantId}/${category}/${safeName}`;
+
+  if (isObjectStorageEnabled()) {
+    await putObject(key, file.buffer, file.mimetype);
+    return `/uploads/${key}`;
+  }
+
+  const dir = await ensureUploadDir(path.join(tenantId, category));
   const filePath = path.join(dir, safeName);
   await writeFile(filePath, file.buffer);
-  return `/uploads/${tenantId}/${category}/${safeName}`;
+  return `/uploads/${key}`;
 }
 
 export async function deleteFile(urlPath: string) {
-  if (!urlPath.startsWith("/uploads/")) return;
-  const filePath = path.join(UPLOAD_DIR, urlPath.replace("/uploads/", ""));
+  const normalized = urlPath.startsWith("/uploads/") ? urlPath : null;
+  if (!normalized) return;
+
+  const key = normalized.replace(/^\/uploads\//, "");
+
+  if (isObjectStorageEnabled()) {
+    try {
+      await deleteObject(key);
+    } catch {
+      // ignore missing remote objects
+    }
+  }
+
+  const filePath = path.join(UPLOAD_DIR, key);
   try {
     await unlink(filePath);
   } catch {

@@ -30,8 +30,33 @@ services:
         value: production
       - key: UPLOAD_DIR
         value: /app/uploads
+      - key: SPACES_ENDPOINT
+        scope: RUN_TIME
+        type: SECRET
+      - key: SPACES_REGION
+        value: nyc3
+      - key: SPACES_BUCKET
+        scope: RUN_TIME
+        type: SECRET
+      - key: SPACES_ACCESS_KEY_ID
+        scope: RUN_TIME
+        type: SECRET
+      - key: SPACES_SECRET_ACCESS_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: SPACES_CDN_URL
+        scope: RUN_TIME
+        type: SECRET
+    mounts:
+      - path: /app/uploads
+        volume:
+          name: uploads-data
     routes:
       - path: /
+volumes:
+  - name: uploads-data
+    region: nyc
+    size: 5Gi
 databases:
   - name: mma-db
     engine: PG

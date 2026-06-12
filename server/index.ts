@@ -5,7 +5,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { router } from "./routes.js";
 import { runMigrations, seedDefaults, pool } from "./db/index.js";
-import { getUploadDir } from "./storage.js";
+import { createUploadsMiddleware, logUploadStorageMode } from "./uploadsServe.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3000;
@@ -22,7 +22,9 @@ async function main() {
   const clubTypesPath = path.resolve(__dirname, "..", "client", "public", "club-types");
 
   // Serve static assets and SPA before API router (router auth would block GET /)
-  app.use("/uploads", express.static(getUploadDir()));
+  // Serve uploads (local disk and/or Spaces redirect)
+  app.use("/uploads", ...createUploadsMiddleware());
+  logUploadStorageMode();
   app.use("/club-types", express.static(clubTypesPath));
   app.use(express.static(distPath));
   app.get("*", (req, res, next) => {

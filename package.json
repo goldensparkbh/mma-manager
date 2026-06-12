@@ -17,6 +17,7 @@
     "mobile:staff": "npm --prefix apps/dojo-staff start"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1067.0",
     "@hookform/resolvers": "^3.10.0",
     "@jridgewell/trace-mapping": "^0.3.25",
     "@radix-ui/react-accordion": "^1.2.4",
