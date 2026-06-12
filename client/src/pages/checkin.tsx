@@ -13,7 +13,7 @@ async function doCheckIn(slug: string, token: string) {
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Check-in failed");
-  return data as { member?: { name?: string }; alreadyCheckedIn?: boolean };
+  return data as { member?: { name?: string }; action?: "checkin" | "checkout" };
 }
 
 export default function CheckInPage() {
@@ -32,7 +32,7 @@ export default function CheckInPage() {
       try {
         const data = await doCheckIn(slug, token);
         setMemberName(data.member?.name || "");
-        setMessage(data.alreadyCheckedIn ? t("checkin.already") : t("checkin.success"));
+        setMessage(data.action === "checkout" ? t("checkin.checkedOut") : t("checkin.success"));
         setStatus("ok");
       } catch (err) {
         setMessage((err as Error).message);

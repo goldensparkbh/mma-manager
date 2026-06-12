@@ -47,7 +47,7 @@ export default function ScanScreen() {
       const result = await checkIn.mutateAsync(parseQrToken(data));
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setMemberName(result.member?.name || "");
-      setMessage(result.alreadyCheckedIn ? "Already checked in" : "Check-in successful");
+      setMessage(result.action === "checkout" ? "Checked out" : "Check-in successful");
       setStatus("ok");
       qc.invalidateQueries({ queryKey: ["staff", "attendance"] });
     } catch (e) {

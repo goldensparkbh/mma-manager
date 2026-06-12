@@ -80,7 +80,7 @@ export function useQrCheckIn(slug: string) {
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || "Check-in failed");
-      return body as { member?: { name?: string }; alreadyCheckedIn?: boolean };
+      return body as { member?: { name?: string }; action?: "checkin" | "checkout" };
     },
   });
 }

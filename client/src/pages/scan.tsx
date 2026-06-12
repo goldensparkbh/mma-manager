@@ -32,7 +32,7 @@ export default function StaffScanPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Check-in failed");
       setMemberName((data.member as { name?: string })?.name || "");
-      setMessage(data.alreadyCheckedIn ? t("checkin.already") : t("checkin.success"));
+      setMessage(data.action === "checkout" ? t("checkin.checkedOut") : t("checkin.success"));
       setStatus("ok");
       setTimeout(() => {
         setStatus("scan");

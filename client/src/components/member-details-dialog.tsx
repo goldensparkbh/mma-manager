@@ -755,22 +755,18 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
     const handleAddAttendance = () => {
         if (!member || !attendanceDate || addAttendanceMutation.isPending) return;
 
-        const hasAttendanceForDate = memberAttendance?.some((attendance) =>
-            attendance.date === attendanceDate || attendance.date.startsWith(attendanceDate)
-        );
-        if (hasAttendanceForDate) {
-            toast({
-                title: t('common.warning'),
-                description: t('attendance.alreadyRecorded'),
-            });
-            return;
-        }
+        // Multiple check-in sessions per day are allowed.
+        const checkInDate = attendanceTime
+            ? new Date(`${attendanceDate}T${attendanceTime}`)
+            : null;
 
         addAttendanceMutation.mutate({
-            memberId: member.memberId,
+            memberId: member.id,
             memberName: member.name,
             date: attendanceDate,
-            checkIn: attendanceTime || undefined,
+            checkIn: checkInDate && !Number.isNaN(checkInDate.getTime())
+                ? checkInDate.toISOString()
+                : undefined,
             notes: attendanceNotes.trim() ? attendanceNotes.trim() : undefined,
         });
     };
@@ -1094,8 +1090,8 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
 
         const attendanceData = attendanceRecords.map((attendance) => ([
             formatDateSafe(attendance.date),
-            attendance.checkIn || "-",
-            attendance.checkOut || "-",
+            attendance.checkIn ? formatDateSafe(attendance.checkIn, "HH:mm") : "-",
+            attendance.checkOut ? formatDateSafe(attendance.checkOut, "HH:mm") : "-",
             attendance.notes || "-",
         ]));
 
@@ -2956,7 +2952,11 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                                                                                 </div>
                                                                             </div>
                                                                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                                                                <span>{format(attendanceDate, 'p', { locale: dir === 'rtl' ? ar : enUS })}</span>
+                                                                                <span dir="ltr">
+                                                                                    {attendance.checkIn ? formatDateSafe(attendance.checkIn, "HH:mm") : "—"}
+                                                                                    {" → "}
+                                                                                    {attendance.checkOut ? formatDateSafe(attendance.checkOut, "HH:mm") : "—"}
+                                                                                </span>
                                                                                 {hasPermission(PERMISSIONS.ATTENDANCE_DELETE) && (
                                                                                     <Button
                                                                                         variant="ghost"

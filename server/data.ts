@@ -131,15 +131,58 @@ export async function getAttendanceByMember(tenantId: string, memberIds: string[
 }
 
 export async function createAttendance(tenantId: string, data: Record<string, unknown>) {
+  // A member can have several check-in/check-out sessions on the same date;
+  // session packs are only decremented on the first check-in of the day.
+  const existing = await query(
+    "SELECT id FROM attendance WHERE tenant_id = $1 AND member_id = $2 AND date = $3 LIMIT 1",
+    [tenantId, data.memberId, data.date],
+  );
+  const isFirstOfDay = !existing.rows[0];
+
   const result = await query(
     `INSERT INTO attendance (tenant_id, member_id, member_name, date, check_in, check_out, notes)
      VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
     [tenantId, data.memberId, data.memberName, data.date, data.checkIn || null, data.checkOut || null, data.notes || null],
   );
-  await decrementSessionOnAttendance(tenantId, data.memberId as string);
+  if (isFirstOfDay) {
+    await decrementSessionOnAttendance(tenantId, data.memberId as string);
+  }
   const { markBookingAttended } = await import("./bookings.js");
   await markBookingAttended(tenantId, data.memberId as string, data.date as string);
   return toCamelCase(result.rows[0]);
+}
+
+export async function checkOutAttendanceBulk(
+  tenantId: string,
+  memberIds: string[],
+  date: string,
+  checkOut?: string,
+) {
+  const result = await query(
+    `UPDATE attendance SET check_out = $4
+     WHERE tenant_id = $1 AND member_id = ANY($2) AND date = $3 AND check_out IS NULL
+     RETURNING *`,
+    [tenantId, memberIds, date, checkOut || new Date().toISOString()],
+  );
+  return rowsToCamel(result.rows);
+}
+
+export async function checkOutAttendance(tenantId: string, id: string, checkOut?: string) {
+  const result = await query(
+    "UPDATE attendance SET check_out = $3 WHERE tenant_id = $1 AND id = $2 RETURNING *",
+    [tenantId, id, checkOut || new Date().toISOString()],
+  );
+  return result.rows[0] ? toCamelCase(result.rows[0]) : null;
+}
+
+/** Latest attendance session for a member on a date (by check-in time). */
+export async function getLatestAttendanceSession(tenantId: string, memberId: string, date: string) {
+  const result = await query(
+    `SELECT * FROM attendance WHERE tenant_id = $1 AND member_id = $2 AND date = $3
+     ORDER BY check_in DESC NULLS LAST LIMIT 1`,
+    [tenantId, memberId, date],
+  );
+  return result.rows[0] ? toCamelCase(result.rows[0]) : null;
 }
 
 export async function createAttendanceBulk(
@@ -150,11 +193,12 @@ export async function createAttendanceBulk(
 ) {
   const created: unknown[] = [];
   for (const member of members) {
-    const existing = await query(
-      "SELECT id FROM attendance WHERE tenant_id = $1 AND member_id = $2 AND date = $3",
+    // Skip members who currently have an open (not checked-out) session.
+    const open = await query(
+      "SELECT id FROM attendance WHERE tenant_id = $1 AND member_id = $2 AND date = $3 AND check_out IS NULL",
       [tenantId, member.memberId, date],
     );
-    if (existing.rows[0]) continue;
+    if (open.rows[0]) continue;
     created.push(
       await createAttendance(tenantId, {
         memberId: member.memberId,

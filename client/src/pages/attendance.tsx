@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { endOfDay, isWithinInterval, parseISO, startOfDay } from "date-fns";
-import { Calendar, LogIn, QrCode, Search, UserCheck, Users } from "lucide-react";
+import { Calendar, LogIn, LogOut, QrCode, Search, Trash2, UserCheck, Users } from "lucide-react";
 import { Link } from "wouter";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { safeFormat } from "@/lib/formatDate";
@@ -19,6 +19,8 @@ import { useLanguage } from "@/context/language-context";
 import { useAuth } from "@/context/auth-context";
 import { PERMISSIONS } from "@/lib/permissions";
 
+type MemberStatus = "in" | "out" | "absent";
+
 export default function AttendancePage() {
   const { hasPermission } = useAuth();
   const canAdd = hasPermission(PERMISSIONS.ATTENDANCE_CREATE);
@@ -26,7 +28,7 @@ export default function AttendancePage() {
   const { toast } = useToast();
   const { t, language } = useLanguage();
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "present" | "absent">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | MemberStatus>("all");
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -53,6 +55,37 @@ export default function AttendancePage() {
         ...(old ?? []),
         { ...(newRecord as Attendance), id: `optimistic-${newRecord.memberId}` },
       ]);
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(attendanceKey, context.previous);
+      toast({
+        title: t("common.error"),
+        description: t("attendance.addAttendanceError"),
+        variant: "destructive",
+      });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/attendance"] });
+    },
+  });
+
+  const checkOutAttendance = useMutation({
+    mutationFn: async (attendanceId: string) => {
+      const response = await apiRequest("PATCH", `/api/attendance/${attendanceId}/checkout`, {
+        checkOut: new Date().toISOString(),
+      });
+      return response.json();
+    },
+    onMutate: async (attendanceId) => {
+      await queryClient.cancelQueries({ queryKey: attendanceKey });
+      const previous = queryClient.getQueryData<Attendance[]>(attendanceKey);
+      const checkOut = new Date().toISOString();
+      queryClient.setQueryData<Attendance[]>(attendanceKey, (old) =>
+        (old ?? []).map((record) =>
+          record.id === attendanceId ? { ...record, checkOut } : record,
+        ),
+      );
       return { previous };
     },
     onError: (_err, _vars, context) => {
@@ -114,6 +147,48 @@ export default function AttendancePage() {
     },
   });
 
+  const bulkCheckOutAttendance = useMutation({
+    mutationFn: async (memberIds: string[]) => {
+      const response = await apiRequest("POST", "/api/attendance/bulk-checkout", {
+        memberIds,
+        date: selectedDate,
+        checkOut: new Date().toISOString(),
+      });
+      return response.json();
+    },
+    onMutate: async (memberIds) => {
+      await queryClient.cancelQueries({ queryKey: attendanceKey });
+      const previous = queryClient.getQueryData<Attendance[]>(attendanceKey);
+      const checkOut = new Date().toISOString();
+      const ids = new Set(memberIds);
+      queryClient.setQueryData<Attendance[]>(attendanceKey, (old) =>
+        (old ?? []).map((record) =>
+          ids.has(record.memberId) && !record.checkOut ? { ...record, checkOut } : record,
+        ),
+      );
+      return { previous };
+    },
+    onSuccess: (_data, memberIds) => {
+      toast({
+        title: t("common.success"),
+        description: t("attendance.bulkCheckOutSuccess").replace("{count}", String(memberIds.length)),
+      });
+      setSelectedIds(new Set());
+      setSelectMode(false);
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(attendanceKey, context.previous);
+      toast({
+        title: t("common.error"),
+        description: t("attendance.addAttendanceError"),
+        variant: "destructive",
+      });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/attendance"] });
+    },
+  });
+
   const removeAttendance = useMutation({
     mutationFn: async (attendanceId: string) => {
       await apiRequest("DELETE", `/api/attendance/${attendanceId}`);
@@ -140,11 +215,25 @@ export default function AttendancePage() {
     },
   });
 
-  const attendanceByMember = new Map<string, Attendance>();
-  attendanceRecords?.forEach((record) => attendanceByMember.set(record.memberId, record));
+  // Members can have several check-in/check-out sessions per day.
+  const sessionsByMember = new Map<string, Attendance[]>();
+  attendanceRecords?.forEach((record) => {
+    const list = sessionsByMember.get(record.memberId) ?? [];
+    list.push(record);
+    sessionsByMember.set(record.memberId, list);
+  });
+  sessionsByMember.forEach((list) =>
+    list.sort((a, b) => String(b.checkIn ?? "").localeCompare(String(a.checkIn ?? ""))),
+  );
 
-  const getAttendanceRecord = (member: Member) =>
-    attendanceByMember.get(member.memberId) ?? attendanceByMember.get(member.id);
+  const getMemberSessions = (member: Member): Attendance[] =>
+    sessionsByMember.get(member.id) ?? sessionsByMember.get(member.memberId) ?? [];
+
+  const getMemberStatus = (member: Member): MemberStatus => {
+    const sessions = getMemberSessions(member);
+    if (sessions.length === 0) return "absent";
+    return sessions[0].checkOut ? "out" : "in";
+  };
 
   const isMemberActive = (member: Member, date: string) => {
     if (!member.subscriptionStart || !member.subscriptionEnd) return false;
@@ -167,32 +256,27 @@ export default function AttendancePage() {
       .join("");
   };
 
+  const denyAccess = () =>
+    toast({
+      title: t("common.error"),
+      description: t("common.accessDeniedMessage"),
+      variant: "destructive",
+    });
+
   const handleToggleAttendance = (member: Member) => {
-    const existingRecord = getAttendanceRecord(member);
-    if (existingRecord) {
-      // Wait until the optimistic insert is confirmed before allowing un-check.
-      if (existingRecord.id.startsWith("optimistic-")) return;
-      if (!canDelete) {
-        toast({
-          title: t("common.error"),
-          description: t("common.accessDeniedMessage"),
-          variant: "destructive",
-        });
-        return;
-      }
-      removeAttendance.mutate(existingRecord.id);
+    const status = getMemberStatus(member);
+
+    if (status === "in") {
+      // Open session → record the check-out time.
+      const open = getMemberSessions(member)[0];
+      if (open.id.startsWith("optimistic-")) return;
+      if (!canAdd) return denyAccess();
+      checkOutAttendance.mutate(open.id);
       return;
     }
 
-    if (!canAdd) {
-      toast({
-        title: t("common.error"),
-        description: t("common.accessDeniedMessage"),
-        variant: "destructive",
-      });
-      return;
-    }
-
+    // Absent or already checked out → start a new check-in session.
+    if (!canAdd) return denyAccess();
     recordAttendance.mutate({
       memberId: member.id,
       memberName: member.name,
@@ -201,8 +285,13 @@ export default function AttendancePage() {
     });
   };
 
+  const handleDeleteSession = (record: Attendance) => {
+    if (record.id.startsWith("optimistic-")) return;
+    if (!canDelete) return denyAccess();
+    removeAttendance.mutate(record.id);
+  };
+
   const toggleSelect = (member: Member) => {
-    if (getAttendanceRecord(member)) return; // already present, nothing to bulk-record
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(member.id)) next.delete(member.id);
@@ -224,14 +313,6 @@ export default function AttendancePage() {
     setSelectedIds(new Set());
   };
 
-  const submitBulk = () => {
-    const entries = activeMembers
-      .filter((member) => selectedIds.has(member.id))
-      .map((member) => ({ memberId: member.id, memberName: member.name }));
-    if (entries.length === 0) return;
-    bulkRecordAttendance.mutate(entries);
-  };
-
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return new Intl.DateTimeFormat(language === 'ar' ? 'ar-BH' : 'en-US', {
@@ -242,16 +323,19 @@ export default function AttendancePage() {
     }).format(date);
   };
 
+  const formatTime = (value: unknown) =>
+    value ? safeFormat(value, "HH:mm", { fallback: String(value) }) : "—";
+
   const activeMembers = (members ?? []).filter((member) =>
     isMemberActive(member, selectedDate)
   );
 
-  const presentCount = activeMembers.filter((member) => getAttendanceRecord(member)).length;
+  const inCount = activeMembers.filter((m) => getMemberStatus(m) === "in").length;
+  const outCount = activeMembers.filter((m) => getMemberStatus(m) === "out").length;
+  const absentCount = activeMembers.length - inCount - outCount;
 
   const filteredMembers = activeMembers.filter((member) => {
-    const isPresent = Boolean(getAttendanceRecord(member));
-    if (statusFilter === "present" && !isPresent) return false;
-    if (statusFilter === "absent" && isPresent) return false;
+    if (statusFilter !== "all" && getMemberStatus(member) !== statusFilter) return false;
     const query = searchQuery.trim().toLowerCase();
     if (!query) return true;
     return (
@@ -259,6 +343,27 @@ export default function AttendancePage() {
       member.memberId.toLowerCase().includes(query)
     );
   });
+
+  // Check-in applies to selected members who are not currently in;
+  // check-out applies to selected members with an open session.
+  const selectedMembers = activeMembers.filter((member) => selectedIds.has(member.id));
+  const selectedForCheckIn = selectedMembers.filter((member) => getMemberStatus(member) !== "in");
+  const selectedForCheckOut = selectedMembers.filter((member) => getMemberStatus(member) === "in");
+
+  const submitBulkCheckIn = () => {
+    const entries = selectedForCheckIn.map((member) => ({
+      memberId: member.id,
+      memberName: member.name,
+    }));
+    if (entries.length === 0) return;
+    bulkRecordAttendance.mutate(entries);
+  };
+
+  const submitBulkCheckOut = () => {
+    const memberIds = selectedForCheckOut.map((member) => member.id);
+    if (memberIds.length === 0) return;
+    bulkCheckOutAttendance.mutate(memberIds);
+  };
 
   if (loadingAttendance || loadingMembers) {
     return (
@@ -282,7 +387,7 @@ export default function AttendancePage() {
               {t('attendance.title')}
             </h1>
             <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
-              {presentCount} / {activeMembers.length} {t('common.present')}
+              {inCount} / {activeMembers.length} {t('common.present')}
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground">{formatDate(selectedDate)}</p>
@@ -320,7 +425,7 @@ export default function AttendancePage() {
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             variant={statusFilter === "all" ? "default" : "outline"}
             size="sm"
@@ -329,18 +434,25 @@ export default function AttendancePage() {
             {t('common.all')} ({activeMembers.length})
           </Button>
           <Button
-            variant={statusFilter === "present" ? "default" : "outline"}
+            variant={statusFilter === "in" ? "default" : "outline"}
             size="sm"
-            onClick={() => setStatusFilter("present")}
+            onClick={() => setStatusFilter("in")}
           >
-            {t('common.present')} ({presentCount})
+            {t('common.present')} ({inCount})
+          </Button>
+          <Button
+            variant={statusFilter === "out" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStatusFilter("out")}
+          >
+            {t('attendance.checkedOut')} ({outCount})
           </Button>
           <Button
             variant={statusFilter === "absent" ? "default" : "outline"}
             size="sm"
             onClick={() => setStatusFilter("absent")}
           >
-            {t('common.absent')} ({activeMembers.length - presentCount})
+            {t('common.absent')} ({absentCount})
           </Button>
         </div>
         {canAdd && (
@@ -352,7 +464,7 @@ export default function AttendancePage() {
                   size="sm"
                   onClick={() => {
                     const absentIds = filteredMembers
-                      .filter((member) => !getAttendanceRecord(member))
+                      .filter((member) => getMemberStatus(member) === "absent")
                       .map((member) => member.id);
                     setSelectedIds(new Set(absentIds));
                   }}
@@ -360,12 +472,33 @@ export default function AttendancePage() {
                   {t('attendance.selectAllAbsent')}
                 </Button>
                 <Button
+                  variant="outline"
                   size="sm"
-                  disabled={selectedIds.size === 0 || bulkRecordAttendance.isPending}
-                  onClick={submitBulk}
+                  onClick={() => {
+                    const presentIds = filteredMembers
+                      .filter((member) => getMemberStatus(member) === "in")
+                      .map((member) => member.id);
+                    setSelectedIds(new Set(presentIds));
+                  }}
+                >
+                  {t('attendance.selectAllPresent')}
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={selectedForCheckIn.length === 0 || bulkRecordAttendance.isPending}
+                  onClick={submitBulkCheckIn}
                 >
                   <UserCheck className="h-4 w-4 me-2" />
-                  {t('attendance.checkInSelected').replace("{count}", String(selectedIds.size))}
+                  {t('attendance.checkInSelected').replace("{count}", String(selectedForCheckIn.length))}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={selectedForCheckOut.length === 0 || bulkCheckOutAttendance.isPending}
+                  onClick={submitBulkCheckOut}
+                >
+                  <LogOut className="h-4 w-4 me-2" />
+                  {t('attendance.checkOutSelected').replace("{count}", String(selectedForCheckOut.length))}
                 </Button>
                 <Button variant="ghost" size="sm" onClick={exitSelectMode}>
                   {t('common.cancel')}
@@ -384,10 +517,10 @@ export default function AttendancePage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {filteredMembers.length > 0 ? (
           filteredMembers.map((member) => {
-            const record = getAttendanceRecord(member);
-            const isPresent = Boolean(record);
+            const sessions = getMemberSessions(member);
+            const status = getMemberStatus(member);
             const isSelected = selectMode && selectedIds.has(member.id);
-            const cardLabel = isPresent ? t('attendance.checkOut') : t('attendance.checkIn');
+            const cardLabel = status === "in" ? t('attendance.checkOut') : t('attendance.checkIn');
 
             return (
               <Card
@@ -395,10 +528,9 @@ export default function AttendancePage() {
                 className={cn(
                   "transition border hover:shadow-sm",
                   (canAdd || canDelete) ? "cursor-pointer" : "cursor-default opacity-80",
-                  isPresent
-                    ? "border-green-500/70 bg-green-50/60 dark:bg-green-900/10"
-                    : "hover:border-primary/40",
-                  selectMode && isPresent && "opacity-50",
+                  status === "in" && "border-green-500/70 bg-green-50/60 dark:bg-green-900/10",
+                  status === "out" && "border-amber-500/60 bg-amber-50/40 dark:bg-amber-900/10",
+                  status === "absent" && "hover:border-primary/40",
                   isSelected && "ring-2 ring-primary border-primary"
                 )}
                 onClick={() => handleCardClick(member)}
@@ -410,7 +542,7 @@ export default function AttendancePage() {
                 }}
                 role="button"
                 tabIndex={0}
-                aria-pressed={selectMode ? isSelected : isPresent}
+                aria-pressed={selectMode ? isSelected : status === "in"}
                 data-testid={`card-attendance-${member.id}`}
               >
                 <CardContent className="p-4">
@@ -425,23 +557,49 @@ export default function AttendancePage() {
                           <p className="font-semibold">{member.name}</p>
                           <p className="text-xs text-muted-foreground">#{member.memberId}</p>
                         </div>
-                        {isPresent ? (
+                        {status === "in" && (
                           <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
                             {t('common.present')}
                           </Badge>
-                        ) : (
+                        )}
+                        {status === "out" && (
+                          <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                            {t('attendance.checkedOut')}
+                          </Badge>
+                        )}
+                        {status === "absent" && (
                           <Badge variant="secondary">{t('common.absent')}</Badge>
                         )}
                       </div>
                       <div className="mt-2 space-y-1">
-                        {record?.checkIn ? (
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                            <LogIn className="h-3 w-3" />
-                            <span>
-                              {t('common.time')}: {safeFormat(record.checkIn, "HH:mm", { fallback: String(record.checkIn) })}
+                        {sessions.map((session) => (
+                          <div
+                            key={session.id}
+                            className="flex items-center gap-2 text-xs text-muted-foreground"
+                          >
+                            <span className="flex items-center gap-1">
+                              <LogIn className="h-3 w-3 text-green-600" />
+                              {formatTime(session.checkIn)}
                             </span>
+                            <span className="flex items-center gap-1">
+                              <LogOut className="h-3 w-3 text-amber-600" />
+                              {formatTime(session.checkOut)}
+                            </span>
+                            {canDelete && !selectMode && (
+                              <button
+                                type="button"
+                                className="ms-auto p-0.5 text-muted-foreground/60 hover:text-destructive"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteSession(session);
+                                }}
+                                aria-label={t('common.delete')}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            )}
                           </div>
-                        ) : null}
+                        ))}
                         <p className="text-xs text-muted-foreground">{cardLabel}</p>
                       </div>
                     </div>

@@ -967,6 +967,22 @@ router.post("/api/attendance/bulk", async (req, res) => {
   }
   res.status(201).json(await data.createAttendanceBulk(tid(req), members, date, checkIn || null));
 });
+router.post("/api/attendance/bulk-checkout", async (req, res) => {
+  const { memberIds, date, checkOut } = req.body as {
+    memberIds?: string[];
+    date?: string;
+    checkOut?: string;
+  };
+  if (!Array.isArray(memberIds) || memberIds.length === 0 || !date) {
+    return res.status(400).json({ error: "memberIds and date are required" });
+  }
+  res.json(await data.checkOutAttendanceBulk(tid(req), memberIds, date, checkOut));
+});
+router.patch("/api/attendance/:id/checkout", async (req, res) => {
+  const updated = await data.checkOutAttendance(tid(req), req.params.id, req.body?.checkOut);
+  if (!updated) return res.status(404).json({ error: "Not found" });
+  res.json(updated);
+});
 router.delete("/api/attendance/:id", async (req, res) => {
   await data.deleteAttendance(tid(req), req.params.id);
   res.status(204).send();

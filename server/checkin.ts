@@ -28,24 +28,27 @@ export async function qrCheckIn(slug: string, qrToken: string) {
   if (!member) throw new Error("Invalid QR code");
 
   const today = new Date().toISOString().split("T")[0];
-  const existing = await query(
-    "SELECT id FROM attendance WHERE tenant_id = $1 AND member_id = $2 AND date = $3",
-    [tenantId, member.id, today],
-  );
+  const { createAttendance, checkOutAttendance, getLatestAttendanceSession } = await import("./data.js");
 
-  if (!existing.rows[0]) {
-    const { createAttendance } = await import("./data.js");
+  // Scanning toggles: open session → check out; otherwise start a new check-in.
+  const latest = await getLatestAttendanceSession(tenantId, member.id as string, today);
+  let action: "checkin" | "checkout";
+  if (latest && !latest.checkOut) {
+    await checkOutAttendance(tenantId, latest.id as string);
+    action = "checkout";
+  } else {
     await createAttendance(tenantId, {
       memberId: member.id,
       memberName: member.name,
       date: today,
       checkIn: new Date().toISOString(),
     });
+    action = "checkin";
   }
 
   try {
     const { dispatchWebhooks } = await import("./webhooks.js");
-    await dispatchWebhooks(tenantId, "attendance.checkin", {
+    await dispatchWebhooks(tenantId, `attendance.${action}`, {
       memberId: member.id,
       memberName: member.name,
       date: today,
@@ -56,6 +59,8 @@ export async function qrCheckIn(slug: string, qrToken: string) {
     ok: true,
     member: toCamelCase(member),
     date: today,
-    alreadyCheckedIn: !!existing.rows[0],
+    action,
+    // kept for older clients that still read this flag
+    alreadyCheckedIn: action === "checkout",
   };
 }
