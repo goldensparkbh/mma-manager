@@ -28,6 +28,13 @@ export default function DiscoverLayout() {
         }}
       />
       <Tabs.Screen
+        name="map"
+        options={{
+          title: t("tabs.map"),
+          tabBarIcon: ({ color, size }) => <Ionicons name="map" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="clubs"
         options={{
           title: t("tabs.clubs"),

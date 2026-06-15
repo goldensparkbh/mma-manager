@@ -18,6 +18,7 @@
       "bundleIdentifier": "com.dojomanager.member",
       "infoPlist": {
         "NSCameraUsageDescription": "Show your membership QR code for check-in",
+        "NSLocationWhenInUseUsageDescription": "Show nearby sports clubs on the map",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -26,7 +27,8 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#004aad"
       },
-      "package": "com.dojomanager.member"
+      "package": "com.dojomanager.member",
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
     },
     "experiments": {
       "typedRoutes": true

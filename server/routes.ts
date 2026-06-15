@@ -33,9 +33,21 @@ router.get("/api/clubs", async (req, res) => {
     const { listDiscoverableClubs } = await import("./discover.js");
     const q = (req.query.q as string) || undefined;
     const clubType = (req.query.clubType as string) || undefined;
+    const country = (req.query.country as string) || undefined;
+    const city = (req.query.city as string) || undefined;
+    const hasLocation = req.query.hasLocation === "true" || req.query.hasLocation === "1";
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
     const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : undefined;
-    res.json(await listDiscoverableClubs({ q, clubType, limit, offset }));
+    res.json(await listDiscoverableClubs({ q, clubType, country, city, hasLocation, limit, offset }));
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+router.get("/api/clubs/map-filters", async (_req, res) => {
+  try {
+    const { getDiscoverMapFilters } = await import("./discover.js");
+    res.json(await getDiscoverMapFilters());
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }

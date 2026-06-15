@@ -684,6 +684,13 @@ ALTER TABLE tenant_booking_settings ADD COLUMN IF NOT EXISTS app_directory_enabl
 UPDATE tenant_booking_settings SET app_directory_enabled = true WHERE app_directory_enabled IS NULL;
 
 ALTER TABLE tenant_settings ADD COLUMN IF NOT EXISTS operating_hours JSONB DEFAULT '{}';
+ALTER TABLE tenant_settings ADD COLUMN IF NOT EXISTS latitude DECIMAL(10, 7);
+ALTER TABLE tenant_settings ADD COLUMN IF NOT EXISTS longitude DECIMAL(10, 7);
+ALTER TABLE tenant_settings ADD COLUMN IF NOT EXISTS city VARCHAR(100);
+ALTER TABLE tenant_settings ADD COLUMN IF NOT EXISTS country VARCHAR(2);
+ALTER TABLE tenant_settings ADD COLUMN IF NOT EXISTS sport_type_ids JSONB DEFAULT '[]';
+ALTER TABLE tenant_settings ADD COLUMN IF NOT EXISTS google_place_id VARCHAR(255);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tenant_settings_google_place_id ON tenant_settings(google_place_id) WHERE google_place_id IS NOT NULL;
 UPDATE tenant_booking_settings SET allow_self_registration = true WHERE allow_self_registration IS NULL;
 
 ALTER TABLE member_payments ADD COLUMN IF NOT EXISTS package_amount DECIMAL(10,3);

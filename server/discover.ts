@@ -10,7 +10,12 @@ export type DiscoverClub = {
   slug: string;
   portalSlug: string;
   clubType: string;
+  sportTypeIds?: string[];
   location?: string | null;
+  city?: string | null;
+  country?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   phone?: string | null;
   logoUrl?: string | null;
   primaryColor?: string | null;
@@ -19,13 +24,31 @@ export type DiscoverClub = {
   nextClassAt?: string | null;
 };
 
+function parseSportTypeIds(raw: unknown, clubType: string): string[] {
+  let ids: string[] = [];
+  if (Array.isArray(raw)) ids = raw.filter((x) => typeof x === "string") as string[];
+  else if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) ids = parsed.filter((x) => typeof x === "string");
+    } catch {
+      ids = [];
+    }
+  }
+  const merged = new Set([clubType, ...ids].filter(Boolean));
+    return Array.from(merged);
+}
+
 export async function listDiscoverableClubs(params: {
   q?: string;
   clubType?: string;
+  country?: string;
+  city?: string;
+  hasLocation?: boolean;
   limit?: number;
   offset?: number;
 }): Promise<{ clubs: DiscoverClub[]; total: number }> {
-  const limit = Math.min(Math.max(params.limit ?? 50, 1), 100);
+  const limit = Math.min(Math.max(params.limit ?? 50, 1), 500);
   const offset = Math.max(params.offset ?? 0, 0);
   const conditions = [
     "bs.portal_enabled = true",
@@ -43,8 +66,23 @@ export async function listDiscoverableClubs(params: {
     idx++;
   }
   if (params.clubType?.trim()) {
-    conditions.push(`COALESCE(ts.club_type, 'hybrid') = $${idx}`);
+    conditions.push(
+      `(COALESCE(ts.club_type, 'hybrid') = $${idx} OR COALESCE(ts.sport_type_ids, '[]'::jsonb) @> to_jsonb(ARRAY[$${idx}]::text[]))`,
+    );
     values.push(params.clubType.trim());
+    idx++;
+  }
+  if (params.hasLocation) {
+    conditions.push("ts.latitude IS NOT NULL AND ts.longitude IS NOT NULL");
+  }
+  if (params.country?.trim()) {
+    conditions.push(`UPPER(COALESCE(ts.country, '')) = $${idx}`);
+    values.push(params.country.trim().toUpperCase());
+    idx++;
+  }
+  if (params.city?.trim()) {
+    conditions.push(`COALESCE(ts.city, '') ILIKE $${idx}`);
+    values.push(params.city.trim());
     idx++;
   }
 
@@ -67,7 +105,12 @@ export async function listDiscoverableClubs(params: {
        t.slug,
        COALESCE(bs.public_slug, t.slug) AS portal_slug,
        COALESCE(ts.club_type, 'hybrid') AS club_type,
+       ts.sport_type_ids,
        ts.location,
+       ts.city,
+       ts.country,
+       ts.latitude,
+       ts.longitude,
        ts.phone,
        ts.logo_url_light,
        ts.logo_url_dark,
@@ -92,13 +135,19 @@ export async function listDiscoverableClubs(params: {
 
   const clubs = result.rows.map((row) => {
     const c = toCamelCase(row) as Record<string, unknown>;
+    const clubType = (c.clubType as string) || "hybrid";
     return {
       id: c.id as string,
       name: c.name as string,
       slug: c.slug as string,
       portalSlug: c.portalSlug as string,
-      clubType: (c.clubType as string) || "hybrid",
+      clubType,
+      sportTypeIds: parseSportTypeIds(c.sportTypeIds, clubType),
       location: c.location as string | null,
+      city: c.city as string | null,
+      country: c.country as string | null,
+      latitude: c.latitude != null ? Number(c.latitude) : null,
+      longitude: c.longitude != null ? Number(c.longitude) : null,
       phone: c.phone as string | null,
       logoUrl: resolvePublicAssetPath(
         (c.logoUrlLight as string) || (c.logoUrlDark as string) || null,
@@ -112,6 +161,53 @@ export async function listDiscoverableClubs(params: {
   });
 
   return { clubs, total };
+}
+
+export type MapFilterCountry = { code: string; count: number };
+export type MapFilterCity = { country: string; city: string; count: number };
+
+export async function getDiscoverMapFilters(): Promise<{
+  countries: MapFilterCountry[];
+  cities: MapFilterCity[];
+}> {
+  const baseWhere = `
+    bs.portal_enabled = true
+    AND COALESCE(bs.app_directory_enabled, true) = true
+    AND t.status IN ('active', 'trial')
+    AND ts.latitude IS NOT NULL AND ts.longitude IS NOT NULL
+  `;
+
+  const countries = await query(
+    `SELECT UPPER(COALESCE(ts.country, '')) AS code, COUNT(*)::int AS count
+     FROM tenants t
+     INNER JOIN tenant_booking_settings bs ON bs.tenant_id = t.id
+     LEFT JOIN tenant_settings ts ON ts.tenant_id = t.id
+     WHERE ${baseWhere} AND COALESCE(ts.country, '') <> ''
+     GROUP BY UPPER(COALESCE(ts.country, ''))
+     ORDER BY count DESC, code ASC`,
+  );
+
+  const cities = await query(
+    `SELECT UPPER(COALESCE(ts.country, '')) AS country, ts.city AS city, COUNT(*)::int AS count
+     FROM tenants t
+     INNER JOIN tenant_booking_settings bs ON bs.tenant_id = t.id
+     LEFT JOIN tenant_settings ts ON ts.tenant_id = t.id
+     WHERE ${baseWhere} AND COALESCE(ts.city, '') <> ''
+     GROUP BY UPPER(COALESCE(ts.country, '')), ts.city
+     ORDER BY count DESC, city ASC`,
+  );
+
+  return {
+    countries: countries.rows.map((r) => ({
+      code: r.code as string,
+      count: (r.count as number) ?? 0,
+    })),
+    cities: cities.rows.map((r) => ({
+      country: r.country as string,
+      city: r.city as string,
+      count: (r.count as number) ?? 0,
+    })),
+  };
 }
 
 export async function getDiscoverClubProfile(slug: string) {
@@ -139,7 +235,12 @@ export async function getDiscoverClubProfile(slug: string) {
     slug: tenant.slug as string,
     portalSlug,
     clubType: (settings?.clubType as string) || "hybrid",
+    sportTypeIds: parseSportTypeIds(settings?.sportTypeIds, (settings?.clubType as string) || "hybrid"),
     location: (settings?.location as string | undefined) || null,
+    city: (settings?.city as string | undefined) || null,
+    country: (settings?.country as string | undefined) || null,
+    latitude: settings?.latitude != null ? Number(settings.latitude) : null,
+    longitude: settings?.longitude != null ? Number(settings.longitude) : null,
     phone: (settings?.phone as string | undefined) || null,
     logoUrl: resolvePublicAssetPath(
       (settings?.logoUrlLight as string | undefined) || (settings?.logoUrlDark as string | undefined) || null,
@@ -210,7 +311,9 @@ export async function getDiscoverSchedule(params: {
     idx++;
   }
   if (params.clubType?.trim()) {
-    conditions.push(`COALESCE(ts.club_type, 'hybrid') = $${idx}`);
+    conditions.push(
+      `(COALESCE(ts.club_type, 'hybrid') = $${idx} OR COALESCE(ts.sport_type_ids, '[]'::jsonb) @> to_jsonb(ARRAY[$${idx}]::text[]))`,
+    );
     values.push(params.clubType.trim());
     idx++;
   }

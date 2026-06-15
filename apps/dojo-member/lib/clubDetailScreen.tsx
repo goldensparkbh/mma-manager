@@ -42,9 +42,11 @@ import {
   usePublicSchedule,
 } from "@/lib/discover";
 import { useI18n } from "@/lib/i18n";
+import { useTypography } from "@/lib/fonts";
 import { useBookings, useCamps, useCheckout, useRegisterCamp } from "@/lib/hooks";
-import { BookingsIllustration, ClassesIllustration } from "@/lib/illustrations";
+import { BookingsIllustration } from "@/lib/illustrations";
 import { deriveHoursFromSchedule, parseOperatingHours } from "@/lib/operatingHours";
+import { ScheduleMonthCalendar } from "@/lib/scheduleCalendar";
 import { saveRecentClub } from "@/lib/recentClubs";
 import { isClubFavorite, toggleFavoriteClub } from "@/lib/savedClubs";
 import { spacing, useThemeColors, withAlpha } from "@/lib/theme";
@@ -74,6 +76,7 @@ export function ClubDetailScreen({
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
   const { t, clubTypeName } = useI18n();
+  const typo = useTypography();
   const { show } = useToast();
   const { member, slug: activeSlug, switchClub, refresh, activeSubscription } = useAuth();
   const checkout = useCheckout();
@@ -119,9 +122,15 @@ export function ClubDetailScreen({
     : null;
 
   const sportTypes = useMemo(() => {
-    if (!schedule?.length || !clubTypes?.length) return [];
-    return collectSportTypesFromSchedule(schedule, clubTypes, profile?.clubType);
-  }, [schedule, clubTypes, profile?.clubType]);
+    const fromProfile = profile?.sportTypeIds?.length
+      ? profile.sportTypeIds
+      : profile?.clubType
+        ? [profile.clubType]
+        : [];
+    if (!schedule?.length || !clubTypes?.length) return fromProfile;
+    const fromSchedule = collectSportTypesFromSchedule(schedule, clubTypes, profile?.clubType);
+    return [...new Set([...fromProfile, ...fromSchedule])];
+  }, [schedule, clubTypes, profile?.clubType, profile?.sportTypeIds]);
 
   const filteredSchedule = useMemo(() => {
     if (!schedule?.length) return [];
@@ -323,39 +332,33 @@ export function ClubDetailScreen({
           </View>
 
           <Card style={{ ...styles.membershipCard, borderColor: withAlpha(accent, 0.35) }}>
-            <SectionTitle title={t("member.membership")} />
             {activeSubscription ? (
               <>
-                <IconRow icon="ribbon" label={t("member.plan")} value={activeSubscription.planName} accent={accent} />
-                {activeSubscription.packageType === "sessions" ? (
-                  <IconRow
-                    icon="fitness"
-                    label={t("member.sessionsLeft")}
-                    value={String(activeSubscription.sessionsRemaining ?? 0)}
-                    accent={accent}
-                  />
-                ) : activeSubscription.endDate ? (
-                  <IconRow
-                    icon="time"
-                    label={t("member.validUntil")}
-                    value={format(new Date(activeSubscription.endDate), "d MMM yyyy")}
-                    accent={accent}
-                  />
-                ) : null}
-                <Badge label={t("member.active")} tone="success" />
+                <View style={styles.membershipRow}>
+                  <Text style={[styles.membershipTitle, { color: colors.text }, typo.style("bold")]}>{t("member.membership")}</Text>
+                  <Badge label={t("member.active")} tone="success" />
+                </View>
+                <Text style={[styles.membershipDetail, { color: colors.textMuted }, typo.style("regular")]} numberOfLines={1}>
+                  {activeSubscription.planName}
+                  {" · "}
+                  {activeSubscription.packageType === "sessions"
+                    ? `${activeSubscription.sessionsRemaining ?? 0} · ${t("member.sessionsLeft")}`
+                    : activeSubscription.endDate
+                      ? `${t("member.validUntil")} ${format(new Date(activeSubscription.endDate), "d MMM yyyy")}`
+                      : ""}
+                </Text>
               </>
             ) : (
               <>
-                <PremiumEmptyState
-                  title={t("member.noPlan")}
-                  subtitle={t("member.noPlanSub")}
-                  illustration={<ClassesIllustration size={140} />}
-                />
-                <PrimaryButton
-                  label={t("member.viewPackages")}
-                  icon="card"
-                  onPress={() => router.push("/(member)/payments")}
-                />
+                <View style={styles.membershipRow}>
+                  <Text style={[styles.membershipTitle, { color: colors.text }, typo.style("bold")]}>{t("member.membership")}</Text>
+                  <Pressable onPress={() => router.push("/(member)/payments")} hitSlop={8}>
+                    <Text style={[styles.membershipLink, { color: accent }, typo.style("semibold")]}>{t("member.viewPackages")}</Text>
+                  </Pressable>
+                </View>
+                <Text style={[styles.membershipDetail, { color: colors.textMuted }, typo.style("regular")]} numberOfLines={1}>
+                  {t("member.noPlan")}
+                </Text>
               </>
             )}
           </Card>
@@ -422,11 +425,15 @@ export function ClubDetailScreen({
           </ScrollView>
         ) : null}
         {loadingSchedule ? (
-          <Skeleton height={100} />
+          <Skeleton height={320} />
         ) : !filteredSchedule.length ? (
           <PremiumEmptyState title={t("explore.noClasses")} subtitle={t("explore.noClassesSub")} />
         ) : (
-          filteredSchedule.slice(0, 12).map(renderClassRow)
+          <ScheduleMonthCalendar
+            sessions={filteredSchedule}
+            accent={accent}
+            renderSession={(s) => renderClassRow(s)}
+          />
         )}
       </ClubContentSection>
 
@@ -438,7 +445,7 @@ export function ClubDetailScreen({
           </View>
         ) : !packages?.length ? (
           <Card>
-            <Text style={[styles.muted, { color: colors.textMuted }]}>{t("club.contactClub")}</Text>
+            <Text style={[styles.muted, { color: colors.textMuted }, typo.style("regular")]}>{t("club.contactClub")}</Text>
           </Card>
         ) : (
           <View style={styles.pkgGrid}>
@@ -467,7 +474,7 @@ export function ClubDetailScreen({
           <Skeleton height={80} />
         ) : !camps.length ? (
           <Card>
-            <Text style={[styles.muted, { color: colors.textMuted }]}>{t("club.noEvents")}</Text>
+            <Text style={[styles.muted, { color: colors.textMuted }, typo.style("regular")]}>{t("club.noEvents")}</Text>
           </Card>
         ) : (
           camps.map((camp) => (
@@ -479,10 +486,10 @@ export function ClubDetailScreen({
                 accent={accent}
               />
               {camp.price != null ? (
-                <Text style={[styles.muted, { color: colors.textMuted }]}>{formatCurrency(camp.price)}</Text>
+                <Text style={[styles.muted, { color: colors.textMuted }, typo.style("regular")]}>{formatCurrency(camp.price)}</Text>
               ) : null}
               {"description" in camp && camp.description ? (
-                <Text style={[styles.muted, { color: colors.textMuted }]}>{String(camp.description)}</Text>
+                <Text style={[styles.muted, { color: colors.textMuted }, typo.style("regular")]}>{String(camp.description)}</Text>
               ) : null}
               {isMemberHere ? (
                 <PrimaryButton
@@ -504,7 +511,7 @@ export function ClubDetailScreen({
           <Skeleton height={80} />
         ) : !coaches?.length ? (
           <Card>
-            <Text style={[styles.muted, { color: colors.textMuted }]}>{t("club.noCoaches")}</Text>
+            <Text style={[styles.muted, { color: colors.textMuted }, typo.style("regular")]}>{t("club.noCoaches")}</Text>
           </Card>
         ) : (
           coaches.map((coach) => (
@@ -515,12 +522,6 @@ export function ClubDetailScreen({
         )}
       </ClubContentSection>
 
-      {isMemberHere ? (
-        <Pressable style={[styles.qrCta, { backgroundColor: accent }]} onPress={() => router.push("/(member)/profile")}>
-          <Text style={styles.qrTitle}>{t("member.checkInQr")}</Text>
-          <Text style={styles.qrSub}>{t("member.checkInQrSub")}</Text>
-        </Pressable>
-      ) : null}
     </Screen>
   );
 }
@@ -528,7 +529,16 @@ export function ClubDetailScreen({
 const styles = StyleSheet.create({
   loading: { flex: 1, padding: spacing.md },
   quickRow: { flexDirection: "row", justifyContent: "space-between", marginTop: spacing.sm },
-  membershipCard: { borderWidth: 1.5, gap: spacing.sm, marginTop: spacing.sm },
+  membershipCard: {
+    borderWidth: 1.5,
+    marginTop: spacing.sm,
+    paddingVertical: spacing.sm,
+    gap: 4,
+  },
+  membershipRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
+  membershipTitle: { fontSize: 15, flex: 1 },
+  membershipDetail: { fontSize: 13, lineHeight: 18 },
+  membershipLink: { fontSize: 13 },
   inlineSection: { marginTop: spacing.md },
   gap: { gap: spacing.sm },
   pkgGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
@@ -536,16 +546,4 @@ const styles = StyleSheet.create({
   muted: { fontSize: 14, lineHeight: 20 },
   sportChipScroll: { marginHorizontal: -spacing.md, marginBottom: spacing.sm },
   sportChipRow: { gap: spacing.sm, paddingHorizontal: spacing.md },
-  qrCta: {
-    borderRadius: 18,
-    padding: 22,
-    marginTop: spacing.md,
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 4,
-  },
-  qrTitle: { color: "#fff", fontSize: 18, fontWeight: "800" },
-  qrSub: { color: "rgba(255,255,255,0.88)", fontSize: 13, marginTop: 6 },
 });

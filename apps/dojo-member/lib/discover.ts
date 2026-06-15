@@ -10,7 +10,12 @@ export type DiscoverClub = {
   slug: string;
   portalSlug: string;
   clubType: string;
+  sportTypeIds?: string[];
   location?: string | null;
+  city?: string | null;
+  country?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   phone?: string | null;
   logoUrl?: string | null;
   primaryColor?: string | null;
@@ -87,6 +92,38 @@ export function useDiscoverClubs(q?: string, clubType?: string) {
     queryKey: ["discover", "clubs", q, clubType],
     queryFn: () => publicApi.get(`/api/clubs?${qs}`),
     staleTime: 30_000,
+  });
+}
+
+export function useDiscoverClubsMap(opts?: {
+  q?: string;
+  clubType?: string;
+  country?: string;
+  city?: string;
+}) {
+  const params = new URLSearchParams();
+  if (opts?.q?.trim()) params.set("q", opts.q.trim());
+  if (opts?.clubType) params.set("clubType", opts.clubType);
+  if (opts?.country) params.set("country", opts.country);
+  if (opts?.city) params.set("city", opts.city);
+  params.set("hasLocation", "true");
+  params.set("limit", "500");
+  const qs = params.toString();
+  return useQuery<{ clubs: DiscoverClub[]; total: number }>({
+    queryKey: ["discover", "clubs", "map", opts?.q, opts?.clubType, opts?.country, opts?.city],
+    queryFn: () => publicApi.get(`/api/clubs?${qs}`),
+    staleTime: 30_000,
+  });
+}
+
+export type MapFilterCountry = { code: string; count: number };
+export type MapFilterCity = { country: string; city: string; count: number };
+
+export function useDiscoverMapFilters() {
+  return useQuery<{ countries: MapFilterCountry[]; cities: MapFilterCity[] }>({
+    queryKey: ["discover", "clubs", "map-filters"],
+    queryFn: () => publicApi.get("/api/clubs/map-filters"),
+    staleTime: 60_000,
   });
 }
 

@@ -26,7 +26,6 @@ import { useTypography } from "./fonts";
 import { HeroWave } from "./hero-wave";
 import { useI18n } from "./i18n";
 import { NawadyLogo } from "./nawady-logo";
-import { resolveImageUrl } from "./resolveUrl";
 import { colors as staticColors, radius, spacing, useThemeColors, withAlpha } from "./theme";
 
 type IonName = ComponentProps<typeof Ionicons>["name"];
@@ -141,6 +140,7 @@ export function PrimaryButton({
 }) {
   const { accent } = useBranding();
   const colors = useThemeColors();
+  const typo = useTypography();
   const isOutline = variant === "outline";
   const isDanger = variant === "danger";
   return (
@@ -161,7 +161,16 @@ export function PrimaryButton({
       ) : (
         <View style={styles.btnInner}>
           {icon ? <Ionicons name={icon} size={18} color={isOutline ? accent : isDanger ? colors.danger : "#fff"} /> : null}
-          <Text style={[styles.btnText, isOutline && { color: accent }, isDanger && styles.btnTextDanger]}>{label}</Text>
+          <Text
+            style={[
+              styles.btnText,
+              typo.style("bold"),
+              isOutline && { color: accent },
+              isDanger && styles.btnTextDanger,
+            ]}
+          >
+            {label}
+          </Text>
         </View>
       )}
     </Pressable>
@@ -179,12 +188,13 @@ export function QuickAction({
   onPress: () => void;
   accent: string;
 }) {
+  const typo = useTypography();
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.quickAction, pressed && { opacity: 0.85 }]}>
       <View style={[styles.quickIcon, { backgroundColor: withAlpha(accent, 0.14) }]}>
         <Ionicons name={icon} size={22} color={accent} />
       </View>
-      <Text style={styles.quickLabel}>{label}</Text>
+      <Text style={[styles.quickLabel, typo.style("semibold", { textAlign: "center" })]}>{label}</Text>
     </Pressable>
   );
 }
@@ -198,11 +208,14 @@ export function PremiumEmptyState({
   subtitle?: string;
   illustration?: React.ReactNode;
 }) {
+  const typo = useTypography();
   return (
     <View style={styles.premiumEmpty}>
       {illustration}
-      <Text style={styles.emptyTitle}>{title}</Text>
-      {subtitle ? <Text style={styles.emptySub}>{subtitle}</Text> : null}
+      <Text style={[styles.emptyTitle, typo.style("semibold", { textAlign: "center" })]}>{title}</Text>
+      {subtitle ? (
+        <Text style={[styles.emptySub, typo.style("regular", { textAlign: "center" })]}>{subtitle}</Text>
+      ) : null}
     </View>
   );
 }
@@ -219,14 +232,15 @@ export function IconRow({
   accent?: string;
 }) {
   const colors = useThemeColors();
+  const typo = useTypography();
   return (
     <View style={styles.iconRow}>
       <View style={[styles.iconCircle, { backgroundColor: withAlpha(accent || colors.primary, 0.12) }]}>
         <Ionicons name={icon} size={18} color={accent || colors.primary} />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={styles.iconLabel}>{label}</Text>
-        <Text style={styles.iconValue}>{value}</Text>
+        <Text style={[styles.iconLabel, typo.style("semibold")]}>{label}</Text>
+        <Text style={[styles.iconValue, typo.style("bold")]}>{value}</Text>
       </View>
     </View>
   );
@@ -234,13 +248,14 @@ export function IconRow({
 
 export function Badge({ label, tone = "default" }: { label: string; tone?: "default" | "success" | "warning" | "danger" }) {
   const colors = useThemeColors();
+  const typo = useTypography();
   const bg =
     tone === "success" ? "#dcfce7" : tone === "warning" ? "#fef3c7" : tone === "danger" ? colors.dangerBg : colors.bg;
   const fg =
     tone === "success" ? colors.success : tone === "warning" ? colors.warning : tone === "danger" ? colors.danger : colors.textMuted;
   return (
     <View style={[styles.badge, { backgroundColor: bg }]}>
-      <Text style={[styles.badgeText, { color: fg }]}>{label}</Text>
+      <Text style={[styles.badgeText, { color: fg }, typo.style("semibold", { textAlign: "center" })]}>{label}</Text>
     </View>
   );
 }
@@ -398,6 +413,7 @@ export function PackageGridCard({
     packageType === "sessions"
       ? t("member.sessionsPkg", { count: sessionCount ?? 0 })
       : t("member.daysValidity", { days: duration ?? 0 });
+  const centered = typo.isRtl ? undefined : ({ textAlign: "center" as const });
 
   return (
     <View style={[styles.pkgGridCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -407,16 +423,16 @@ export function PackageGridCard({
         end={{ x: 1, y: 1 }}
         style={styles.pkgGridHeader}
       />
-      <View style={styles.pkgGridBody}>
-        <Text style={[styles.pkgGridName, { color: colors.text }, typo.style("bold", { textAlign: "center" })]} numberOfLines={2}>
+      <View style={[styles.pkgGridBody, typo.isRtl && styles.pkgGridBodyRtl]}>
+        <Text style={[styles.pkgGridName, { color: colors.text }, typo.style("bold", centered)]} numberOfLines={2}>
           {name}
         </Text>
         <View style={[styles.pkgGridMetaPill, { backgroundColor: withAlpha(accent, 0.12) }]}>
-          <Text style={[styles.pkgGridMeta, { color: accent }, typo.style("semibold", { textAlign: "center" })]} numberOfLines={1}>
+          <Text style={[styles.pkgGridMeta, { color: accent }, typo.style("semibold", centered)]} numberOfLines={1}>
             {meta}
           </Text>
         </View>
-        <Text style={[styles.pkgGridPrice, { color: colors.text }, typo.style("bold", { textAlign: "center" })]}>
+        <Text style={[styles.pkgGridPrice, { color: colors.text }, typo.style("bold", centered)]}>
           {formatCurrency(price, "BHD", locale)}
         </Text>
         {actionLabel && onAction ? (
@@ -438,7 +454,7 @@ export function PackageGridCard({
                 style={[
                   styles.pkgGridActionText,
                   { color: actionPrimary ? "#fff" : accent },
-                  typo.style("semibold", { textAlign: "center" }),
+                  typo.style("semibold", centered),
                 ]}
               >
                 {actionLabel}
@@ -546,11 +562,12 @@ export function CategoryChip({
   onPress: () => void;
 }) {
   const colors = useThemeColors();
+  const typo = useTypography();
   const bg = active ? color || colors.primary : colors.bg;
   const fg = active ? "#fff" : colors.text;
   return (
     <Pressable onPress={onPress} style={[styles.chip, { backgroundColor: bg }]}>
-      <Text style={[styles.chipText, { color: fg }]}>{label}</Text>
+      <Text style={[styles.chipText, { color: fg }, typo.style("bold", { textAlign: "center" })]}>{label}</Text>
     </Pressable>
   );
 }
@@ -826,19 +843,21 @@ export function ClassRowCard({
   onPress?: () => void;
 }) {
   const colors = useThemeColors();
+  const typo = useTypography();
+  const chevron = typo.isRtl ? "chevron-back" : "chevron-forward";
   const inner = (
     <View style={styles.classRow}>
       <View style={[styles.classRowBar, { backgroundColor: accent }]} />
       <View style={{ flex: 1 }}>
-        <Text style={[styles.classRowName, { color: colors.text }]}>{name}</Text>
-        <Text style={[styles.classRowClub, { color: colors.primary }]}>{clubName}</Text>
-        <Text style={[styles.classRowMeta, { color: colors.textMuted }]}>
+        <Text style={[styles.classRowName, { color: colors.text }, typo.style("bold")]}>{name}</Text>
+        <Text style={[styles.classRowClub, { color: colors.primary }, typo.style("semibold")]}>{clubName}</Text>
+        <Text style={[styles.classRowMeta, { color: colors.textMuted }, typo.style("regular")]}>
           {time}
           {coach ? ` · ${coach}` : ""}
           {spots ? ` · ${spots}` : ""}
         </Text>
       </View>
-      {onPress ? <Ionicons name="chevron-forward" size={18} color={colors.textMuted} /> : null}
+      {onPress ? <Ionicons name={chevron} size={18} color={colors.textMuted} /> : null}
     </View>
   );
   if (!onPress) return <Card style={{ padding: 0, overflow: "hidden" }}>{inner}</Card>;
@@ -1120,6 +1139,7 @@ const styles = StyleSheet.create({
   },
   pkgGridHeader: { height: 8 },
   pkgGridBody: { paddingHorizontal: 10, paddingTop: 10, paddingBottom: 12, gap: 6, alignItems: "center" },
+  pkgGridBodyRtl: { alignItems: "stretch" },
   pkgGridName: { fontSize: 14, fontWeight: "800", textAlign: "center", lineHeight: 18, minHeight: 36, width: "100%" },
   pkgGridMetaPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, maxWidth: "100%" },
   pkgGridMeta: { fontSize: 10, fontWeight: "700" },

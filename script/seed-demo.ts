@@ -28,6 +28,10 @@ type ClubDef = {
   clubName: string;
   clubType: string;
   location: string;
+  latitude: number;
+  longitude: number;
+  city: string;
+  country: string;
   phone: string;
   primaryColor: string;
   welcomeMessage: string;
@@ -45,6 +49,10 @@ const DEMO_CLUBS: ClubDef[] = [
     clubName: "Al Rashid Karate Academy",
     clubType: "karate",
     location: "King Fahd Road, Al Olaya, Riyadh",
+    latitude: 24.7136,
+    longitude: 46.6753,
+    city: "Riyadh",
+    country: "SA",
     phone: "+966501100001",
     primaryColor: "#dc2626",
     welcomeMessage: "Welcome to Al Rashid — discipline, respect, excellence.",
@@ -86,6 +94,10 @@ const DEMO_CLUBS: ClubDef[] = [
     clubName: "Blue Wave Swimming Club",
     clubType: "swimming",
     location: "Corniche Road, Al Hamra, Jeddah",
+    latitude: 21.4858,
+    longitude: 39.1925,
+    city: "Jeddah",
+    country: "SA",
     phone: "+966501200001",
     primaryColor: "#0284c7",
     welcomeMessage: "Dive in — learn, train, and compete with Blue Wave.",
@@ -127,6 +139,10 @@ const DEMO_CLUBS: ClubDef[] = [
     clubName: "Victory FC Academy",
     clubType: "football",
     location: "Prince Mohammed bin Fahd Road, Dammam",
+    latitude: 26.3927,
+    longitude: 49.9777,
+    city: "Dammam",
+    country: "SA",
     phone: "+966501300001",
     primaryColor: "#16a34a",
     welcomeMessage: "Train hard. Play smart. Win together.",
@@ -168,6 +184,10 @@ const DEMO_CLUBS: ClubDef[] = [
     clubName: "Flex Gymnastics Center",
     clubType: "gymnastics",
     location: "King Abdullah Road, Al Khobar",
+    latitude: 26.2172,
+    longitude: 50.1971,
+    city: "Khobar",
+    country: "SA",
     phone: "+966501400001",
     primaryColor: "#a855f7",
     welcomeMessage: "Balance, strength, and artistry — welcome to Flex.",
@@ -209,6 +229,10 @@ const DEMO_CLUBS: ClubDef[] = [
     clubName: "Urban Flow Parkour",
     clubType: "parkour",
     location: "Industrial District, Riyadh",
+    latitude: 24.7488,
+    longitude: 46.8188,
+    city: "Riyadh",
+    country: "SA",
     phone: "+966501500001",
     primaryColor: "#ea580c",
     welcomeMessage: "Move freely. Train safely. Flow with Urban Flow.",
@@ -314,6 +338,10 @@ async function seedClub(def: ClubDef): Promise<void> {
     name: def.clubName,
     phone: def.phone,
     location: def.location,
+    latitude: def.latitude,
+    longitude: def.longitude,
+    city: def.city,
+    country: def.country,
     logoUrlLight: logoUrl(def.clubType),
     logoUrlDark: logoUrl(def.clubType),
     managerEmail: admin.email,

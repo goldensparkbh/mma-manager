@@ -741,6 +741,7 @@ export async function getSettings(tenantId: string) {
     whatsappTemplates: typeof s.whatsappTemplates === "string" ? JSON.parse(s.whatsappTemplates as string) : s.whatsappTemplates,
     productCategories: typeof s.productCategories === "string" ? JSON.parse(s.productCategories as string) : s.productCategories,
     operatingHours: typeof s.operatingHours === "string" ? JSON.parse(s.operatingHours as string) : s.operatingHours,
+    sportTypeIds: parseJsonField<string[]>(s.sportTypeIds, []),
   };
 }
 
@@ -752,6 +753,8 @@ export async function updateSettings(tenantId: string, updates: Record<string, u
   const map: Record<string, string> = {
     name: "name", logoUrlLight: "logo_url_light", logoUrlDark: "logo_url_dark",
     managerEmail: "manager_email", phone: "phone", location: "location",
+    latitude: "latitude", longitude: "longitude", city: "city", country: "country",
+    googlePlaceId: "google_place_id",
     whatsappTemplate: "whatsapp_template", receiptType: "receipt_type",
     receiptLogoThermal: "receipt_logo_thermal", receiptA4Design: "receipt_a4_design",
     screensaverEnabled: "screensaver_enabled", screensaverTimeout: "screensaver_timeout",
@@ -771,6 +774,7 @@ export async function updateSettings(tenantId: string, updates: Record<string, u
   if ("memberFieldConfig" in updates) { fields.push(`member_field_config = $${idx++}`); values.push(JSON.stringify(updates.memberFieldConfig)); }
   if ("moduleConfig" in updates) { fields.push(`module_config = $${idx++}`); values.push(JSON.stringify(updates.moduleConfig)); }
   if ("operatingHours" in updates) { fields.push(`operating_hours = $${idx++}`); values.push(JSON.stringify(updates.operatingHours)); }
+  if ("sportTypeIds" in updates) { fields.push(`sport_type_ids = $${idx++}`); values.push(JSON.stringify(updates.sportTypeIds)); }
   await query(`UPDATE tenant_settings SET ${fields.join(", ")} WHERE tenant_id = $1`, values);
 }
 

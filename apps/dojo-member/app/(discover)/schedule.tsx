@@ -1,7 +1,7 @@
-import { format, isToday, isTomorrow } from "date-fns";
+import { format } from "date-fns";
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { SectionList, StyleSheet, Text, View } from "react-native";
+import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import {
   ClassRowCard,
   DiscoverHero,
@@ -12,6 +12,7 @@ import {
 import { QueryErrorState } from "@/lib/errors";
 import { useDiscoverSchedule } from "@/lib/discover";
 import { useI18n } from "@/lib/i18n";
+import { ScheduleMonthCalendar } from "@/lib/scheduleCalendar";
 import { spacing, useThemeColors } from "@/lib/theme";
 
 export default function ScheduleScreen() {
@@ -21,52 +22,45 @@ export default function ScheduleScreen() {
   const [query, setQuery] = useState("");
   const { data, isLoading, isError, refetch, isRefetching } = useDiscoverSchedule({ q: query });
 
-  const dayLabel = (date: Date) => {
-    if (isToday(date)) return t("common.today");
-    if (isTomorrow(date)) return t("common.tomorrow");
-    return format(date, "EEEE, d MMM");
-  };
+  const sessions = useMemo(() => data ?? [], [data]);
 
-  const sections = useMemo(() => {
-    const map = new Map<string, NonNullable<typeof data>>();
-    for (const s of data ?? []) {
-      const key = format(new Date(s.startsAt), "yyyy-MM-dd");
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(s);
-    }
-    return [...map.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, items]) => ({
-        title: dayLabel(new Date(key)),
-        data: items,
-      }));
-  }, [data, t]);
+  const openClass = (item: (typeof sessions)[number]) => {
+    router.push({
+      pathname: "/class/[id]",
+      params: {
+        id: item.id,
+        clubSlug: item.clubSlug,
+        clubName: item.clubName,
+        startsAt: item.startsAt,
+        coach: item.coachName || "",
+        capacity: String(item.capacity),
+        booked: String(item.bookedCount ?? 0),
+      },
+    });
+  };
 
   return (
     <View style={[styles.root, { backgroundColor: colors.bg }]}>
       <DiscoverHero title={t("schedule.title")} subtitle={t("schedule.subtitle")} />
-      <View style={styles.body}>
+      <ScrollView
+        style={styles.body}
+        contentContainerStyle={styles.bodyContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => refetch()} />}
+      >
         <SearchInput value={query} onChangeText={setQuery} placeholder={t("schedule.search")} />
         {isLoading ? (
-          <Skeleton height={300} />
+          <Skeleton height={320} />
         ) : isError ? (
           <QueryErrorState onRetry={() => refetch()} />
-        ) : sections.length === 0 ? (
+        ) : sessions.length === 0 ? (
           <PremiumEmptyState title={t("schedule.noClasses")} subtitle={t("schedule.noClassesSub")} />
         ) : (
-          <SectionList
-            sections={sections}
-            keyExtractor={(item) => item.id}
-            refreshing={isRefetching}
-            onRefresh={() => refetch()}
-            contentContainerStyle={styles.list}
-            stickySectionHeadersEnabled
-            renderSectionHeader={({ section }) => (
-              <View style={[styles.sectionHead, { backgroundColor: colors.bg }]}>
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>{section.title}</Text>
-              </View>
-            )}
-            renderItem={({ item }) => {
+          <ScheduleMonthCalendar
+            sessions={sessions}
+            accent={colors.primary}
+            onSessionPress={openClass}
+            renderSession={(item) => {
               const spots =
                 item.capacity > 0 ? `${item.bookedCount ?? 0}/${item.capacity}` : undefined;
               return (
@@ -77,34 +71,23 @@ export default function ScheduleScreen() {
                   coach={item.coachName}
                   spots={spots}
                   accent={item.primaryColor || colors.primary}
-                  onPress={() =>
-                    router.push({
-                      pathname: "/class/[id]",
-                      params: {
-                        id: item.id,
-                        clubSlug: item.clubSlug,
-                        clubName: item.clubName,
-                        startsAt: item.startsAt,
-                        coach: item.coachName || "",
-                        capacity: String(item.capacity),
-                        booked: String(item.bookedCount ?? 0),
-                      },
-                    })
-                  }
                 />
               );
             }}
           />
         )}
-      </View>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  body: { flex: 1, paddingHorizontal: spacing.md, paddingTop: spacing.md },
-  list: { paddingBottom: 100 },
-  sectionHead: { paddingVertical: 8, paddingTop: 12 },
-  sectionTitle: { fontSize: 15, fontWeight: "800" },
+  body: { flex: 1 },
+  bodyContent: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+    paddingBottom: 100,
+    gap: spacing.md,
+  },
 });

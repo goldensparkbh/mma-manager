@@ -1,7 +1,6 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
-import { FlatList, Pressable, ScrollView, StyleSheet, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { FlatList, ScrollView, StyleSheet, View } from "react-native";
 import {
   CategoryChip,
   ClubGridCard,
@@ -13,7 +12,7 @@ import {
 import { getClubTypeVisual } from "@/lib/clubVisuals";
 import { useClubTypes, useDiscoverClubs, type ClubTypeOption, type DiscoverClub } from "@/lib/discover";
 import { useI18n } from "@/lib/i18n";
-import { spacing, useThemeColors, withAlpha } from "@/lib/theme";
+import { spacing, useThemeColors } from "@/lib/theme";
 
 export default function ClubsScreen() {
   const { t, clubTypeName } = useI18n();
@@ -22,7 +21,6 @@ export default function ClubsScreen() {
   const params = useLocalSearchParams<{ type?: string }>();
   const [query, setQuery] = useState("");
   const [clubType, setClubType] = useState(params.type || "");
-  const [clubView, setClubView] = useState<"grid" | "list">("grid");
 
   const { data, isLoading, refetch, isRefetching } = useDiscoverClubs(query, clubType || undefined);
   const { data: clubTypes } = useClubTypes();
@@ -39,23 +37,23 @@ export default function ClubsScreen() {
     ({ item: club }: { item: DiscoverClub }) => {
       const vis = getClubTypeVisual(club.clubType);
       return (
-        <View style={clubView === "grid" ? styles.gridItem : styles.listItem}>
+        <View style={styles.listItem}>
           <ClubGridCard
             name={club.name}
-            sportTypeIds={[club.clubType]}
+            sportTypeIds={club.sportTypeIds?.length ? club.sportTypeIds : [club.clubType]}
             location={club.location}
             logoUrl={club.logoUrl}
             accent={club.primaryColor || vis.color}
             typeIcon={vis.icon}
             typeColor={vis.color}
             typeColorSoft={vis.colorSoft}
-            variant={clubView}
+            variant="list"
             onPress={() => router.push(`/club/${club.portalSlug}`)}
           />
         </View>
       );
     },
-    [router, clubView],
+    [router],
   );
 
   const listHeader = (
@@ -79,22 +77,6 @@ export default function ClubsScreen() {
           ))}
         </ScrollView>
       </View>
-      <View style={styles.viewToggleRow}>
-        <Pressable
-          onPress={() => setClubView("list")}
-          style={[styles.viewToggleBtn, clubView === "list" && { backgroundColor: withAlpha(colors.primary, 0.12) }]}
-          accessibilityLabel={t("explore.viewList")}
-        >
-          <Ionicons name="list" size={18} color={clubView === "list" ? colors.primary : colors.textMuted} />
-        </Pressable>
-        <Pressable
-          onPress={() => setClubView("grid")}
-          style={[styles.viewToggleBtn, clubView === "grid" && { backgroundColor: withAlpha(colors.primary, 0.12) }]}
-          accessibilityLabel={t("explore.viewGrid")}
-        >
-          <Ionicons name="grid" size={18} color={clubView === "grid" ? colors.primary : colors.textMuted} />
-        </Pressable>
-      </View>
     </View>
   );
 
@@ -104,11 +86,11 @@ export default function ClubsScreen() {
       {isLoading ? (
         <View style={styles.body}>
           {listHeader}
-          <View style={styles.gridSkeleton}>
-            <Skeleton height={88} style={styles.gridItem} />
-            <Skeleton height={88} style={styles.gridItem} />
-            <Skeleton height={88} style={styles.gridItem} />
-            <Skeleton height={88} style={styles.gridItem} />
+          <View style={styles.listSkeleton}>
+            <Skeleton height={88} style={styles.listItem} />
+            <Skeleton height={88} style={styles.listItem} />
+            <Skeleton height={88} style={styles.listItem} />
+            <Skeleton height={88} style={styles.listItem} />
           </View>
         </View>
       ) : (
@@ -117,11 +99,9 @@ export default function ClubsScreen() {
           data={clubs}
           keyExtractor={(c) => c.id}
           renderItem={renderClub}
-          numColumns={clubView === "grid" ? 2 : 1}
-          key={clubView}
+          numColumns={1}
           refreshing={isRefetching}
           onRefresh={() => refetch()}
-          columnWrapperStyle={clubView === "grid" ? styles.gridRow : undefined}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={listHeader}
@@ -151,16 +131,6 @@ const styles = StyleSheet.create({
   },
   list: { flex: 1, paddingHorizontal: spacing.md },
   listContent: { paddingBottom: 100, flexGrow: 1 },
-  gridRow: { gap: spacing.sm, marginBottom: spacing.sm },
-  gridItem: { flex: 1, maxWidth: "48.5%" },
   listItem: { width: "100%", marginBottom: spacing.sm },
-  gridSkeleton: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  viewToggleRow: { flexDirection: "row", justifyContent: "flex-end", gap: 4, marginBottom: spacing.sm },
-  viewToggleBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  listSkeleton: { gap: spacing.sm },
 });

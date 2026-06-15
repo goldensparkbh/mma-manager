@@ -39,20 +39,22 @@ export type ClubProfileData = {
 
 type IonName = ComponentProps<typeof Ionicons>["name"];
 
-function HeroActionBtn({ icon, label, onPress }: { icon: IonName; label: string; onPress: () => void }) {
+function HeroSocialBtn({
+  icon,
+  onPress,
+  accessibilityLabel,
+}: {
+  icon: IonName;
+  onPress: () => void;
+  accessibilityLabel?: string;
+}) {
   return (
-    <Pressable onPress={onPress} style={styles.heroActionBtn}>
-      <Ionicons name={icon} size={18} color="#fff" />
-      <Text style={styles.heroActionLabel} numberOfLines={1}>
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
-function HeroSocialBtn({ icon, onPress }: { icon: IonName; onPress: () => void }) {
-  return (
-    <Pressable onPress={onPress} style={styles.heroSocialBtn}>
+    <Pressable
+      onPress={onPress}
+      style={styles.heroSocialBtn}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+    >
       <Ionicons name={icon} size={20} color="#fff" />
     </Pressable>
   );
@@ -60,6 +62,7 @@ function HeroSocialBtn({ icon, onPress }: { icon: IonName; onPress: () => void }
 
 function HeroHoursChips({ profile }: { profile: ClubProfileData }) {
   const { t } = useI18n();
+  const typo = useTypography();
   const hasHours = !!profile.operatingHours && WEEKDAY_KEYS.some((k) => profile.operatingHours?.[k]);
 
   if (!hasHours) return null;
@@ -92,10 +95,17 @@ function HeroHoursChips({ profile }: { profile: ClubProfileData }) {
           const isClosed = !day || day.closed || timeLabel === closedLabel;
           return (
             <View key={key} style={[styles.hoursChip, isClosed && styles.hoursChipClosed]}>
-              <Text style={styles.hoursChipDay} numberOfLines={1}>
+              <Text style={[styles.hoursChipDay, typo.style("bold", { textAlign: "center", color: "#fff" })]} numberOfLines={1}>
                 {dayLabels[key]}
               </Text>
-              <Text style={[styles.hoursChipTime, isClosed && styles.hoursChipTimeClosed]} numberOfLines={1}>
+              <Text
+                style={[
+                  styles.hoursChipTime,
+                  isClosed && styles.hoursChipTimeClosed,
+                  typo.style("semibold", { textAlign: "center", color: "rgba(255,255,255,0.92)" }),
+                ]}
+                numberOfLines={1}
+              >
                 {timeLabel}
               </Text>
             </View>
@@ -148,42 +158,45 @@ export function ClubProfileHero({
         colors={[heroAccent, withAlpha(heroAccent, 0.88), withAlpha(vis.color, 0.92)]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={[styles.heroGradient, { paddingTop: topInset + spacing.sm }]}
+        style={[styles.heroGradient, { paddingTop: topInset + spacing.xs }]}
       >
         {showTopBar ? (
-          <View style={styles.topBar}>
-            {onBack ? (
-              <Pressable onPress={onBack} style={styles.heroIconBtn}>
-                <Ionicons name="arrow-back" size={22} color="#fff" />
-              </Pressable>
-            ) : (
-              <View style={styles.heroIconSpacer} />
-            )}
-            {onToggleFavorite ? (
-              <Pressable onPress={onToggleFavorite} style={styles.heroIconBtn}>
-                <Ionicons
-                  name={favorite ? "heart" : "heart-outline"}
-                  size={22}
-                  color={favorite ? "#fecaca" : "#fff"}
-                />
-              </Pressable>
-            ) : (
-              <View style={styles.heroIconSpacer} />
-            )}
-          </View>
-        ) : null}
-
-        <View style={[styles.heroContent, !showTopBar && { paddingTop: spacing.sm }]}>
-          <View style={styles.heroLogoFrame}>
-            <View style={styles.heroLogoClip}>
-              <ClubLogo
-                logoUrl={profile.logoUrl}
-                size={92}
-                fill
-                contentFit="cover"
-              />
+          <View style={styles.heroTopCluster}>
+            <View style={styles.topBar}>
+              {onBack ? (
+                <Pressable onPress={onBack} style={styles.heroIconBtn}>
+                  <Ionicons name="arrow-back" size={22} color="#fff" />
+                </Pressable>
+              ) : (
+                <View style={styles.heroIconSpacer} />
+              )}
+              {onToggleFavorite ? (
+                <Pressable onPress={onToggleFavorite} style={styles.heroIconBtn}>
+                  <Ionicons
+                    name={favorite ? "heart" : "heart-outline"}
+                    size={22}
+                    color={favorite ? "#fecaca" : "#fff"}
+                  />
+                </Pressable>
+              ) : (
+                <View style={styles.heroIconSpacer} />
+              )}
+            </View>
+            <View style={[styles.heroLogoFrame, styles.heroLogoOverlap]}>
+              <View style={styles.heroLogoClip}>
+                <ClubLogo logoUrl={profile.logoUrl} size={92} fill contentFit="cover" />
+              </View>
             </View>
           </View>
+        ) : (
+          <View style={[styles.heroLogoFrame, styles.heroLogoStandalone]}>
+            <View style={styles.heroLogoClip}>
+              <ClubLogo logoUrl={profile.logoUrl} size={92} fill contentFit="cover" />
+            </View>
+          </View>
+        )}
+
+        <View style={styles.heroContent}>
           <Text style={[styles.heroClubName, typo.style("bold", { textAlign: "center" })]}>
             {profile.name}
           </Text>
@@ -192,10 +205,18 @@ export function ClubProfileHero({
         {hasActions ? (
           <View style={styles.heroActionsRow}>
             {location ? (
-              <HeroActionBtn icon="location-outline" label={t("club.location")} onPress={openMaps} />
+              <HeroSocialBtn
+                icon="location-outline"
+                accessibilityLabel={t("club.location")}
+                onPress={openMaps}
+              />
             ) : null}
             {phone ? (
-              <HeroActionBtn icon="call-outline" label={t("club.contact")} onPress={callPhone} />
+              <HeroSocialBtn
+                icon="call-outline"
+                accessibilityLabel={t("club.contact")}
+                onPress={callPhone}
+              />
             ) : null}
             {socialEntries.map(([key, url]) => (
               <HeroSocialBtn
@@ -238,6 +259,7 @@ export function OperatingHoursTable({
 }) {
   const { t } = useI18n();
   const colors = useThemeColors();
+  const typo = useTypography();
   const textColor = onDark ? "#fff" : colors.text;
   const mutedColor = onDark ? "rgba(255,255,255,0.75)" : colors.textMuted;
   const borderColor = onDark ? "rgba(255,255,255,0.2)" : colors.border;
@@ -255,11 +277,11 @@ export function OperatingHoursTable({
   return (
     <View style={[styles.hoursWrap, compact && styles.hoursWrapCompact, { borderColor }]}>
       <View style={[styles.hoursHead, compact && styles.hoursHeadCompact]}>
-        <Text style={[styles.hoursTitle, compact && styles.hoursTitleCompact, { color: textColor }]}>
+        <Text style={[styles.hoursTitle, compact && styles.hoursTitleCompact, { color: textColor }, typo.style("bold")]}>
           {t("club.hours")}
         </Text>
         {derived ? (
-          <Text style={[styles.hoursHint, { color: mutedColor }]}>{t("club.hoursFromSchedule")}</Text>
+          <Text style={[styles.hoursHint, { color: mutedColor }, typo.style("regular")]}>{t("club.hoursFromSchedule")}</Text>
         ) : null}
       </View>
       {WEEKDAY_KEYS.map((key) => {
@@ -267,8 +289,8 @@ export function OperatingHoursTable({
         if (!day) return null;
         return (
           <View key={key} style={[styles.hoursRow, compact && styles.hoursRowCompact, { borderTopColor: borderColor }]}>
-            <Text style={[styles.hoursDay, compact && styles.hoursDayCompact, { color: textColor }]}>{dayLabels[key]}</Text>
-            <Text style={[styles.hoursTime, compact && styles.hoursTimeCompact, { color: mutedColor }]}>
+            <Text style={[styles.hoursDay, compact && styles.hoursDayCompact, { color: textColor }, typo.style("semibold")]}>{dayLabels[key]}</Text>
+            <Text style={[styles.hoursTime, compact && styles.hoursTimeCompact, { color: mutedColor }, typo.style("regular")]}>
               {formatDayHours(day, t("club.hoursClosed"))}
             </Text>
           </View>
@@ -286,9 +308,10 @@ export function ClubContentSection({
   children: React.ReactNode;
 }) {
   const colors = useThemeColors();
+  const typo = useTypography();
   return (
     <View style={styles.contentSection}>
-      <Text style={[styles.contentSectionTitle, { color: colors.text }]}>{title}</Text>
+      <Text style={[styles.contentSectionTitle, { color: colors.text }, typo.style("bold")]}>{title}</Text>
       {children}
     </View>
   );
@@ -300,7 +323,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.md,
   },
-  topBar: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.sm },
+  topBar: {
+    width: "100%",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    zIndex: 10,
+  },
+  heroTopCluster: {
+    width: "100%",
+    alignItems: "center",
+    marginBottom: spacing.sm,
+  },
   heroIconBtn: {
     width: 40,
     height: 40,
@@ -312,7 +346,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.28)",
   },
   heroIconSpacer: { width: 40 },
-  heroContent: { alignItems: "center", paddingBottom: spacing.sm },
+  heroContent: { alignItems: "center", paddingBottom: spacing.xs, marginTop: spacing.xs },
   heroLogoFrame: {
     width: 100,
     height: 100,
@@ -321,7 +355,14 @@ const styles = StyleSheet.create({
     borderColor: "#fff",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: spacing.sm,
+  },
+  heroLogoOverlap: {
+    marginTop: -40,
+    zIndex: 8,
+  },
+  heroLogoStandalone: {
+    alignSelf: "center",
+    marginBottom: spacing.xs,
   },
   heroLogoClip: {
     width: 94,
@@ -347,18 +388,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     marginBottom: spacing.xs,
   },
-  heroActionBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.3)",
-  },
-  heroActionLabel: { fontSize: 13, fontWeight: "700", color: "#fff", maxWidth: 100 },
   heroSocialBtn: {
     width: 40,
     height: 40,
@@ -369,7 +398,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.3)",
   },
-  heroHoursSection: { marginTop: spacing.sm },
+  heroHoursSection: { marginTop: spacing.md },
   hoursChipScroll: { marginHorizontal: -spacing.md },
   hoursChipRow: {
     flexDirection: "row",
@@ -390,7 +419,8 @@ const styles = StyleSheet.create({
   hoursChipClosed: { opacity: 0.55 },
   hoursChipDay: { fontSize: 10, fontWeight: "700", color: "#fff", textTransform: "capitalize" },
   hoursChipTime: { fontSize: 11, fontWeight: "600", color: "rgba(255,255,255,0.92)", marginTop: 2 },
-  hoursChipTimeClosed: { fontSize: 10, fontWeight: "500" },  hoursWrap: { borderWidth: 1, borderRadius: radius.md, overflow: "hidden" },
+  hoursChipTimeClosed: { fontSize: 10 },
+  hoursWrap: { borderWidth: 1, borderRadius: radius.md, overflow: "hidden" },
   hoursWrapCompact: { marginTop: 0 },
   hoursHead: { paddingHorizontal: 10, paddingVertical: 8, gap: 2 },
   hoursHeadCompact: { paddingVertical: 6 },
