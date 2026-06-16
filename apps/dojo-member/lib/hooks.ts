@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "./auth";
 import { createApi } from "./api";
 import { useScheduleRange } from "./scheduleRange";
-import type { Booking, CampEvent, ClassSession, MemberPayment, Package } from "./types";
+import type { Booking, CampEvent, ClassSession, MemberPayment, Package, AccountMember } from "./types";
 
 export type { Booking, CampEvent, ClassSession, MemberPayment, Package };
 
@@ -72,11 +72,21 @@ export function useFamily() {
   });
 }
 
-export function useQr() {
+export function useAccountMembers() {
+  const { api, member } = useAuth();
+  return useQuery<AccountMember[]>({
+    queryKey: ["portal", "account-members"],
+    queryFn: () => api.get("/api/portal/account-members"),
+    enabled: !!member,
+  });
+}
+
+export function useQr(memberId?: string) {
   const { api } = useAuth();
+  const path = memberId ? `/api/portal/qr?memberId=${encodeURIComponent(memberId)}` : "/api/portal/qr";
   return useQuery({
-    queryKey: ["portal", "qr"],
-    queryFn: () => api.get<{ token: string; checkInUrl: string }>("/api/portal/qr"),
+    queryKey: ["portal", "qr", memberId || "self"],
+    queryFn: () => api.get<{ token: string; checkInUrl: string }>(path),
     staleTime: 5 * 60_000,
   });
 }
@@ -113,9 +123,18 @@ export function useRegisterCamp() {
 
 export function useCheckout() {
   const { api } = useAuth();
+  const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { packageId: string; redirectUrl?: string }) =>
-      api.post<{ url: string }>("/api/portal/payments/checkout", input),
+    mutationFn: (input: {
+      packageId: string;
+      redirectUrl?: string;
+      memberId?: string;
+      newMember?: { name: string; age?: number };
+    }) => api.post<{ url: string }>("/api/portal/payments/checkout", input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["portal", "account-members"] });
+      qc.invalidateQueries({ queryKey: ["portal", "family"] });
+    },
   });
 }
 

@@ -1,4 +1,15 @@
-export type Member = { id: string; name: string; phone: string; memberId?: string };
+export type Member = { id: string; name: string; phone: string; memberId?: string; age?: number | null };
+export type AccountMember = {
+  id: string;
+  name: string;
+  age: number | null;
+  memberUntil: string | null;
+  hasActiveSubscription: boolean;
+  planName: string | null;
+  packageType: string | null;
+  sessionsRemaining: number | null;
+  checkInUrl: string | null;
+};
 export type Subscription = {
   id: string;
   planName: string;

@@ -3,6 +3,7 @@ import * as Haptics from "expo-haptics";
 import * as Linking from "expo-linking";
 import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
+import * as LocalAuthentication from "expo-local-authentication";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -43,15 +44,20 @@ import {
 } from "@/lib/discover";
 import { useI18n } from "@/lib/i18n";
 import { useTypography } from "@/lib/fonts";
-import { useBookings, useCamps, useCheckout, useRegisterCamp } from "@/lib/hooks";
+import { useBookings, useCamps, useCheckout, useRegisterCamp, useAccountMembers } from "@/lib/hooks";
 import { BookingsIllustration } from "@/lib/illustrations";
+import {
+  ClubMembersSection,
+  MemberQrModal,
+  PurchaseMemberModal,
+} from "@/lib/clubMembers";
 import { deriveHoursFromSchedule, parseOperatingHours } from "@/lib/operatingHours";
 import { ScheduleMonthCalendar } from "@/lib/scheduleCalendar";
 import { saveRecentClub } from "@/lib/recentClubs";
 import { isClubFavorite, toggleFavoriteClub } from "@/lib/savedClubs";
 import { spacing, useThemeColors, withAlpha } from "@/lib/theme";
 import { useToast } from "@/lib/toast";
-import type { Booking, CampEvent } from "@/lib/types";
+import type { Booking, CampEvent, AccountMember } from "@/lib/types";
 
 const PAYMENT_RETURN = Linking.createURL("payment-result");
 
@@ -68,9 +74,11 @@ type ScheduleItem = {
 export function ClubDetailScreen({
   slug,
   showBack = true,
+  renewMemberId,
 }: {
   slug: string;
   showBack?: boolean;
+  renewMemberId?: string;
 }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -78,12 +86,15 @@ export function ClubDetailScreen({
   const { t, clubTypeName } = useI18n();
   const typo = useTypography();
   const { show } = useToast();
-  const { member, slug: activeSlug, switchClub, refresh, activeSubscription } = useAuth();
+  const { member, slug: activeSlug, switchClub, refresh } = useAuth();
   const checkout = useCheckout();
   const registerCamp = useRegisterCamp();
   const [payingPackageId, setPayingPackageId] = useState<string | null>(null);
   const [favorite, setFavorite] = useState(false);
   const [sportFilter, setSportFilter] = useState("");
+  const [qrMember, setQrMember] = useState<AccountMember | null>(null);
+  const [renewTarget, setRenewTarget] = useState<AccountMember | null>(null);
+  const [purchaseModal, setPurchaseModal] = useState<{ packageId: string; packageName: string } | null>(null);
 
   const clubSlug = slug || "";
   const { data: profile, isLoading, isError, refetch } = useClubProfile(clubSlug);
@@ -94,6 +105,7 @@ export function ClubDetailScreen({
   const { data: clubTypes } = useClubTypes();
   const { data: memberCamps, isLoading: loadingMemberCamps, refetch: refetchMemberCamps } = useCamps();
   const { data: bookingsData, refetch: refetchBookings, isRefetching: refetchingBookings } = useBookings();
+  const { data: accountMembers, isLoading: loadingAccountMembers, refetch: refetchAccountMembers } = useAccountMembers();
 
   const vis = getClubTypeVisual(profile?.clubType);
   const accent = profile?.primaryColor || vis.color;
@@ -153,6 +165,15 @@ export function ClubDetailScreen({
   const loadingCamps = isMemberHere ? loadingMemberCamps : loadingPublicCamps;
 
   useEffect(() => {
+    if (!renewMemberId || !accountMembers?.length) return;
+    const target = accountMembers.find((m) => m.id === renewMemberId);
+    if (target) {
+      setRenewTarget(target);
+      show(t("member.pickPackageRenew"), "success");
+    }
+  }, [renewMemberId, accountMembers, show, t]);
+
+  useEffect(() => {
     if (!profile) return;
     saveRecentClub({
       slug: profile.portalSlug,
@@ -183,12 +204,18 @@ export function ClubDetailScreen({
   };
 
   const onBuyPackage = useCallback(
-    async (packageId: string) => {
+    async (
+      packageId: string,
+      packageName: string,
+      opts?: { memberId?: string; newMember?: { name: string; age?: number } },
+    ) => {
       setPayingPackageId(packageId);
       try {
         const result = await checkout.mutateAsync({
           packageId,
           redirectUrl: PAYMENT_RETURN,
+          memberId: opts?.memberId,
+          newMember: opts?.newMember,
         });
         if (result.url) {
           const browser = await WebBrowser.openAuthSessionAsync(result.url, PAYMENT_RETURN);
@@ -197,6 +224,8 @@ export function ClubDetailScreen({
             const parsed = Linking.parse(browser.url);
             if (parsed.queryParams?.tap_id) {
               await refresh();
+              await refetchAccountMembers();
+              setRenewTarget(null);
               show(t("member.paymentComplete"), "success");
             }
           }
@@ -205,9 +234,27 @@ export function ClubDetailScreen({
         show((e as Error).message, "error");
       } finally {
         setPayingPackageId(null);
+        setPurchaseModal(null);
       }
     },
-    [checkout, refresh, show, t],
+    [checkout, refresh, refetchAccountMembers, show, t],
+  );
+
+  const startBuyPackage = useCallback(
+    (packageId: string, packageName: string) => {
+      const members = accountMembers ?? [];
+      if (renewTarget) {
+        onBuyPackage(packageId, packageName, { memberId: renewTarget.id });
+        return;
+      }
+      const hasActive = members.some((m) => m.hasActiveSubscription);
+      if (members.length > 1 || hasActive) {
+        setPurchaseModal({ packageId, packageName });
+        return;
+      }
+      onBuyPackage(packageId, packageName);
+    },
+    [accountMembers, onBuyPackage, renewTarget],
   );
 
   const onRegisterCamp = async (id: string) => {
@@ -226,6 +273,7 @@ export function ClubDetailScreen({
     if (isMemberHere) {
       refetchBookings();
       refetchMemberCamps();
+      refetchAccountMembers();
     }
   };
 
@@ -331,37 +379,24 @@ export function ClubDetailScreen({
             />
           </View>
 
-          <Card style={{ ...styles.membershipCard, borderColor: withAlpha(accent, 0.35) }}>
-            {activeSubscription ? (
-              <>
-                <View style={styles.membershipRow}>
-                  <Text style={[styles.membershipTitle, { color: colors.text }, typo.style("bold")]}>{t("member.membership")}</Text>
-                  <Badge label={t("member.active")} tone="success" />
-                </View>
-                <Text style={[styles.membershipDetail, { color: colors.textMuted }, typo.style("regular")]} numberOfLines={1}>
-                  {activeSubscription.planName}
-                  {" · "}
-                  {activeSubscription.packageType === "sessions"
-                    ? `${activeSubscription.sessionsRemaining ?? 0} · ${t("member.sessionsLeft")}`
-                    : activeSubscription.endDate
-                      ? `${t("member.validUntil")} ${format(new Date(activeSubscription.endDate), "d MMM yyyy")}`
-                      : ""}
-                </Text>
-              </>
-            ) : (
-              <>
-                <View style={styles.membershipRow}>
-                  <Text style={[styles.membershipTitle, { color: colors.text }, typo.style("bold")]}>{t("member.membership")}</Text>
-                  <Pressable onPress={() => router.push("/(member)/payments")} hitSlop={8}>
-                    <Text style={[styles.membershipLink, { color: accent }, typo.style("semibold")]}>{t("member.viewPackages")}</Text>
-                  </Pressable>
-                </View>
-                <Text style={[styles.membershipDetail, { color: colors.textMuted }, typo.style("regular")]} numberOfLines={1}>
-                  {t("member.noPlan")}
-                </Text>
-              </>
-            )}
-          </Card>
+          <ClubMembersSection
+            members={accountMembers ?? []}
+            accent={accent}
+            clubSlug={profile.portalSlug}
+            loading={loadingAccountMembers}
+            onShowQr={async (m) => {
+              const hw = await LocalAuthentication.hasHardwareAsync();
+              if (hw) {
+                const auth = await LocalAuthentication.authenticateAsync({ promptMessage: t("member.showQr") });
+                if (!auth.success) return;
+              }
+              setQrMember(m);
+            }}
+            onRenew={(m) => {
+              setRenewTarget(m);
+              show(t("member.pickPackageRenew"), "success");
+            }}
+          />
 
           <View style={styles.inlineSection}>
             <SectionTitle title={t("member.nextClass")} />
@@ -461,7 +496,7 @@ export function ClubDetailScreen({
                   actionLabel={isMemberHere ? t("member.payNow") : t("club.signInPurchase")}
                   actionPrimary={!!isMemberHere}
                   actionLoading={payingPackageId === pkg.id && checkout.isPending}
-                  onAction={() => (isMemberHere ? onBuyPackage(pkg.id) : onJoin())}
+                  onAction={() => (isMemberHere ? startBuyPackage(pkg.id, pkg.name) : onJoin())}
                 />
               </View>
             ))}
@@ -521,6 +556,21 @@ export function ClubDetailScreen({
           ))
         )}
       </ClubContentSection>
+
+      <MemberQrModal visible={!!qrMember} member={qrMember} onClose={() => setQrMember(null)} />
+
+      <PurchaseMemberModal
+        visible={!!purchaseModal}
+        members={accountMembers ?? []}
+        packageName={purchaseModal?.packageName || ""}
+        accent={accent}
+        loading={checkout.isPending}
+        onClose={() => setPurchaseModal(null)}
+        onConfirm={(choice) => {
+          if (!purchaseModal) return;
+          onBuyPackage(purchaseModal.packageId, purchaseModal.packageName, choice);
+        }}
+      />
 
     </Screen>
   );

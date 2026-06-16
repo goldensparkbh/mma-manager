@@ -5,7 +5,7 @@ import { useI18n } from "@/lib/i18n";
 import { Screen } from "@/lib/components";
 
 export default function ClubDetailRoute() {
-  const { slug } = useLocalSearchParams<{ slug: string }>();
+  const { slug, renewMemberId } = useLocalSearchParams<{ slug: string; renewMemberId?: string }>();
   const router = useRouter();
   const { t } = useI18n();
 
@@ -17,5 +17,11 @@ export default function ClubDetailRoute() {
     );
   }
 
-  return <ClubDetailScreen slug={slug} showBack />;
+  return (
+    <ClubDetailScreen
+      slug={slug}
+      showBack
+      renewMemberId={typeof renewMemberId === "string" ? renewMemberId : undefined}
+    />
+  );
 }

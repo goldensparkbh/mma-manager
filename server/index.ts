@@ -38,6 +38,11 @@ async function main() {
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on port ${PORT}`);
+    void import("./memberPayments.js").then(({ isFakeMemberPaymentsEnabled }) => {
+      if (isFakeMemberPaymentsEnabled()) {
+        console.warn("[payments] FAKE_MEMBER_PAYMENTS enabled — package checkout skips TAP");
+      }
+    });
   });
 
   const { processAllTrialReminders } = await import("./data.js");

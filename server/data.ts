@@ -2028,6 +2028,9 @@ export async function registerMemberViaPortal(tenantId: string, phone: string, n
     [tenantId, memberId, normalized],
   );
 
+  const { ensureMemberFamily } = await import("./accountMembers.js");
+  await ensureMemberFamily(tenantId, memberId);
+
   await logActivity(tenantId, {
     action: "member.portal_register",
     entityType: "member",

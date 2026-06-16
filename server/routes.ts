@@ -491,13 +491,30 @@ router.get("/api/portal/progression", requireMemberAccount, async (req, res) => 
 });
 
 router.get("/api/portal/qr", requireMemberAccount, async (req, res) => {
-  const auth = getAuth(req);
-  const { ensureMemberQrToken } = await import("./checkin.js");
-  const token = await ensureMemberQrToken(auth.tenantId!, auth.memberId!);
-  const tenant = await query("SELECT slug FROM tenants WHERE id = $1", [auth.tenantId]);
-  const slug = tenant.rows[0]?.slug as string;
-  const baseUrl = process.env.APP_URL || "http://localhost:5173";
-  res.json({ token, checkInUrl: `${baseUrl}/checkin/${slug}?t=${token}` });
+  try {
+    const auth = getAuth(req);
+    const { ensureMemberQrToken } = await import("./checkin.js");
+    const {
+      assertAccountMemberAccess,
+      getAccountPhoneForMember,
+    } = await import("./accountMembers.js");
+
+    let targetMemberId = auth.memberId!;
+    const requestedId = req.query.memberId as string | undefined;
+    if (requestedId && requestedId !== auth.memberId) {
+      const phone = await getAccountPhoneForMember(auth.tenantId!, auth.userId);
+      await assertAccountMemberAccess(auth.tenantId!, auth.memberId!, phone, requestedId);
+      targetMemberId = requestedId;
+    }
+
+    const token = await ensureMemberQrToken(auth.tenantId!, targetMemberId);
+    const tenant = await query("SELECT slug FROM tenants WHERE id = $1", [auth.tenantId]);
+    const slug = tenant.rows[0]?.slug as string;
+    const baseUrl = process.env.APP_URL || "http://localhost:5173";
+    res.json({ token, checkInUrl: `${baseUrl}/checkin/${slug}?t=${token}` });
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
 });
 
 router.get("/api/portal/classes", requireMemberAccount, async (req, res) => {
@@ -592,18 +609,56 @@ router.get("/api/portal/payments", requireMemberAccount, async (req, res) => {
 
 router.get("/api/portal/family-members", requireMemberAccount, async (req, res) => {
   const auth = getAuth(req);
-  const { getFamilyMembersForAccount } = await import("./families.js");
-  res.json(await getFamilyMembersForAccount(auth.tenantId!, auth.memberId!));
+  const { getAccountMemberIds, getAccountPhoneForMember } = await import("./accountMembers.js");
+  const phone = await getAccountPhoneForMember(auth.tenantId!, auth.userId);
+  const ids = await getAccountMemberIds(auth.tenantId!, auth.memberId!, phone);
+  if (!ids.length) return res.json([]);
+  const result = await query(
+    `SELECT id, name FROM members WHERE tenant_id = $1 AND id = ANY($2::uuid[]) ORDER BY name`,
+    [auth.tenantId, ids],
+  );
+  res.json(rowsToCamel(result.rows));
+});
+
+router.get("/api/portal/account-members", requireMemberAccount, async (req, res) => {
+  try {
+    const auth = getAuth(req);
+    const { getPortalAccountMembers, getAccountPhoneForMember } = await import("./accountMembers.js");
+    const tenant = await query("SELECT slug FROM tenants WHERE id = $1", [auth.tenantId]);
+    const slug = tenant.rows[0]?.slug as string;
+    const phone = await getAccountPhoneForMember(auth.tenantId!, auth.userId);
+    res.json(
+      await getPortalAccountMembers(auth.tenantId!, auth.memberId!, phone, slug),
+    );
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+router.post("/api/portal/account-members", requireMemberAccount, async (req, res) => {
+  try {
+    const auth = getAuth(req);
+    const { addPortalAccountMember, getAccountPhoneForMember } = await import("./accountMembers.js");
+    const phone = await getAccountPhoneForMember(auth.tenantId!, auth.userId);
+    const { name, age } = req.body;
+    res.status(201).json(
+      await addPortalAccountMember(auth.tenantId!, auth.memberId!, phone, {
+        name,
+        age: age != null ? Number(age) : null,
+      }),
+    );
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
 });
 
 router.post("/api/portal/switch-member", requireMemberAccount, async (req, res) => {
   try {
     const auth = getAuth(req);
     const { memberId } = req.body;
-    const { getFamilyMembersForAccount } = await import("./families.js");
-    const family = await getFamilyMembersForAccount(auth.tenantId!, auth.memberId!);
-    const allowed = (family as { id: string }[]).some((m) => m.id === memberId);
-    if (!allowed) return res.status(403).json({ error: "Not in your family" });
+    const { assertAccountMemberAccess, getAccountPhoneForMember } = await import("./accountMembers.js");
+    const phone = await getAccountPhoneForMember(auth.tenantId!, auth.userId);
+    await assertAccountMemberAccess(auth.tenantId!, auth.memberId!, phone, memberId);
     const member = await data.getMember(auth.tenantId!, memberId);
     if (!member) return res.status(404).json({ error: "Member not found" });
     const token = signToken({
@@ -625,12 +680,18 @@ router.post("/api/portal/payments/checkout", requireMemberAccount, async (req, r
   try {
     const auth = getAuth(req);
     const { createMemberCheckout, isMemberTapEnabled } = await import("./memberPayments.js");
+    const { resolveCheckoutMemberId, getAccountPhoneForMember } = await import("./accountMembers.js");
     if (!(await isMemberTapEnabled(auth.tenantId!))) {
       return res.status(400).json({ error: "Online payments are not enabled for this club" });
     }
+    const phone = await getAccountPhoneForMember(auth.tenantId!, auth.userId);
+    const targetMemberId = await resolveCheckoutMemberId(auth.tenantId!, auth.memberId!, phone, {
+      memberId: typeof req.body.memberId === "string" ? req.body.memberId : undefined,
+      newMember: req.body.newMember,
+    });
     const result = await createMemberCheckout({
       tenantId: auth.tenantId!,
-      memberId: auth.memberId!,
+      memberId: targetMemberId,
       packageId: req.body.packageId,
       saveCard: req.body.saveCard !== false,
       redirectUrl: typeof req.body.redirectUrl === "string" ? req.body.redirectUrl : undefined,

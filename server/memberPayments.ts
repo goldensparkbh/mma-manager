@@ -9,7 +9,12 @@ function nextMemberInvoiceNumber(): string {
   return `M-${Date.now()}`;
 }
 
+export function isFakeMemberPaymentsEnabled(): boolean {
+  return process.env.FAKE_MEMBER_PAYMENTS === "true" || process.env.FAKE_MEMBER_PAYMENTS === "1";
+}
+
 export async function isMemberTapEnabled(tenantId: string): Promise<boolean> {
+  if (isFakeMemberPaymentsEnabled()) return true;
   if (!isTapConfigured()) return false;
   const settings = await getBookingSettings(tenantId);
   return settings.portalEnabled !== false && (settings as { tapEnabled?: boolean }).tapEnabled !== false;
@@ -22,8 +27,6 @@ export async function createMemberCheckout(params: {
   saveCard?: boolean;
   redirectUrl?: string;
 }) {
-  if (!isTapConfigured()) throw new Error("Online payments are not configured");
-
   const pkgResult = await query(
     "SELECT * FROM packages WHERE tenant_id = $1 AND id = $2",
     [params.tenantId, params.packageId],
@@ -35,7 +38,7 @@ export async function createMemberCheckout(params: {
   if (!member) throw new Error("Member not found");
 
   const packageAmount = Number(pkg.price);
-  if (!packageAmount) throw new Error("Invalid package price");
+  if (!Number.isFinite(packageAmount) || packageAmount < 0) throw new Error("Invalid package price");
 
   const { getTransactionBillingConfig, calculateTransactionFee } = await import("./transactionFees.js");
   const billing = await getTransactionBillingConfig();
@@ -53,6 +56,29 @@ export async function createMemberCheckout(params: {
   const baseUrl = getAppBaseUrl();
   const tenantRow = await query("SELECT slug FROM tenants WHERE id = $1", [params.tenantId]);
   const slug = (tenantRow.rows[0]?.slug as string) || "portal";
+
+  if (isFakeMemberPaymentsEnabled()) {
+    const fakeChargeId = `fake_${payment.id}`;
+    await query("UPDATE member_payments SET tap_charge_id = $2, metadata = $3 WHERE id = $1", [
+      payment.id,
+      fakeChargeId,
+      JSON.stringify({ tapStatus: "CAPTURED", fake: true }),
+    ]);
+    const paymentRow = await query("SELECT * FROM member_payments WHERE id = $1", [payment.id]);
+    await activateMemberPayment(paymentRow.rows[0], { id: fakeChargeId });
+
+    const redirect = params.redirectUrl || `${baseUrl}/portal/${slug}/payment/result`;
+    const sep = redirect.includes("?") ? "&" : "?";
+    return {
+      paymentId: payment.id,
+      url: `${redirect}${sep}tap_id=${encodeURIComponent(fakeChargeId)}`,
+      chargeId: fakeChargeId,
+      fake: true,
+    };
+  }
+
+  if (!isTapConfigured()) throw new Error("Online payments are not configured");
+
   const m = member as { name: string; email?: string; phone: string };
   const charge = await createTapCharge({
     amount,
@@ -87,6 +113,16 @@ export async function createMemberCheckout(params: {
 }
 
 export async function confirmMemberPayment(tapChargeId: string) {
+  if (tapChargeId.startsWith("fake_")) {
+    const paymentRow = await query("SELECT * FROM member_payments WHERE tap_charge_id = $1", [tapChargeId]);
+    const payment = paymentRow.rows[0];
+    if (!payment) return { ok: false, status: "FAILED", reason: "Payment record not found" };
+    if (payment.status === "captured") {
+      return { ok: true, status: "CAPTURED", payment: toCamelCase(payment) };
+    }
+    return activateMemberPayment(payment, { id: tapChargeId });
+  }
+
   const charge = await retrieveTapCharge(tapChargeId);
   const paymentRow = await query("SELECT * FROM member_payments WHERE tap_charge_id = $1", [tapChargeId]);
   const payment = paymentRow.rows[0];
