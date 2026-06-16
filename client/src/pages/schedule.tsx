@@ -350,7 +350,7 @@ export default function SchedulePage() {
       </div>
 
       <Tabs defaultValue="week">
-        <TabsList>
+        <TabsList className="w-full h-auto flex-wrap justify-start">
           <TabsTrigger value="week">{t("schedule.weekView")}</TabsTrigger>
           <TabsTrigger value="month">{t("schedule.monthView")}</TabsTrigger>
           {!isCoach && (
