@@ -47,6 +47,17 @@ export async function getMember(tenantId: string, id: string) {
   return result.rows[0] ? toCamelCase(result.rows[0]) : null;
 }
 
+/** Resolve UUID or display member_id (e.g. "1010") to internal member UUID. */
+export async function resolveMemberId(tenantId: string, idOrMemberId: string): Promise<string | null> {
+  const direct = await query("SELECT id FROM members WHERE tenant_id = $1 AND id = $2", [tenantId, idOrMemberId]);
+  if (direct.rows[0]) return direct.rows[0].id as string;
+  const byDisplay = await query(
+    "SELECT id FROM members WHERE tenant_id = $1 AND member_id = $2",
+    [tenantId, idOrMemberId],
+  );
+  return byDisplay.rows[0] ? (byDisplay.rows[0].id as string) : null;
+}
+
 export async function createMember(tenantId: string, data: Record<string, unknown>) {
   const limits = await getTenantPlanLimits(tenantId);
   const memberCount = await countTenantMembers(tenantId);

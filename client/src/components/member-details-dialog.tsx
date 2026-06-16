@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -206,12 +206,8 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
     const { data: memberAttendance, isLoading: loadingAttendance } = useQuery<Attendance[]>({
         queryKey: ["/api/attendance/member", member?.memberId, member?.id],
         queryFn: async () => {
-            if (!member) return [];
-            const ids = [member.memberId, member.id].filter((id, index, self) => id && self.indexOf(id) === index);
-            console.log('Fetching attendance for member:', member.name, 'ids:', ids);
-            const data = await getAttendanceByMember(ids);
-            console.log('Attendance data received:', data);
-            return data;
+            if (!member?.id) return [];
+            return getAttendanceByMember(member.id);
         },
         enabled: isOpen && !!member && activeTab === "attendance"
     });
@@ -916,7 +912,7 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
         const [subscriptions, beltsEarned, attendanceRecords, sales] = await Promise.all([
             memberSubscriptions ? Promise.resolve(memberSubscriptions) : getSubscriptionsByMember(member.id),
             memberBelts ? Promise.resolve(memberBelts) : getMemberBelts(member.id),
-            memberAttendance ? Promise.resolve(memberAttendance) : getAttendanceByMember([member.memberId, member.id].filter(Boolean)),
+            memberAttendance ? Promise.resolve(memberAttendance) : getAttendanceByMember(member.id),
             memberSales ? Promise.resolve(memberSales) : getSalesByMember(member.id),
         ]);
 
@@ -1698,6 +1694,7 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
             <DialogContent dir={dir} className="max-w-4xl h-[90vh] flex flex-col p-0 overflow-hidden text-start">
                 <DialogHeader className="sr-only">
                     <DialogTitle>{member?.name || t('members.addMember')}</DialogTitle>
+                    <DialogDescription>{t('members.detailsDescription')}</DialogDescription>
                 </DialogHeader>
                 <div className="p-6 border-b bg-muted/10">
                     <div className="flex items-start justify-between gap-4">
@@ -2782,7 +2779,11 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                                 </div>
 
                                 {member && hasPermission(PERMISSIONS.ATTENDANCE_CREATE) ? (
-                                    <BiometricEnrollmentPanel memberId={member.id} memberName={member.name} />
+                                    <BiometricEnrollmentPanel
+                                        memberId={member.id}
+                                        memberName={member.name}
+                                        enabled={activeTab === "attendance"}
+                                    />
                                 ) : null}
 
                                 {member && hasPermission(PERMISSIONS.ATTENDANCE_CREATE) && showAddAttendanceForm && (
@@ -3017,6 +3018,7 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                 <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
                     <DialogHeader>
                         <DialogTitle>{t('members.report')}</DialogTitle>
+                        <DialogDescription>{t('members.reportPreview')}</DialogDescription>
                     </DialogHeader>
                     <div className="flex-1 w-full border rounded-md overflow-hidden bg-white">
                         <iframe

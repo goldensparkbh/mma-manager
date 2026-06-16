@@ -18,6 +18,7 @@ import { Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, Packag
 import { printReceipt } from "@/lib/receipt-printer";
 import { useAuth } from "@/context/auth-context";
 import { ReceiptTypeDialog } from "./receipt-type-dialog";
+import { getStoreCategoryLabel } from "@/lib/storeCategories";
 
 interface POSDialogProps {
     isOpen: boolean;
@@ -62,12 +63,7 @@ export function POSDialog({ isOpen, onClose, member }: POSDialogProps) {
         return ["all", ...Array.from(cats)];
     }, [products]);
 
-    const getCategoryLabel = (category: string) => {
-        if (category === "all") return t("common.all");
-        const key = `store.categories.${category}`;
-        const label = t(key);
-        return label === key ? category : label;
-    };
+    const getCategoryLabel = (category: string) => getStoreCategoryLabel(t, category, language);
 
     const addToCart = (product: Product) => {
         if (product.stock <= 0) return;

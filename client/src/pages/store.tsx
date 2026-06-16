@@ -30,6 +30,7 @@ import { useAuth } from "@/context/auth-context";
 import { useLanguage } from "@/context/language-context";
 import { PERMISSIONS } from "@/lib/permissions";
 import { apiJson } from "@/lib/api";
+import { getStoreCategoryLabel } from "@/lib/storeCategories";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const defaultProductForm: Partial<InsertProduct> = {
@@ -53,7 +54,7 @@ const defaultCategoryValues = [
 
 export default function Store() {
   const { hasPermission } = useAuth();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const canAdd = hasPermission(PERMISSIONS.STORE_CREATE);
   const canUpdate = hasPermission(PERMISSIONS.STORE_UPDATE);
   const canDelete = hasPermission(PERMISSIONS.STORE_DELETE);
@@ -171,12 +172,7 @@ export default function Store() {
     await saveCategories(next);
   };
 
-  const getCategoryLabel = (value: string) => {
-    if (defaultCategoryValues.includes(value)) {
-      return t(`store.categories.${value}`);
-    }
-    return value;
-  };
+  const getCategoryLabel = (value: string) => getStoreCategoryLabel(t, value, language);
 
   const openCreateDialog = () => {
     setEditingProduct(null);

@@ -1115,7 +1115,9 @@ router.get("/api/members/:id/sales", async (req, res) => {
   res.json(await data.getSalesByMember(tid(req), req.params.id));
 });
 router.get("/api/members/:id/attendance", async (req, res) => {
-  res.json(await data.getAttendanceByMember(tid(req), [req.params.id]));
+  const memberId = await data.resolveMemberId(tid(req), req.params.id);
+  if (!memberId) return res.json([]);
+  res.json(await data.getAttendanceByMember(tid(req), [memberId]));
 });
 router.post("/api/members/:id/documents", upload.array("files"), async (req, res) => {
   const files = req.files as Express.Multer.File[];
@@ -1185,8 +1187,13 @@ router.delete("/api/attendance/:id", async (req, res) => {
 });
 
 router.get("/api/attendance/methods", async (req, res) => {
-  const { getAttendanceMethods } = await import("./biometrics.js");
-  res.json(await getAttendanceMethods(tid(req)));
+  try {
+    const { getAttendanceMethods } = await import("./biometrics.js");
+    res.json(await getAttendanceMethods(tid(req)));
+  } catch (err) {
+    const { DEFAULT_ATTENDANCE_METHODS } = await import("../shared/attendanceMethods.js");
+    res.json(DEFAULT_ATTENDANCE_METHODS);
+  }
 });
 
 router.patch("/api/attendance/methods", async (req, res) => {
@@ -1201,15 +1208,33 @@ router.patch("/api/attendance/methods", async (req, res) => {
 });
 
 router.get("/api/members/:id/biometrics", async (req, res) => {
-  const { getMemberBiometrics } = await import("./biometrics.js");
-  res.json(await getMemberBiometrics(tid(req), req.params.id));
+  try {
+    const memberId = await data.resolveMemberId(tid(req), req.params.id);
+    if (!memberId) return res.status(404).json({ error: "Member not found" });
+    const { getMemberBiometrics } = await import("./biometrics.js");
+    res.json(await getMemberBiometrics(tid(req), memberId));
+  } catch (err) {
+    const code = (err as { code?: string }).code;
+    if (code === "42P01") {
+      return res.json({
+        memberId: req.params.id,
+        hasFingerprint: false,
+        hasFace: false,
+        fingerprintEnrolledAt: null,
+        faceEnrolledAt: null,
+      });
+    }
+    res.status(500).json({ error: (err as Error).message });
+  }
 });
 
 router.post("/api/members/:id/biometrics/face", async (req, res) => {
   try {
+    const memberId = await data.resolveMemberId(tid(req), req.params.id);
+    if (!memberId) return res.status(404).json({ error: "Member not found" });
     const { enrollMemberFace } = await import("./biometrics.js");
     const { descriptor1, descriptor2 } = req.body;
-    res.json(await enrollMemberFace(tid(req), req.params.id, descriptor1, descriptor2));
+    res.json(await enrollMemberFace(tid(req), memberId, descriptor1, descriptor2));
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
   }
@@ -1217,11 +1242,13 @@ router.post("/api/members/:id/biometrics/face", async (req, res) => {
 
 router.post("/api/members/:id/biometrics/fingerprint", async (req, res) => {
   try {
+    const memberId = await data.resolveMemberId(tid(req), req.params.id);
+    if (!memberId) return res.status(404).json({ error: "Member not found" });
     const { enrollMemberFingerprint, getAttendanceMethods } = await import("./biometrics.js");
     const config = await getAttendanceMethods(tid(req));
     const { template1, template2 } = req.body;
     res.json(
-      await enrollMemberFingerprint(tid(req), req.params.id, template1, template2, config.fingerprintBridgeUrl),
+      await enrollMemberFingerprint(tid(req), memberId, template1, template2, config.fingerprintBridgeUrl),
     );
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
@@ -1229,14 +1256,18 @@ router.post("/api/members/:id/biometrics/fingerprint", async (req, res) => {
 });
 
 router.delete("/api/members/:id/biometrics/face", async (req, res) => {
+  const memberId = await data.resolveMemberId(tid(req), req.params.id);
+  if (!memberId) return res.status(404).json({ error: "Member not found" });
   const { clearMemberFace } = await import("./biometrics.js");
-  await clearMemberFace(tid(req), req.params.id);
+  await clearMemberFace(tid(req), memberId);
   res.status(204).send();
 });
 
 router.delete("/api/members/:id/biometrics/fingerprint", async (req, res) => {
+  const memberId = await data.resolveMemberId(tid(req), req.params.id);
+  if (!memberId) return res.status(404).json({ error: "Member not found" });
   const { clearMemberFingerprint } = await import("./biometrics.js");
-  await clearMemberFingerprint(tid(req), req.params.id);
+  await clearMemberFingerprint(tid(req), memberId);
   res.status(204).send();
 });
 

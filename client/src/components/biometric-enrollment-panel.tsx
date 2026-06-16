@@ -23,9 +23,10 @@ type BiometricStatus = {
 type Props = {
   memberId: string;
   memberName: string;
+  enabled?: boolean;
 };
 
-export function BiometricEnrollmentPanel({ memberId, memberName }: Props) {
+export function BiometricEnrollmentPanel({ memberId, memberName, enabled = true }: Props) {
   const { t } = useLanguage();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -34,21 +35,30 @@ export function BiometricEnrollmentPanel({ memberId, memberName }: Props) {
   const [fpStep, setFpStep] = useState<0 | 1 | 2>(0);
   const [fpScan1, setFpScan1] = useState<string | null>(null);
 
-  const { data: methods } = useQuery<AttendanceMethodsConfig>({
+  const { data: methods, isError: methodsError } = useQuery<AttendanceMethodsConfig>({
     queryKey: ["/api/attendance/methods"],
     queryFn: () => apiJson("/api/attendance/methods"),
+    enabled,
+    retry: false,
+    staleTime: 60_000,
   });
 
-  const { data: status, isLoading } = useQuery<BiometricStatus>({
+  const methodsReady = methods ?? (methodsError ? { qr: true, staff: true, fingerprint: false, face: false } : undefined);
+
+  const { data: status, isLoading, isError: statusError } = useQuery<BiometricStatus>({
     queryKey: ["/api/members", memberId, "biometrics"],
     queryFn: () => apiJson(`/api/members/${memberId}/biometrics`),
-    enabled: !!memberId,
+    enabled: enabled && !!memberId && !!(methodsReady?.face || methodsReady?.fingerprint),
+    retry: false,
   });
 
+  const [fpBridgeChecked, setFpBridgeChecked] = useState(false);
   const { data: bridgeStatus } = useQuery({
-    queryKey: ["fingerprint-bridge", methods?.fingerprintBridgeUrl],
-    queryFn: () => getBridgeStatus(methods?.fingerprintBridgeUrl),
-    enabled: !!methods?.fingerprint,
+    queryKey: ["fingerprint-bridge", methodsReady?.fingerprintBridgeUrl],
+    queryFn: () => getBridgeStatus(methodsReady?.fingerprintBridgeUrl),
+    enabled: enabled && !!methodsReady?.fingerprint && fpBridgeChecked,
+    retry: false,
+    staleTime: 30_000,
   });
 
   const invalidate = () => {
@@ -118,7 +128,7 @@ export function BiometricEnrollmentPanel({ memberId, memberName }: Props) {
       return;
     }
     try {
-      const template = await captureFingerprint(methods?.fingerprintBridgeUrl);
+      const template = await captureFingerprint(methodsReady?.fingerprintBridgeUrl);
       if (fpStep === 0) {
         setFpScan1(template);
         setFpStep(1);
@@ -132,8 +142,9 @@ export function BiometricEnrollmentPanel({ memberId, memberName }: Props) {
     }
   };
 
-  if (isLoading) return null;
-  if (!methods?.face && !methods?.fingerprint) {
+  if (!enabled) return null;
+  if (isLoading && !status && !statusError) return null;
+  if (!methodsReady?.face && !methodsReady?.fingerprint) {
     return (
       <p className="text-sm text-muted-foreground">{t("biometrics.notEnabled")}</p>
     );
@@ -145,7 +156,7 @@ export function BiometricEnrollmentPanel({ memberId, memberName }: Props) {
         {t("biometrics.enrollHint")} <span className="font-medium">{memberName}</span>
       </p>
 
-      {methods?.face ? (
+      {methodsReady?.face ? (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
@@ -178,7 +189,7 @@ export function BiometricEnrollmentPanel({ memberId, memberName }: Props) {
         </Card>
       ) : null}
 
-      {methods?.fingerprint ? (
+      {methodsReady?.fingerprint ? (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
@@ -192,9 +203,15 @@ export function BiometricEnrollmentPanel({ memberId, memberName }: Props) {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              {bridgeStatus === "online" ? t("biometrics.bridgeOnline") : t("biometrics.bridgeOffline")}
-            </p>
+            {!fpBridgeChecked ? (
+              <Button variant="outline" className="w-full" size="sm" onClick={() => setFpBridgeChecked(true)}>
+                {t("biometrics.checkReader")}
+              </Button>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                {bridgeStatus === "online" ? t("biometrics.bridgeOnline") : t("biometrics.bridgeOffline")}
+              </p>
+            )}
             {status?.hasFingerprint ? (
               <Button size="sm" variant="ghost" onClick={() => clearFp.mutate()}>
                 <Trash2 className="h-4 w-4 text-destructive me-1" /> {t("biometrics.remove")}
