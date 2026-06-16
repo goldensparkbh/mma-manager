@@ -125,6 +125,7 @@ export default function StaffScanPage() {
   ].filter(Boolean) as { id: string; icon: typeof QrCode; label: string }[];
 
   const activeTab = enabledTabs.some((x) => x.id === tab) ? tab : enabledTabs[0]?.id || "qr";
+  const scannersActive = status === "ready";
 
   return (
     <div className="max-w-lg mx-auto space-y-4">
@@ -145,7 +146,7 @@ export default function StaffScanPage() {
 
           {status === "loading" && <Loader2 className="h-10 w-10 animate-spin mx-auto" />}
 
-          {status === "ready" && enabledTabs.length > 1 ? (
+          {enabledTabs.length > 1 ? (
             <Tabs value={activeTab} onValueChange={setTab}>
               <TabsList className="w-full">
                 {enabledTabs.map((x) => (
@@ -155,31 +156,49 @@ export default function StaffScanPage() {
                   </TabsTrigger>
                 ))}
               </TabsList>
-              <TabsContent value="qr" className="mt-4">
-                {(methods?.qr !== false) && <QrScanner onScan={handleQr} />}
+              <TabsContent value="qr" className="mt-4" forceMount>
+                {methods?.qr !== false && (
+                  <QrScanner onScan={handleQr} active={scannersActive && activeTab === "qr"} />
+                )}
               </TabsContent>
-              <TabsContent value="face" className="mt-4">
-                <FaceCapture onCapture={handleFace} label={t("biometrics.checkInFace")} />
+              <TabsContent value="face" className="mt-4" forceMount>
+                {methods?.face && (
+                  <FaceCapture
+                    onCapture={handleFace}
+                    label={t("biometrics.checkInFace")}
+                    disabled={!scannersActive}
+                    active={scannersActive && activeTab === "face"}
+                  />
+                )}
               </TabsContent>
-              <TabsContent value="fingerprint" className="mt-4">
-                <Button className="w-full" onClick={handleFingerprint}>
-                  {t("biometrics.scanFingerprint")}
-                </Button>
+              <TabsContent value="fingerprint" className="mt-4" forceMount>
+                {methods?.fingerprint && (
+                  <Button className="w-full" disabled={!scannersActive} onClick={handleFingerprint}>
+                    {t("biometrics.scanFingerprint")}
+                  </Button>
+                )}
               </TabsContent>
             </Tabs>
-          ) : status === "ready" ? (
+          ) : (
             <>
               {methods?.face && !methods?.qr ? (
-                <FaceCapture onCapture={handleFace} label={t("biometrics.checkInFace")} />
+                <FaceCapture
+                  onCapture={handleFace}
+                  label={t("biometrics.checkInFace")}
+                  disabled={!scannersActive}
+                  active={scannersActive}
+                />
               ) : methods?.fingerprint && !methods?.qr && !methods?.face ? (
-                <Button className="w-full" onClick={handleFingerprint}>
+                <Button className="w-full" disabled={!scannersActive} onClick={handleFingerprint}>
                   {t("biometrics.scanFingerprint")}
                 </Button>
               ) : (
-                methods?.qr !== false && <QrScanner onScan={handleQr} />
+                methods?.qr !== false && (
+                  <QrScanner onScan={handleQr} active={scannersActive} />
+                )
               )}
             </>
-          ) : null}
+          )}
         </CardContent>
       </Card>
     </div>

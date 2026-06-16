@@ -64,11 +64,11 @@ export default function CheckInPage() {
           <CardTitle>{t("checkin.title")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {status === "scan" && !urlToken && (
-            <>
-              <p className="text-sm text-muted-foreground">{t("checkin.scannerHint")}</p>
-              <QrScanner onScan={handleScan} />
-            </>
+          <p className={`text-sm text-muted-foreground ${status === "scan" && !urlToken ? "" : "sr-only"}`}>
+            {t("checkin.scannerHint")}
+          </p>
+          {!urlToken && (
+            <QrScanner onScan={handleScan} active={status === "scan"} />
           )}
           {status === "loading" && <Loader2 className="h-10 w-10 animate-spin mx-auto" />}
           {status === "ok" && <CheckCircle2 className="h-12 w-12 text-green-600 mx-auto" />}

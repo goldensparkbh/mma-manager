@@ -8,9 +8,10 @@ type Props = {
   onCapture: (descriptor: number[]) => void;
   disabled?: boolean;
   label?: string;
+  active?: boolean;
 };
 
-export function FaceCapture({ onCapture, disabled, label }: Props) {
+export function FaceCapture({ onCapture, disabled, label, active = true }: Props) {
   const { t } = useLanguage();
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -25,7 +26,16 @@ export function FaceCapture({ onCapture, disabled, label }: Props) {
   }, []);
 
   useEffect(() => {
+    if (!active) {
+      stopCamera();
+      setReady(false);
+      setLoading(false);
+      return;
+    }
+
     let cancelled = false;
+    setLoading(true);
+    setError("");
     (async () => {
       try {
         await loadFaceModels();
@@ -53,7 +63,7 @@ export function FaceCapture({ onCapture, disabled, label }: Props) {
       cancelled = true;
       stopCamera();
     };
-  }, [stopCamera, t]);
+  }, [active, stopCamera, t]);
 
   const capture = async () => {
     if (!videoRef.current || capturing) return;
@@ -72,7 +82,7 @@ export function FaceCapture({ onCapture, disabled, label }: Props) {
 
   return (
     <div className="space-y-3">
-      <div className="relative aspect-[4/3] max-w-md mx-auto bg-muted rounded-lg overflow-hidden">
+      <div className={`relative aspect-[4/3] max-w-md mx-auto bg-muted rounded-lg overflow-hidden ${!active ? "hidden" : ""}`}>
         {loading ? (
           <div className="absolute inset-0 flex items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
