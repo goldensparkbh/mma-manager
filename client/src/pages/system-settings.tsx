@@ -39,6 +39,7 @@ import { PERMISSIONS } from "@/lib/permissions";
 import { ClubTypeSettings } from "@/components/club-type-settings";
 import { BranchesPanel } from "@/components/branches-panel";
 import { WebhooksPanel } from "@/components/webhooks-panel";
+import { AttendanceMethodsPanel } from "@/components/attendance-methods-panel";
 
 type ClubProfile = {
     name: string;
@@ -805,6 +806,7 @@ export default function SystemSettings() {
                 {/* Backup Tab */}
                 <TabsContent value="integrations" className="space-y-6">
                     <div className="grid gap-4 lg:grid-cols-2">
+                        <AttendanceMethodsPanel />
                         <BranchesPanel />
                         <WebhooksPanel />
                     </div>

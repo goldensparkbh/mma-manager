@@ -14,7 +14,7 @@ type AuthState = {
   setSlug: (slug: string) => Promise<void>;
   login: (phone: string, password: string) => Promise<void>;
   requestOtp: (phone: string) => Promise<{ sentVia: string }>;
-  loginWithOtp: (phone: string, code: string, name?: string) => Promise<{ needsName: boolean }>;
+  loginWithOtp: (phone: string, code: string, name?: string, branchId?: string) => Promise<{ needsName: boolean }>;
   logout: () => Promise<void>;
   switchClub: (slug: string) => Promise<void>;
   leaveClub: () => Promise<void>;
@@ -111,12 +111,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const loginWithOtp = useCallback(
-    async (phone: string, code: string, name?: string) => {
+    async (phone: string, code: string, name?: string, branchId?: string) => {
       const result = await createApi().post<{
         token?: string;
         needsName?: boolean;
         tenant?: { name: string };
-      }>(`/api/portal/${slug}/otp/verify`, { phone, code, name });
+      }>(`/api/portal/${slug}/otp/verify`, { phone, code, name, branchId });
       if (result.needsName) return { needsName: true };
       if (!result.token) throw new Error("Verification failed");
       await storage.setToken(result.token);

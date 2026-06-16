@@ -8,7 +8,8 @@ export type WebhookEvent =
   | "payment.received"
   | "payment.failed"
   | "member.created"
-  | "attendance.checkin";
+  | "attendance.checkin"
+  | "attendance.checkout";
 
 export async function getWebhooks(tenantId: string) {
   const result = await query(

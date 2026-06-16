@@ -837,3 +837,29 @@ CREATE TABLE IF NOT EXISTS platform_club_types (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_platform_club_types_sort ON platform_club_types(sort_order ASC);
+
+-- Multi-branch access: country per branch + club-wide access scope
+ALTER TABLE branches ADD COLUMN IF NOT EXISTS country VARCHAR(2);
+ALTER TABLE tenant_settings ADD COLUMN IF NOT EXISTS branch_access_scope VARCHAR(20) DEFAULT 'home_branch';
+UPDATE tenant_settings SET branch_access_scope = 'home_branch' WHERE branch_access_scope IS NULL;
+UPDATE branches b SET country = ts.country
+FROM tenant_settings ts
+WHERE b.tenant_id = ts.tenant_id AND b.country IS NULL AND ts.country IS NOT NULL;
+
+-- Attendance methods & member biometrics
+ALTER TABLE tenant_settings ADD COLUMN IF NOT EXISTS attendance_methods JSONB DEFAULT '{"qr":true,"staff":true,"fingerprint":false,"face":false}';
+ALTER TABLE attendance ADD COLUMN IF NOT EXISTS check_in_method VARCHAR(20) DEFAULT 'staff';
+UPDATE attendance SET check_in_method = 'staff' WHERE check_in_method IS NULL;
+
+CREATE TABLE IF NOT EXISTS member_biometrics (
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  member_id UUID PRIMARY KEY REFERENCES members(id) ON DELETE CASCADE,
+  fingerprint_template TEXT,
+  fingerprint_template_alt TEXT,
+  face_descriptor JSONB,
+  face_descriptor_alt JSONB,
+  fingerprint_enrolled_at TIMESTAMPTZ,
+  face_enrolled_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_member_biometrics_tenant ON member_biometrics(tenant_id);

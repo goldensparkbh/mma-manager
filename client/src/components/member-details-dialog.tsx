@@ -34,6 +34,7 @@ import { useClubConfig } from "@/lib/clubConfig";
 import { MemberCustomFields } from "@/components/member-custom-fields";
 import { MemberQrPanel } from "@/components/member-qr-panel";
 import { BranchSelect } from "@/components/branch-select";
+import { BiometricEnrollmentPanel } from "@/components/biometric-enrollment-panel";
 import { formatMoney } from "@/lib/utils";
 
 interface MemberDetailsDialogProps {
@@ -2779,6 +2780,10 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                                         </Button>
                                     )}
                                 </div>
+
+                                {member && hasPermission(PERMISSIONS.ATTENDANCE_CREATE) ? (
+                                    <BiometricEnrollmentPanel memberId={member.id} memberName={member.name} />
+                                ) : null}
 
                                 {member && hasPermission(PERMISSIONS.ATTENDANCE_CREATE) && showAddAttendanceForm && (
                                     <Card className="p-4 border-primary/50 bg-primary/5 space-y-4">

@@ -198,6 +198,29 @@ router.get("/api/public/:slug/coaches", async (req, res) => {
   }
 });
 
+router.get("/api/public/:slug/branches", async (req, res) => {
+  try {
+    const tenant = await bookings.getTenantByPortalSlug(req.params.slug);
+    if (!tenant) return res.status(404).json({ error: "Club not found" });
+    const { ensureDefaultBranch } = await import("./branches.js");
+    const { getActiveBranches } = await import("./branchAccess.js");
+    await ensureDefaultBranch(tenant.id as string);
+    const branches = await getActiveBranches(tenant.id as string);
+    res.json(
+      branches.map((b) => ({
+        id: b.id,
+        name: b.name,
+        address: b.address || null,
+        phone: b.phone || null,
+        country: b.country || null,
+        isDefault: !!b.isDefault,
+      })),
+    );
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 router.post("/api/public/:slug/camps/:id/register", async (req, res) => {
   try {
     const tenant = await bookings.getTenantByPortalSlug(req.params.slug);
@@ -208,6 +231,67 @@ router.post("/api/public/:slug/camps/:id/register", async (req, res) => {
     res.status(201).json(await registerForCamp(tenant.id as string, req.params.id, { memberName, phone }));
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+router.post("/api/public/:slug/checkin", async (req, res) => {
+  try {
+    const { qrToken } = req.body;
+    if (!qrToken) return res.status(400).json({ error: "QR token required" });
+    const { qrCheckIn } = await import("./checkin.js");
+    res.json(await qrCheckIn(req.params.slug, qrToken));
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+router.post("/api/public/:slug/checkin/face", async (req, res) => {
+  try {
+    const tenant = await bookings.getTenantByPortalSlug(req.params.slug);
+    if (!tenant) return res.status(404).json({ error: "Club not found" });
+    const tenantId = tenant.id as string;
+    const { descriptor } = req.body;
+    const { getAttendanceMethods, matchFaceForTenant, parseDescriptor } = await import("./biometrics.js");
+    const { biometricCheckIn } = await import("./checkin.js");
+    const config = await getAttendanceMethods(tenantId);
+    if (!config.face) return res.status(403).json({ error: "Face check-in is disabled" });
+    const probe = parseDescriptor(descriptor);
+    if (!probe) return res.status(400).json({ error: "Invalid face scan" });
+    const match = await matchFaceForTenant(tenantId, probe, config);
+    if (!match) return res.status(404).json({ error: "No matching member found" });
+    res.json(await biometricCheckIn(tenantId, match.memberId, match.memberName, "face"));
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+router.post("/api/public/:slug/checkin/fingerprint", async (req, res) => {
+  try {
+    const tenant = await bookings.getTenantByPortalSlug(req.params.slug);
+    if (!tenant) return res.status(404).json({ error: "Club not found" });
+    const tenantId = tenant.id as string;
+    const { template } = req.body;
+    if (!template) return res.status(400).json({ error: "Fingerprint template required" });
+    const { getAttendanceMethods, matchFingerprintForTenant } = await import("./biometrics.js");
+    const { biometricCheckIn } = await import("./checkin.js");
+    const config = await getAttendanceMethods(tenantId);
+    if (!config.fingerprint) return res.status(403).json({ error: "Fingerprint check-in is disabled" });
+    const match = await matchFingerprintForTenant(tenantId, template, config);
+    if (!match) return res.status(404).json({ error: "No matching member found" });
+    res.json(await biometricCheckIn(tenantId, match.memberId, match.memberName, "fingerprint"));
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+router.get("/api/public/:slug/attendance-methods", async (req, res) => {
+  try {
+    const tenant = await bookings.getTenantByPortalSlug(req.params.slug);
+    if (!tenant) return res.status(404).json({ error: "Club not found" });
+    const { getAttendanceMethods } = await import("./biometrics.js");
+    res.json(await getAttendanceMethods(tenant.id as string));
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
   }
 });
 
@@ -275,10 +359,10 @@ router.post("/api/portal/:slug/otp/request", async (req, res) => {
 
 router.post("/api/portal/:slug/otp/verify", async (req, res) => {
   try {
-    const { phone, code, name } = req.body;
+    const { phone, code, name, branchId } = req.body;
     if (!phone || !code) return res.status(400).json({ error: "Phone and code required" });
     const { verifyPortalOtp } = await import("./portalOtp.js");
-    const result = await verifyPortalOtp(req.params.slug, phone, code, name);
+    const result = await verifyPortalOtp(req.params.slug, phone, code, name, branchId);
     if (result.kind === "needs_name") {
       return res.json({ needsName: true });
     }
@@ -618,6 +702,16 @@ router.get("/api/portal/family-members", requireMemberAccount, async (req, res) 
     [auth.tenantId, ids],
   );
   res.json(rowsToCamel(result.rows));
+});
+
+router.get("/api/portal/branches", requireMemberAccount, async (req, res) => {
+  try {
+    const auth = getAuth(req);
+    const { getMemberBranchAccess } = await import("./branchAccess.js");
+    res.json(await getMemberBranchAccess(auth.tenantId!, auth.memberId!));
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
 });
 
 router.get("/api/portal/account-members", requireMemberAccount, async (req, res) => {
@@ -1055,7 +1149,8 @@ router.get("/api/attendance", async (req, res) => {
 });
 router.get("/api/attendance/all", async (req, res) => res.json(await data.getAllAttendance(tid(req))));
 router.post("/api/attendance", async (req, res) => {
-  res.status(201).json(await data.createAttendance(tid(req), req.body));
+  const body = { ...req.body, checkInMethod: req.body.checkInMethod || "staff" };
+  res.status(201).json(await data.createAttendance(tid(req), body));
 });
 router.post("/api/attendance/bulk", async (req, res) => {
   const { members, date, checkIn } = req.body as {
@@ -1086,6 +1181,62 @@ router.patch("/api/attendance/:id/checkout", async (req, res) => {
 });
 router.delete("/api/attendance/:id", async (req, res) => {
   await data.deleteAttendance(tid(req), req.params.id);
+  res.status(204).send();
+});
+
+router.get("/api/attendance/methods", async (req, res) => {
+  const { getAttendanceMethods } = await import("./biometrics.js");
+  res.json(await getAttendanceMethods(tid(req)));
+});
+
+router.patch("/api/attendance/methods", async (req, res) => {
+  try {
+    const { parseAttendanceMethods } = await import("../shared/attendanceMethods.js");
+    const { updateAttendanceMethods } = await import("./biometrics.js");
+    const config = parseAttendanceMethods(req.body);
+    res.json(await updateAttendanceMethods(tid(req), config));
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+router.get("/api/members/:id/biometrics", async (req, res) => {
+  const { getMemberBiometrics } = await import("./biometrics.js");
+  res.json(await getMemberBiometrics(tid(req), req.params.id));
+});
+
+router.post("/api/members/:id/biometrics/face", async (req, res) => {
+  try {
+    const { enrollMemberFace } = await import("./biometrics.js");
+    const { descriptor1, descriptor2 } = req.body;
+    res.json(await enrollMemberFace(tid(req), req.params.id, descriptor1, descriptor2));
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+router.post("/api/members/:id/biometrics/fingerprint", async (req, res) => {
+  try {
+    const { enrollMemberFingerprint, getAttendanceMethods } = await import("./biometrics.js");
+    const config = await getAttendanceMethods(tid(req));
+    const { template1, template2 } = req.body;
+    res.json(
+      await enrollMemberFingerprint(tid(req), req.params.id, template1, template2, config.fingerprintBridgeUrl),
+    );
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+router.delete("/api/members/:id/biometrics/face", async (req, res) => {
+  const { clearMemberFace } = await import("./biometrics.js");
+  await clearMemberFace(tid(req), req.params.id);
+  res.status(204).send();
+});
+
+router.delete("/api/members/:id/biometrics/fingerprint", async (req, res) => {
+  const { clearMemberFingerprint } = await import("./biometrics.js");
+  await clearMemberFingerprint(tid(req), req.params.id);
   res.status(204).send();
 });
 

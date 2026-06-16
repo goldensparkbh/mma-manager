@@ -45,6 +45,8 @@ import {
 import { useI18n } from "@/lib/i18n";
 import { useTypography } from "@/lib/fonts";
 import { useBookings, useCamps, useCheckout, useRegisterCamp, useAccountMembers } from "@/lib/hooks";
+import { useBranchAccess } from "@/lib/branchAccess";
+import { AccessibleBranchesSection } from "@/lib/accessibleBranches";
 import { BookingsIllustration } from "@/lib/illustrations";
 import {
   ClubMembersSection,
@@ -106,6 +108,7 @@ export function ClubDetailScreen({
   const { data: memberCamps, isLoading: loadingMemberCamps, refetch: refetchMemberCamps } = useCamps();
   const { data: bookingsData, refetch: refetchBookings, isRefetching: refetchingBookings } = useBookings();
   const { data: accountMembers, isLoading: loadingAccountMembers, refetch: refetchAccountMembers } = useAccountMembers();
+  const { data: branchAccess, isLoading: loadingBranchAccess } = useBranchAccess();
 
   const vis = getClubTypeVisual(profile?.clubType);
   const accent = profile?.primaryColor || vis.color;
@@ -396,6 +399,11 @@ export function ClubDetailScreen({
               setRenewTarget(m);
               show(t("member.pickPackageRenew"), "success");
             }}
+          />
+
+          <AccessibleBranchesSection
+            access={branchAccess}
+            loading={loadingBranchAccess}
           />
 
           <View style={styles.inlineSection}>

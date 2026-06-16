@@ -145,11 +145,15 @@ export async function addPortalAccountMember(
   const familyId = await ensureMemberFamily(tenantId, accountMemberId);
   const phone = accountPhone?.replace(/\s+/g, "") || "";
 
+  const accountMember = await data.getMember(tenantId, accountMemberId);
+  const homeBranchId = (accountMember as { branchId?: string | null } | null)?.branchId || null;
+
   const member = await data.createMember(tenantId, {
     name,
     phone: phone || `family-${Date.now()}`,
     age: input.age ?? null,
     status: "inactive",
+    branchId: homeBranchId,
   });
 
   await addFamilyMember(tenantId, familyId, member.id as string, "member");

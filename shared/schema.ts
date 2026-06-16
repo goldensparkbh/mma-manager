@@ -130,7 +130,11 @@ export interface Attendance {
   checkIn?: string | null;
   checkOut?: string | null;
   notes?: string | null;
+  checkInMethod?: "qr" | "staff" | "fingerprint" | "face" | null;
 }
+
+export type { AttendanceMethodsConfig, CheckInMethod } from "./attendanceMethods";
+export { DEFAULT_ATTENDANCE_METHODS, parseAttendanceMethods } from "./attendanceMethods";
 
 export type InsertAttendance = Omit<Attendance, "id">;
 

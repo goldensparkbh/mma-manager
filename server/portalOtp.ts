@@ -109,6 +109,7 @@ export async function verifyPortalOtp(
   phone: string,
   code: string,
   name?: string,
+  branchId?: string | null,
 ): Promise<PortalOtpVerifyResult> {
   const { getTenantByPortalSlug, getBookingSettings } = await import("./bookings.js");
   const tenant = await getTenantByPortalSlug(slug);
@@ -151,7 +152,7 @@ export async function verifyPortalOtp(
   }
 
   const data = await import("./data.js");
-  const registered = await data.registerMemberViaPortal(tenantId, normalized, name.trim());
+  const registered = await data.registerMemberViaPortal(tenantId, normalized, name.trim(), branchId);
 
   await query("UPDATE portal_otp_codes SET used_at = NOW() WHERE id = $1", [otpRow.rows[0].id]);
   await query("UPDATE member_accounts SET last_login = NOW() WHERE id = $1", [registered.accountId]);

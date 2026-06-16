@@ -141,9 +141,13 @@ export async function createAttendance(tenantId: string, data: Record<string, un
   const isFirstOfDay = !existing.rows[0];
 
   const result = await query(
-    `INSERT INTO attendance (tenant_id, member_id, member_name, date, check_in, check_out, notes)
-     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-    [tenantId, data.memberId, data.memberName, data.date, data.checkIn || null, data.checkOut || null, data.notes || null],
+    `INSERT INTO attendance (tenant_id, member_id, member_name, date, check_in, check_out, notes, check_in_method)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+    [
+      tenantId, data.memberId, data.memberName, data.date,
+      data.checkIn || null, data.checkOut || null, data.notes || null,
+      data.checkInMethod || "staff",
+    ],
   );
   if (isFirstOfDay) {
     await decrementSessionOnAttendance(tenantId, data.memberId as string);
@@ -743,6 +747,10 @@ export async function getSettings(tenantId: string) {
     productCategories: typeof s.productCategories === "string" ? JSON.parse(s.productCategories as string) : s.productCategories,
     operatingHours: typeof s.operatingHours === "string" ? JSON.parse(s.operatingHours as string) : s.operatingHours,
     sportTypeIds: parseJsonField<string[]>(s.sportTypeIds, []),
+    branchAccessScope: (s.branchAccessScope as string) || "home_branch",
+    attendanceMethods: typeof s.attendanceMethods === "string"
+      ? JSON.parse(s.attendanceMethods as string)
+      : s.attendanceMethods,
   };
 }
 
@@ -776,6 +784,8 @@ export async function updateSettings(tenantId: string, updates: Record<string, u
   if ("moduleConfig" in updates) { fields.push(`module_config = $${idx++}`); values.push(JSON.stringify(updates.moduleConfig)); }
   if ("operatingHours" in updates) { fields.push(`operating_hours = $${idx++}`); values.push(JSON.stringify(updates.operatingHours)); }
   if ("sportTypeIds" in updates) { fields.push(`sport_type_ids = $${idx++}`); values.push(JSON.stringify(updates.sportTypeIds)); }
+  if ("branchAccessScope" in updates) { fields.push(`branch_access_scope = $${idx++}`); values.push(updates.branchAccessScope); }
+  if ("attendanceMethods" in updates) { fields.push(`attendance_methods = $${idx++}`); values.push(JSON.stringify(updates.attendanceMethods)); }
   await query(`UPDATE tenant_settings SET ${fields.join(", ")} WHERE tenant_id = $1`, values);
 }
 
@@ -1994,7 +2004,12 @@ export async function getMemberAccount(tenantId: string, memberId: string) {
   return result.rows[0] ? toCamelCase(result.rows[0]) : null;
 }
 
-export async function registerMemberViaPortal(tenantId: string, phone: string, name: string) {
+export async function registerMemberViaPortal(
+  tenantId: string,
+  phone: string,
+  name: string,
+  branchId?: string | null,
+) {
   const normalized = phone.replace(/\s+/g, "");
 
   const existingAccount = await query(
@@ -2004,21 +2019,28 @@ export async function registerMemberViaPortal(tenantId: string, phone: string, n
   if (existingAccount.rows[0]) throw new Error("Account already exists");
 
   const existingMember = await query(
-    `SELECT id, name FROM members WHERE tenant_id = $1 AND REPLACE(phone, ' ', '') = $2 LIMIT 1`,
+    `SELECT id, name, branch_id FROM members WHERE tenant_id = $1 AND REPLACE(phone, ' ', '') = $2 LIMIT 1`,
     [tenantId, normalized],
   );
+
+  const { resolveRegistrationBranchId } = await import("./branchAccess.js");
+  const homeBranchId = await resolveRegistrationBranchId(tenantId, branchId);
 
   let memberId: string;
   let memberName: string;
   if (existingMember.rows[0]) {
     memberId = existingMember.rows[0].id as string;
     memberName = (existingMember.rows[0].name as string) || name;
+    if (homeBranchId && !existingMember.rows[0].branch_id) {
+      await query("UPDATE members SET branch_id = $3 WHERE tenant_id = $1 AND id = $2", [tenantId, memberId, homeBranchId]);
+    }
   } else {
     assertMemberFullName(name);
     const member = await createMember(tenantId, {
       name: name.trim(),
       phone: normalized,
       status: "inactive",
+      branchId: homeBranchId,
     });
     memberId = member.id as string;
     memberName = name.trim();
@@ -2128,5 +2150,7 @@ export async function getPortalMemberProfile(tenantId: string, memberId: string)
       (sub.packageType !== "sessions" || (Number(sub.sessionsRemaining) || 0) > 0)
     );
   });
-  return { member, activeSubscription: activeSub || null, subscriptions: subs };
+  const { getMemberBranchAccess } = await import("./branchAccess.js");
+  const branchAccess = await getMemberBranchAccess(tenantId, memberId);
+  return { member, activeSubscription: activeSub || null, subscriptions: subs, branchAccess };
 }

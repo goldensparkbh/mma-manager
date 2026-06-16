@@ -73,3 +73,17 @@ export type MemberPayment = {
   status: string;
   createdAt?: string;
 };
+export type PublicBranch = {
+  id: string;
+  name: string;
+  address?: string | null;
+  phone?: string | null;
+  country?: string | null;
+  isDefault?: boolean;
+};
+export type BranchAccessScope = "home_branch" | "same_country" | "all_branches";
+export type BranchAccessInfo = {
+  scope: BranchAccessScope;
+  homeBranch: PublicBranch | null;
+  accessibleBranches: PublicBranch[];
+};

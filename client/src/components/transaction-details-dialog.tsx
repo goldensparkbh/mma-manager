@@ -5,6 +5,7 @@ import { ar, enUS } from "date-fns/locale";
 import { safeFormat } from "@/lib/formatDate";
 import { Calendar, CreditCard, Package, User, Hash, Clock, FileText } from "lucide-react";
 import { formatMoney } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 
 interface TransactionDetailsDialogProps {
     transaction: (Sale | Subscription & { type: 'sale' | 'subscription' }) | null;

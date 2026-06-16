@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 import { useAuth } from "@/lib/auth";
+import { usePublicBranches } from "@/lib/branchAccess";
 import { ClubLogo } from "@/lib/clubLogo";
 import { PrimaryButton } from "@/lib/components";
 import { useI18n } from "@/lib/i18n";
@@ -33,6 +34,7 @@ export default function LoginScreen() {
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
+  const [branchId, setBranchId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [sentVia, setSentVia] = useState("");
@@ -51,6 +53,19 @@ export default function LoginScreen() {
   useEffect(() => {
     if (slug) setClubCode(slug);
   }, [slug]);
+
+  const { data: publicBranches = [] } = usePublicBranches(slug);
+  const showBranchPicker = publicBranches.length > 1;
+
+  useEffect(() => {
+    if (!showBranchPicker) {
+      setBranchId("");
+      return;
+    }
+    if (branchId && publicBranches.some((b) => b.id === branchId)) return;
+    const def = publicBranches.find((b) => b.isDefault) || publicBranches[0];
+    if (def) setBranchId(def.id);
+  }, [publicBranches, showBranchPicker, branchId]);
 
   const ensureClub = async () => {
     const code = clubCode.trim().toLowerCase();
@@ -81,7 +96,7 @@ export default function LoginScreen() {
         setError(t("member.nameThreeParts"));
         return;
       }
-      const result = await loginWithOtp(phone, code, withName);
+      const result = await loginWithOtp(phone, code, withName, branchId || undefined);
       if (result.needsName) {
         setStep("name");
         return;
@@ -162,6 +177,32 @@ export default function LoginScreen() {
                 placeholderTextColor={colors.textMuted}
               />
               <Text style={[styles.hint, { color: colors.textMuted }]}>{t("member.memberNameHint")}</Text>
+              {showBranchPicker ? (
+                <>
+                  <Text style={[styles.label, { color: colors.textMuted }]}>{t("club.pickBranch")}</Text>
+                  <Text style={[styles.hint, { color: colors.textMuted }]}>{t("club.pickBranchHint")}</Text>
+                  <View style={styles.branchList}>
+                    {publicBranches.map((b) => {
+                      const active = branchId === b.id;
+                      return (
+                        <Pressable
+                          key={b.id}
+                          onPress={() => setBranchId(b.id)}
+                          style={[
+                            styles.branchChip,
+                            {
+                              borderColor: active ? accent : colors.border,
+                              backgroundColor: active ? withAlpha(accent, 0.12) : colors.bg,
+                            },
+                          ]}
+                        >
+                          <Text style={[styles.branchChipText, { color: active ? accent : colors.text }]}>{b.name}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </>
+              ) : null}
               <PrimaryButton
                 label={t("login.createAccount")}
                 loading={submitting}
@@ -208,4 +249,12 @@ const styles = StyleSheet.create({
   },
   error: { textAlign: "center", fontSize: 14 },
   link: { textAlign: "center", marginTop: 8, fontWeight: "600" },
+  branchList: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  branchChip: {
+    borderWidth: 1,
+    borderRadius: radius.md,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  branchChipText: { fontSize: 14, fontWeight: "600" },
 });
