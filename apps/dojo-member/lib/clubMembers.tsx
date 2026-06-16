@@ -1,13 +1,15 @@
 import { format } from "date-fns";
-import * as LocalAuthentication from "expo-local-authentication";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Badge, Card, PrimaryButton, SectionTitle } from "@/lib/components";
+import { Card, PrimaryButton, SectionTitle } from "@/lib/components";
 import { useTypography } from "@/lib/fonts";
 import { useI18n } from "@/lib/i18n";
+import { isValidMemberFullName } from "@/lib/memberNameValidation";
+import { useToast } from "@/lib/toast";
 import { radius, spacing, useThemeColors, withAlpha } from "@/lib/theme";
 import type { AccountMember } from "@/lib/types";
 
@@ -21,55 +23,87 @@ type ClubMemberRowProps = {
 export function ClubMemberRow({ member, accent, onShowQr, onRenew }: ClubMemberRowProps) {
   const colors = useThemeColors();
   const typo = useTypography();
-  const { t } = useI18n();
+  const { t, isRtl } = useI18n();
 
+  const agePart = member.age != null ? t("member.ageYears", { age: member.age }) : null;
   const untilLabel = member.hasActiveSubscription
     ? member.packageType === "sessions"
       ? t("member.sessionsLeftCount", { count: member.sessionsRemaining ?? 0 })
       : member.memberUntil
-        ? t("member.validUntil") + " " + format(new Date(member.memberUntil), "d MMM yyyy")
+        ? `${t("member.memberUntil")} ${format(new Date(member.memberUntil), "d MMM yyyy")}`
         : t("member.active")
     : t("member.noPlan");
 
   return (
-    <Card style={[styles.row, { borderColor: withAlpha(accent, 0.25) }]}>
-      <View style={styles.rowMain}>
-        <View style={{ flex: 1, gap: 2 }}>
-          <Text style={[styles.name, { color: colors.text }, typo.style("bold")]} numberOfLines={1}>
-            {member.name}
+    <Card
+      style={[
+        styles.row,
+        { borderColor: withAlpha(accent, 0.28), direction: isRtl ? "rtl" : "ltr" },
+      ]}
+    >
+      <View style={styles.singleRow}>
+        <View style={styles.info}>
+          <Text
+            style={[styles.nameBlock, { color: colors.text }, typo.style("regular")]}
+            numberOfLines={1}
+          >
+            <Text style={typo.style("bold")}>{member.name}</Text>
+            {agePart ? (
+              <Text style={{ color: colors.textMuted }}>{` · ${agePart}`}</Text>
+            ) : null}
           </Text>
-          <Text style={[styles.meta, { color: colors.textMuted }, typo.style("regular")]} numberOfLines={1}>
-            {member.age != null ? t("member.ageYears", { age: member.age }) : ""}
-            {member.age != null ? " · " : ""}
-            {untilLabel}
-          </Text>
+          {untilLabel ? (
+            <Text
+              style={[
+                styles.until,
+                { color: colors.textMuted },
+                typo.style("regular", { textAlign: isRtl ? "left" : "right" }),
+              ]}
+              numberOfLines={1}
+            >
+              {untilLabel}
+            </Text>
+          ) : null}
         </View>
+
         {member.hasActiveSubscription ? (
           <Pressable
             onPress={() => onShowQr(member)}
-            style={[styles.actionBtn, { backgroundColor: withAlpha(accent, 0.12) }]}
+            hitSlop={6}
+            style={({ pressed }) => [
+              styles.qrBtn,
+              {
+                backgroundColor: accent,
+                opacity: pressed ? 0.85 : 1,
+                transform: [{ scale: pressed ? 0.92 : 1 }],
+              },
+            ]}
             accessibilityRole="button"
             accessibilityLabel={t("member.showQr")}
           >
-            <Text style={[styles.actionText, { color: accent }, typo.style("semibold")]}>{t("member.qrShort")}</Text>
+            <Ionicons name="qr-code" size={17} color="#fff" />
           </Pressable>
         ) : (
           <Pressable
             onPress={() => onRenew(member)}
-            style={[styles.actionBtn, { backgroundColor: withAlpha(accent, 0.12) }]}
+            hitSlop={6}
+            style={({ pressed }) => [
+              styles.renewBtn,
+              {
+                borderColor: accent,
+                backgroundColor: withAlpha(accent, pressed ? 0.16 : 0.08),
+              },
+            ]}
             accessibilityRole="button"
             accessibilityLabel={t("member.renewPay")}
           >
-            <Text style={[styles.actionText, { color: accent }, typo.style("semibold")]}>{t("member.renew")}</Text>
+            <Ionicons name="refresh" size={15} color={accent} />
           </Pressable>
         )}
       </View>
-      {member.hasActiveSubscription && member.planName ? (
-        <Badge label={member.planName} tone="success" />
-      ) : null}
     </Card>
   );
-};
+}
 
 type ClubMembersSectionProps = {
   members: AccountMember[];
@@ -93,7 +127,7 @@ export function ClubMembersSection({
   const router = useRouter();
   const colors = useThemeColors();
   const typo = useTypography();
-  const { t } = useI18n();
+  const { t, isRtl } = useI18n();
 
   if (loading) return null;
   if (!members.length) return null;
@@ -102,7 +136,7 @@ export function ClubMembersSection({
   const hasMore = members.length > PREVIEW_LIMIT;
 
   return (
-    <View style={styles.section}>
+    <View style={[styles.section, isRtl && styles.sectionRtl]}>
       <SectionTitle title={t("member.myMembers")} />
       {preview.map((m) => (
         <ClubMemberRow key={m.id} member={m} accent={accent} onShowQr={onShowQr} onRenew={onRenew} />
@@ -172,11 +206,13 @@ export function PurchaseMemberModal({
   const colors = useThemeColors();
   const typo = useTypography();
   const { t } = useI18n();
+  const { show } = useToast();
   const insets = useSafeAreaInsets();
   const [mode, setMode] = useState<"existing" | "new">("existing");
   const [selectedId, setSelectedId] = useState<string>("");
   const [name, setName] = useState("");
   const [age, setAge] = useState("");
+  const [nameError, setNameError] = useState("");
 
   const inactiveMembers = members.filter((m) => !m.hasActiveSubscription);
 
@@ -185,11 +221,19 @@ export function PurchaseMemberModal({
     setSelectedId(inactiveMembers[0]?.id || "");
     setName("");
     setAge("");
+    setNameError("");
   };
 
   const handleConfirm = () => {
     if (mode === "new") {
-      if (!name.trim()) return;
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      if (!isValidMemberFullName(trimmed)) {
+        setNameError(t("member.nameThreeParts"));
+        show(t("member.nameThreeParts"), "error");
+        return;
+      }
+      setNameError("");
       onConfirm({
         newMember: {
           name: name.trim(),
@@ -265,11 +309,25 @@ export function PurchaseMemberModal({
             <View style={styles.form}>
               <TextInput
                 value={name}
-                onChangeText={setName}
-                placeholder={t("member.memberName")}
+                onChangeText={(v) => {
+                  setName(v);
+                  if (nameError) setNameError("");
+                }}
+                placeholder={t("member.memberNamePlaceholder")}
                 placeholderTextColor={colors.textMuted}
-                style={[styles.input, { color: colors.text, borderColor: colors.border }, typo.style("regular")]}
+                style={[
+                  styles.input,
+                  { color: colors.text, borderColor: nameError ? colors.danger : colors.border },
+                  typo.style("regular"),
+                ]}
               />
+              {nameError ? (
+                <Text style={[styles.nameError, { color: colors.danger }, typo.style("regular")]}>{nameError}</Text>
+              ) : (
+                <Text style={[styles.nameHint, { color: colors.textMuted }, typo.style("regular")]}>
+                  {t("member.memberNameHint")}
+                </Text>
+              )}
               <TextInput
                 value={age}
                 onChangeText={setAge}
@@ -297,12 +355,43 @@ export function PurchaseMemberModal({
 
 const styles = StyleSheet.create({
   section: { marginTop: spacing.sm, gap: spacing.sm },
-  row: { gap: spacing.xs, paddingVertical: spacing.sm },
-  rowMain: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  name: { fontSize: 15, lineHeight: 20 },
-  meta: { fontSize: 12, lineHeight: 17 },
-  actionBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: radius.md },
-  actionText: { fontSize: 12 },
+  sectionRtl: { direction: "rtl" },
+  row: {
+    paddingVertical: 8,
+    paddingHorizontal: spacing.sm,
+    borderWidth: 1,
+  },
+  singleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    minHeight: 32,
+  },
+  info: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+    minWidth: 0,
+  },
+  nameBlock: { flexShrink: 1, fontSize: 14, lineHeight: 18, maxWidth: "52%" },
+  until: { flexShrink: 1, fontSize: 12, lineHeight: 16, maxWidth: "48%" },
+  qrBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  renewBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   seeAll: {
     borderWidth: 1,
     borderRadius: radius.lg,
@@ -353,6 +442,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 15,
   },
+  nameHint: { fontSize: 12, lineHeight: 17 },
+  nameError: { fontSize: 12, lineHeight: 17 },
   modalActions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm },
   modalAction: { flex: 1 },
 });

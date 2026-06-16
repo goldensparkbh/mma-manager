@@ -11,6 +11,7 @@ import { useClubProfile } from "@/lib/discover";
 import { getClubTypeVisual } from "@/lib/clubVisuals";
 import { useAccountMembers } from "@/lib/hooks";
 import { useI18n } from "@/lib/i18n";
+import { useTypography } from "@/lib/fonts";
 import { spacing, useThemeColors } from "@/lib/theme";
 import type { AccountMember } from "@/lib/types";
 
@@ -19,7 +20,8 @@ export default function ClubMembersScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
-  const { t } = useI18n();
+  const { t, isRtl } = useI18n();
+  const typo = useTypography();
   const clubSlug = slug || "";
 
   const { data: profile } = useClubProfile(clubSlug);
@@ -42,17 +44,18 @@ export default function ClubMembersScreen() {
   }
 
   return (
-    <View style={[styles.root, { backgroundColor: colors.bg, paddingTop: insets.top }]}>
+    <View style={[styles.root, { backgroundColor: colors.bg, paddingTop: insets.top, direction: isRtl ? "rtl" : "ltr" }]}>
       <View style={styles.topBar}>
         <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button">
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
+          <Ionicons name={isRtl ? "arrow-forward" : "arrow-back"} size={24} color={colors.text} />
         </Pressable>
-        <Text style={[styles.topTitle, { color: colors.text }]}>{t("member.myMembers")}</Text>
+        <Text style={[styles.topTitle, { color: colors.text }, typo.style("bold")]}>{t("member.myMembers")}</Text>
         <View style={{ width: 24 }} />
       </View>
 
       <Screen scroll onRefresh={() => refetch()} style={{ flex: 1 }}>
         <SectionTitle title={profile?.name || ""} />
+        <View style={isRtl ? styles.listRtl : undefined}>
         {isLoading ? (
           <>
             <Skeleton height={72} />
@@ -79,6 +82,7 @@ export default function ClubMembersScreen() {
             />
           ))
         )}
+        </View>
       </Screen>
 
       <MemberQrModal visible={!!qrMember} member={qrMember} onClose={() => setQrMember(null)} />
@@ -95,5 +99,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.sm,
   },
-  topTitle: { fontSize: 17, fontWeight: "700" },
+  topTitle: { fontSize: 17 },
+  listRtl: { direction: "rtl" },
 });

@@ -44,6 +44,7 @@ import { WhatsAppTemplateDialog } from "@/components/whatsapp-template-dialog";
 import { MemberDetailsDialog } from "@/components/member-details-dialog";
 import { PERMISSIONS } from "@/lib/permissions";
 import { CommissionsPanel } from "@/components/commissions-panel";
+import { formatMoney, toMoneyNumber } from "@/lib/utils";
 
 const expenseCategories = [
   "rent",
@@ -141,28 +142,28 @@ export default function Finance() {
 
   const totalSubscriptionIncome = filteredSubscriptions
     .filter(sub => sub.paymentStatus === 'paid')
-    .reduce((sum, sub) => sum + sub.amount, 0);
+    .reduce((sum, sub) => sum + toMoneyNumber(sub.amount), 0);
 
   const totalSalesIncome = filteredSales
     .filter(sale => sale.paymentStatus === 'paid')
-    .reduce((sum, sale) => sum + sale.totalPrice, 0);
+    .reduce((sum, sale) => sum + toMoneyNumber(sale.totalPrice), 0);
 
   const totalPendingSubscriptions = filteredSubscriptions
     .filter(sub => sub.paymentStatus !== 'paid')
-    .reduce((sum, sub) => sum + sub.amount, 0);
+    .reduce((sum, sub) => sum + toMoneyNumber(sub.amount), 0);
 
   const totalPendingSales = filteredSales
     .filter(sale => sale.paymentStatus !== 'paid')
-    .reduce((sum, sale) => sum + sale.totalPrice, 0);
+    .reduce((sum, sale) => sum + toMoneyNumber(sale.totalPrice), 0);
 
   const totalIncome = totalSubscriptionIncome + totalSalesIncome;
   const totalPending = totalPendingSubscriptions + totalPendingSales;
-  const totalExpenses = filteredExpenses.reduce((sum, exp) => sum + exp.amount, 0);
+  const totalExpenses = filteredExpenses.reduce((sum, exp) => sum + toMoneyNumber(exp.amount), 0);
   const netProfit = totalIncome - totalExpenses;
 
   const expensesByCategory = expenseCategories.map((cat) => ({
     category: cat,
-    total: filteredExpenses.filter((e) => e.category === cat).reduce((sum, e) => sum + e.amount, 0),
+    total: filteredExpenses.filter((e) => e.category === cat).reduce((sum, e) => sum + toMoneyNumber(e.amount), 0),
   })).filter((c) => c.total > 0);
 
   const getCategoryLabel = (value: string) => {
@@ -321,7 +322,7 @@ export default function Finance() {
         tx.type,
         tx.memberName,
         tx.description,
-        (tx.isExpense ? "-" : "") + tx.amount.toFixed(2),
+        (tx.isExpense ? "-" : "") + formatMoney(tx.amount),
         tx.status
       ])
     ].map(e => e.join(",")).join("\n");
@@ -444,7 +445,7 @@ export default function Finance() {
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">{t("common.amount")}</Label>
-              <p className="font-medium text-base text-green-600">{sub.amount.toFixed(2)} {t("common.currency")}</p>
+              <p className="font-medium text-base text-green-600">{formatMoney(sub.amount)} {t("common.currency")}</p>
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">{t("common.status")}</Label>
@@ -528,7 +529,7 @@ export default function Finance() {
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">{t("sales.total")}</Label>
-              <p className="font-medium text-base text-green-600">{sale.totalPrice.toFixed(2)} {t("common.currency")}</p>
+              <p className="font-medium text-base text-green-600">{formatMoney(sale.totalPrice)} {t("common.currency")}</p>
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">{t("common.status")}</Label>
@@ -572,7 +573,7 @@ export default function Finance() {
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">{t("common.amount")}</Label>
-              <p className="font-medium text-base text-red-600">{exp.amount.toFixed(2)} {t("common.currency")}</p>
+              <p className="font-medium text-base text-red-600">{formatMoney(exp.amount)} {t("common.currency")}</p>
             </div>
             <div className="space-y-1 col-span-2">
               <Label className="text-xs text-muted-foreground">{t("common.description")}</Label>
@@ -656,7 +657,7 @@ export default function Finance() {
                   <div>
                     <p className="text-sm text-muted-foreground">{t('dashboard.monthlyIncome')}</p>
                     <p className="text-2xl font-bold" data-testid="text-subscription-income">
-                      {totalSubscriptionIncome.toFixed(2)} {t("common.currency")}
+                      {formatMoney(totalSubscriptionIncome)} {t("common.currency")}
                     </p>
                   </div>
                 </div>
@@ -701,7 +702,7 @@ export default function Finance() {
                           {sub.memberName}
                         </td>
                         <td className="py-2 px-2">{sub.planName}</td>
-                        <td className="py-2 px-2">{sub.amount.toFixed(2)}</td>
+                        <td className="py-2 px-2">{formatMoney(sub.amount)}</td>
                         <td className="py-2 px-2">
                           <Badge variant={sub.paymentStatus === 'paid' ? 'default' : 'secondary'}>
                             {sub.paymentStatus === 'paid' ? t('common.paid') : t('common.unpaid')}
@@ -727,7 +728,7 @@ export default function Finance() {
                   <div>
                     <p className="text-sm text-muted-foreground">{t('dashboard.salesIncome')}</p>
                     <p className="text-2xl font-bold" data-testid="text-sales-income">
-                      {totalSalesIncome.toFixed(2)} {t("common.currency")}
+                      {formatMoney(totalSalesIncome)} {t("common.currency")}
                     </p>
                   </div>
                 </div>
@@ -779,7 +780,7 @@ export default function Finance() {
                           )}
                         </td>
                         <td className="py-2 px-2 font-medium">{sale.productName}</td>
-                        <td className="py-2 px-2">{sale.totalPrice.toFixed(2)}</td>
+                        <td className="py-2 px-2">{formatMoney(sale.totalPrice)}</td>
                         <td className="py-2 px-2">
                           <Badge variant={sale.paymentStatus === 'paid' ? 'default' : 'secondary'}>
                             {sale.paymentStatus === 'paid' ? t('common.paid') : t('common.unpaid')}
@@ -806,7 +807,7 @@ export default function Finance() {
                   <div>
                     <p className="text-sm text-muted-foreground">{t("subscriptions.unpaid")}</p>
                     <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
-                      {totalPending.toFixed(2)} {t("common.currency")}
+                      {formatMoney(totalPending)} {t("common.currency")}
                     </p>
                   </div>
                 </div>
@@ -843,7 +844,7 @@ export default function Finance() {
                         <td className="py-2 px-2"><Badge variant="outline">{item.type}</Badge></td>
                         <td className="py-2 px-2 font-medium">{item.memberName}</td>
                         <td className="py-2 px-2">{item.description}</td>
-                        <td className="py-2 px-2">{item.amount.toFixed(2)}</td>
+                        <td className="py-2 px-2">{formatMoney(item.amount)}</td>
                         <td className="py-2 px-2">
                           <Badge variant="secondary">
                             {item.status === 'pending' ? t('common.pending') : t('common.unpaid')}
@@ -873,7 +874,7 @@ export default function Finance() {
               <div>
                 <p className="text-sm text-muted-foreground">{t("finance.totalExpenses")}</p>
                 <p className="text-2xl font-bold" data-testid="text-total-expenses">
-                  {totalExpenses.toFixed(2)} {t("common.currency")}
+                  {formatMoney(totalExpenses)} {t("common.currency")}
                 </p>
               </div>
             </div>
@@ -893,7 +894,7 @@ export default function Finance() {
               <div>
                 <p className="text-sm text-muted-foreground">{t("finance.netProfit")}</p>
                 <p className={`text-2xl font-bold ${netProfit >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`} data-testid="text-net-profit">
-                  {netProfit.toFixed(2)} {t("common.currency")}
+                  {formatMoney(netProfit)} {t("common.currency")}
                 </p>
               </div>
             </div>
@@ -915,21 +916,21 @@ export default function Finance() {
             <div className="p-4 bg-muted/50 rounded-lg">
               <p className="text-sm text-muted-foreground mb-2">{t("finance.totalIncome")}</p>
               <p className="text-3xl font-bold text-green-600 dark:text-green-400">
-                {totalIncome.toFixed(2)} {t("common.currency")}
+                {formatMoney(totalIncome)} {t("common.currency")}
               </p>
               <div className="mt-2 space-y-1 text-xs text-muted-foreground">
                 <div className="flex justify-between">
                   <span>{t("finance.subscriptionIncome")}: </span>
-                  <span>{totalSubscriptionIncome.toFixed(2)} {t("common.currency")}</span>
+                  <span>{formatMoney(totalSubscriptionIncome)} {t("common.currency")}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>{t("finance.salesIncome")}: </span>
-                  <span>{totalSalesIncome.toFixed(2)} {t("common.currency")}</span>
+                  <span>{formatMoney(totalSalesIncome)} {t("common.currency")}</span>
                 </div>
                 {totalPending > 0 && (
                   <div className="flex justify-between text-yellow-600 pt-1 border-t">
                     <span>{t("subscriptions.unpaid")}: </span>
-                    <span>{totalPending.toFixed(2)} {t("common.currency")}</span>
+                    <span>{formatMoney(totalPending)} {t("common.currency")}</span>
                   </div>
                 )}
               </div>
@@ -938,7 +939,7 @@ export default function Finance() {
             <div className="p-4 bg-muted/50 rounded-lg">
               <p className="text-sm text-muted-foreground mb-2">{t("finance.totalExpenses")}</p>
               <p className="text-3xl font-bold text-red-600 dark:text-red-400">
-                {totalExpenses.toFixed(2)} {t("common.currency")}
+                {formatMoney(totalExpenses)} {t("common.currency")}
               </p>
               <p className="mt-2 text-xs text-muted-foreground">
                 {filteredExpenses?.length ?? 0} {t("finance.records")}
@@ -948,7 +949,7 @@ export default function Finance() {
             <div className="p-4 bg-muted/50 rounded-lg">
               <p className="text-sm text-muted-foreground mb-2">{t("finance.netProfit")}</p>
               <p className={`text-3xl font-bold ${netProfit >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
-                {netProfit.toFixed(2)} {t("common.currency")}
+                {formatMoney(netProfit)} {t("common.currency")}
               </p>
               <p className="mt-2 text-xs text-muted-foreground">
                 {totalIncome > 0 ? ((netProfit / totalIncome) * 100).toFixed(1) : 0}% {t("finance.profitMargin")}
@@ -1020,7 +1021,7 @@ export default function Finance() {
                       <td className="p-4 font-medium">{tx.memberName || "-"}</td>
                       <td className="p-4 font-medium">{tx.description}</td>
                       <td className={`p-4 font-bold ${tx.isExpense ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"}`}>
-                        {tx.isExpense ? "-" : "+"}{tx.amount.toFixed(2)} {t("common.currency")}
+                        {tx.isExpense ? "-" : "+"}{formatMoney(tx.amount)} {t("common.currency")}
                       </td>
                       <td className="p-4">
                         <Badge variant={tx.status === 'paid' ? 'default' : tx.status === 'pending' ? 'outline' : 'destructive'}>

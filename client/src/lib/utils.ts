@@ -16,3 +16,16 @@ export function compareVersions(v1: string, v2: string): number {
   }
   return 0;
 }
+
+/** Coerce API decimal strings (PostgreSQL) to a finite number. */
+export function toMoneyNumber(value: unknown, fallback = 0): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+export function formatMoney(value: unknown, decimals = 2): string {
+  if (value === null || value === undefined || value === "") return "-";
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "-";
+  return n.toFixed(decimals);
+}

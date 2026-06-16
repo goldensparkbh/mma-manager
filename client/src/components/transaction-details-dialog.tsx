@@ -4,7 +4,7 @@ import { Sale, Subscription } from "@shared/schema";
 import { ar, enUS } from "date-fns/locale";
 import { safeFormat } from "@/lib/formatDate";
 import { Calendar, CreditCard, Package, User, Hash, Clock, FileText } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { formatMoney } from "@/lib/utils";
 
 interface TransactionDetailsDialogProps {
     transaction: (Sale | Subscription & { type: 'sale' | 'subscription' }) | null;
@@ -89,7 +89,7 @@ export function TransactionDetailsDialog({ transaction, isOpen, onClose }: Trans
                                     {t('common.amount')}
                                 </p>
                                 <p className="text-lg font-bold text-primary">
-                                    {(isSale ? sale!.totalPrice : sub!.amount).toFixed(2)} {t('common.currency')}
+                                    {formatMoney(isSale ? sale!.totalPrice : sub!.amount)} {t('common.currency')}
                                 </p>
                             </div>
                         </div>

@@ -15,6 +15,7 @@ import { useAuth } from "@/lib/auth";
 import { ClubLogo } from "@/lib/clubLogo";
 import { PrimaryButton } from "@/lib/components";
 import { useI18n } from "@/lib/i18n";
+import { isValidMemberFullName } from "@/lib/memberNameValidation";
 import { radius, spacing, useThemeColors, withAlpha } from "@/lib/theme";
 
 type Step = "phone" | "code" | "name";
@@ -76,6 +77,10 @@ export default function LoginScreen() {
     setSubmitting(true);
     setError("");
     try {
+      if (withName && !isValidMemberFullName(withName)) {
+        setError(t("member.nameThreeParts"));
+        return;
+      }
       const result = await loginWithOtp(phone, code, withName);
       if (result.needsName) {
         setStep("name");
@@ -151,12 +156,18 @@ export default function LoginScreen() {
               <Text style={[styles.hint, { color: colors.textMuted }]}>{t("login.registerHint")}</Text>
               <TextInput
                 style={[styles.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }]}
-                placeholder={t("login.fullName")}
+                placeholder={t("member.memberNamePlaceholder")}
                 value={name}
                 onChangeText={setName}
                 placeholderTextColor={colors.textMuted}
               />
-              <PrimaryButton label={t("login.createAccount")} loading={submitting} disabled={!name.trim()} onPress={() => verify(name.trim())} />
+              <Text style={[styles.hint, { color: colors.textMuted }]}>{t("member.memberNameHint")}</Text>
+              <PrimaryButton
+                label={t("login.createAccount")}
+                loading={submitting}
+                disabled={!name.trim() || !isValidMemberFullName(name.trim())}
+                onPress={() => verify(name.trim())}
+              />
             </>
           ) : null}
 

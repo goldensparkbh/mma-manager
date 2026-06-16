@@ -11,6 +11,7 @@ import {
   parseMemberFieldConfig,
 } from "../shared/clubTypes.js";
 import { isFreePlan, parsePlanFeatures } from "../shared/planFeatures.js";
+import { assertMemberFullName } from "../shared/memberNameValidation.js";
 
 async function logActivity(
   tenantId: string,
@@ -2013,6 +2014,7 @@ export async function registerMemberViaPortal(tenantId: string, phone: string, n
     memberId = existingMember.rows[0].id as string;
     memberName = (existingMember.rows[0].name as string) || name;
   } else {
+    assertMemberFullName(name);
     const member = await createMember(tenantId, {
       name: name.trim(),
       phone: normalized,

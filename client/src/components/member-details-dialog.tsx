@@ -34,6 +34,7 @@ import { useClubConfig } from "@/lib/clubConfig";
 import { MemberCustomFields } from "@/components/member-custom-fields";
 import { MemberQrPanel } from "@/components/member-qr-panel";
 import { BranchSelect } from "@/components/branch-select";
+import { formatMoney } from "@/lib/utils";
 
 interface MemberDetailsDialogProps {
     member: Member | null;
@@ -231,7 +232,7 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                 isRealReceipt: !!items[0].receiptId,
                 date: items[0].date,
                 items: items,
-                total: items.reduce((sum, item) => sum + item.totalPrice, 0),
+                total: items.reduce((sum, item) => sum + Number(item.totalPrice || 0), 0),
                 paymentStatus: hasUnpaid ? 'unpaid' : 'paid',
                 paymentMethod: items[0].paymentMethod,
                 memberName: member?.name,
@@ -811,10 +812,7 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
         }
     };
 
-    const formatMoney = (value?: number | null) => {
-        if (value === null || value === undefined || Number.isNaN(value)) return "-";
-        return value.toFixed(3);
-    };
+    const formatMoney3 = (value?: number | string | null) => formatMoney(value, 3);
 
     const decodeSvgDataUrl = (dataUrl: string) => {
         const payload = dataUrl.split(",", 2)[1] || "";
@@ -1083,7 +1081,7 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                 subscription.planName || "-",
                 formatDateSafe(subscription.startDate),
                 formatDateSafe(subscription.endDate),
-                `${formatMoney(subscription.amount)} ${t("common.currency")}`,
+                `${formatMoney3(subscription.amount)} ${t("common.currency")}`,
                 subscription.status || "-",
                 subscription.paymentStatus || "-",
             ]));
@@ -1101,7 +1099,7 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                 formatDateSafe(sale.date, "PPP"),
                 sale.productName || "-",
                 String(sale.quantity || 0),
-                `${formatMoney(sale.totalPrice)} ${t("common.currency")}`,
+                `${formatMoney3(sale.totalPrice)} ${t("common.currency")}`,
                 sale.paymentStatus ? t(`common.${sale.paymentStatus}`) : "-",
             ]));
 
@@ -1113,10 +1111,10 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
         // Financial calculations
         const subPaid = subscriptions.filter(s => s.paymentStatus === "paid").reduce((sum, s) => sum + (s.amount || 0), 0);
         const subUnpaid = subscriptions.filter(s => s.paymentStatus !== "paid").reduce((sum, s) => sum + (s.amount || 0), 0);
-        const salesPaid = sales.filter(s => s.paymentStatus === "paid").reduce((sum, s) => sum + (s.totalPrice || 0), 0);
-        const salesUnpaid = sales.filter(s => s.paymentStatus !== "paid").reduce((sum, s) => sum + (s.totalPrice || 0), 0);
+        const salesPaid = sales.filter(s => s.paymentStatus === "paid").reduce((sum, s) => sum + Number(s.totalPrice || 0), 0);
+        const salesUnpaid = sales.filter(s => s.paymentStatus !== "paid").reduce((sum, s) => sum + Number(s.totalPrice || 0), 0);
 
-        const totalSpent = sales.reduce((sum, sale) => sum + (sale.totalPrice || 0), 0);
+        const totalSpent = sales.reduce((sum, sale) => sum + Number(sale.totalPrice || 0), 0);
         const statusClass = memberSubscriptionStatus || "inactive";
         const logoHtml = logoUrl
             ? `<img src="${logoUrl}" class="logo-img" />`
@@ -1125,7 +1123,7 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
             { label: t('subscriptions.title'), value: String(subscriptions.length), icon: icons.subscriptions },
             { label: t('nav.belts'), value: String(beltsEarned.length), icon: icons.belt },
             { label: t('nav.attendance'), value: String(attendanceRecords.length), icon: icons.attendance },
-            { label: t('sales.total'), value: `${formatMoney(totalSpent)} ${t("common.currency")}`, icon: icons.amount },
+            { label: t('sales.total'), value: `${formatMoney3(totalSpent)} ${t("common.currency")}`, icon: icons.amount },
         ];
         const summaryCardsPlain = summaryCards.map(({ label, value }) => ({ label, value }));
 
@@ -1576,11 +1574,11 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                                     <div class="finance-summary">
                                         <div class="finance-item">
                                             <div class="finance-label">${escapeHtml(t('finance.totalPaid'))}</div>
-                                            <div class="finance-value paid">${formatMoney(subPaid)} ${escapeHtml(t("common.currency"))}</div>
+                                            <div class="finance-value paid">${formatMoney3(subPaid)} ${escapeHtml(t("common.currency"))}</div>
                                         </div>
                                         <div class="finance-item">
                                             <div class="finance-label">${escapeHtml(t('finance.totalUnpaid'))}</div>
-                                            <div class="finance-value unpaid">${formatMoney(subUnpaid)} ${escapeHtml(t("common.currency"))}</div>
+                                            <div class="finance-value unpaid">${formatMoney3(subUnpaid)} ${escapeHtml(t("common.currency"))}</div>
                                         </div>
                                     </div>
                                 </div>
@@ -1602,11 +1600,11 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                                     <div class="finance-summary">
                                         <div class="finance-item">
                                             <div class="finance-label">${escapeHtml(t('finance.totalPaid'))}</div>
-                                            <div class="finance-value paid">${formatMoney(salesPaid)} ${escapeHtml(t("common.currency"))}</div>
+                                            <div class="finance-value paid">${formatMoney3(salesPaid)} ${escapeHtml(t("common.currency"))}</div>
                                         </div>
                                         <div class="finance-item">
                                             <div class="finance-label">${escapeHtml(t('finance.totalUnpaid'))}</div>
-                                            <div class="finance-value unpaid">${formatMoney(salesUnpaid)} ${escapeHtml(t("common.currency"))}</div>
+                                            <div class="finance-value unpaid">${formatMoney3(salesUnpaid)} ${escapeHtml(t("common.currency"))}</div>
                                         </div>
                                     </div>
                                 </div>
@@ -2752,12 +2750,12 @@ export function MemberDetailsDialog({ member, isOpen, onClose, onAddSubscription
                                                                 <span>{item.productName}</span>
                                                                 <Badge variant="outline" className="text-[10px] py-0">x{item.quantity}</Badge>
                                                             </div>
-                                                            <div className="font-mono">{item.totalPrice.toFixed(3)} {t("common.currency")}</div>
+                                                            <div className="font-mono">{formatMoney3(item.totalPrice)} {t("common.currency")}</div>
                                                         </div>
                                                     ))}
                                                     <div className="flex justify-between items-center pt-2 font-bold text-primary border-t border-dashed mt-2">
                                                         <span>{t('store.total')}</span>
-                                                        <span>{receipt.total.toFixed(3)} {t("common.currency")}</span>
+                                                        <span>{formatMoney3(receipt.total)} {t("common.currency")}</span>
                                                     </div>
                                                 </div>
                                             </Card>

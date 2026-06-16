@@ -1,6 +1,7 @@
 import { query } from "./db/index.js";
 import * as data from "./data.js";
 import { addFamilyMember, createFamily } from "./families.js";
+import { assertMemberFullName } from "../shared/memberNameValidation.js";
 
 export type PortalAccountMember = {
   id: string;
@@ -139,6 +140,7 @@ export async function addPortalAccountMember(
 ): Promise<{ id: string; name: string }> {
   const name = input.name?.trim();
   if (!name) throw new Error("Name is required");
+  assertMemberFullName(name);
 
   const familyId = await ensureMemberFamily(tenantId, accountMemberId);
   const phone = accountPhone?.replace(/\s+/g, "") || "";

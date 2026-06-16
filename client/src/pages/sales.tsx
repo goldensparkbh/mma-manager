@@ -24,6 +24,7 @@ import { PERMISSIONS } from "@/lib/permissions";
 import { ReceiptTypeDialog } from "@/components/receipt-type-dialog";
 import { MemberDetailsDialog } from "@/components/member-details-dialog";
 import { WhatsAppTemplateDialog } from "@/components/whatsapp-template-dialog";
+import { formatMoney, toMoneyNumber } from "@/lib/utils";
 
 export default function Sales() {
   const { hasPermission, clubSettings, role } = useAuth();
@@ -169,7 +170,7 @@ export default function Sales() {
   });
 
   const activeSales = filteredSales?.filter((sale) => sale.status !== "cancelled") ?? [];
-  const totalSales = activeSales.reduce((sum, sale) => sum + sale.totalPrice, 0);
+  const totalSales = activeSales.reduce((sum, sale) => sum + toMoneyNumber(sale.totalPrice), 0);
   const totalItems = activeSales.reduce((sum, sale) => sum + sale.quantity, 0);
   const uniqueProducts = new Set(activeSales.map((sale) => sale.productId)).size;
 
@@ -261,7 +262,7 @@ export default function Sales() {
           <div className="space-y-4">
             <div className="space-y-1 text-sm text-muted-foreground">
               <p>{t("sales.product")}: {selectedSale?.productName ?? "-"}</p>
-              <p>{t("sales.total")}: {selectedSale ? selectedSale.totalPrice.toFixed(2) : "-"} {t("common.currency")}</p>
+              <p>{t("sales.total")}: {selectedSale ? formatMoney(selectedSale.totalPrice) : "-"} {t("common.currency")}</p>
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">{t('sales.reason')}</label>
@@ -317,7 +318,7 @@ export default function Sales() {
               <div>
                 <p className="text-sm text-muted-foreground">{t("sales.totalSalesLabel")}</p>
                 <p className="text-2xl font-bold" data-testid="text-total-sales">
-                  {totalSales.toFixed(2)} {t("common.currency")}
+                  {formatMoney(totalSales)} {t("common.currency")}
                 </p>
               </div>
             </div>
@@ -448,8 +449,8 @@ export default function Sales() {
                       <td className="py-3 px-3 text-right">
                         <Badge variant="secondary">{sale.quantity}</Badge>
                       </td>
-                      <td className="py-3 px-3 text-right">{sale.unitPrice.toFixed(2)} {t("common.currency")}</td>
-                      <td className="py-3 px-3 font-medium text-right">{sale.totalPrice.toFixed(2)} {t("common.currency")}</td>
+                      <td className="py-3 px-3 text-right">{formatMoney(sale.unitPrice)} {t("common.currency")}</td>
+                      <td className="py-3 px-3 font-medium text-right">{formatMoney(sale.totalPrice)} {t("common.currency")}</td>
                       <td className="py-3 px-3 text-muted-foreground text-right">{formatDate(sale.date)}</td>
                       <td className="py-3 px-3 text-right">
                         <Badge variant="secondary">
@@ -606,7 +607,7 @@ export default function Sales() {
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">{t("sales.total")}</Label>
-                    <p className="font-medium text-base text-green-600">{selectedTransaction.totalPrice.toFixed(2)} {t("common.currency")}</p>
+                    <p className="font-medium text-base text-green-600">{formatMoney(selectedTransaction.totalPrice)} {t("common.currency")}</p>
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">{t("common.status")}</Label>
